@@ -1,0 +1,168 @@
+[
+  {
+    "name": "com.fasterxml.jackson.databind.ObjectMapper",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name" : "kotlin.internal.jdk8.JDK8PlatformImplementations",
+    "allDeclaredConstructors" : true,
+    "allPublicConstructors" : true,
+    "allDeclaredFields" : true,
+    "allPublicFields" : true,
+    "allDeclaredMethods" : true,
+    "allPublicMethods" : true
+  },
+  {
+    "name": "kotlin.reflect.jvm.internal.ReflectionFactoryImpl",
+    "allDeclaredConstructors":true
+  },
+  {
+    "name": "org.h2.server.TcpServer",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "org.h2.command.Parser",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name":"org.h2.engine.Engine",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.lang.Thread",
+    "methods":[{"name": "getContextClassLoader","parameterTypes": []}]
+  },
+  {
+    "name": "java.nio.ByteBuffer",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.util.Map",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.util.ArrayList",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.util.Iterator",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.util.Properties",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name" : "java.lang.Class",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.lang.String",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.lang.Boolean",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.lang.Long",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "java.lang.Integer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name" : "xy.db.Back",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods" : true
+  },
+  {
+    "name" : "xy.db.XYKit",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods" : true
+  },
+  {
+    "name" : "xy.db.XYSet",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods" : true
+  },
+  {
+    "name" : "xy.db.XYAny",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods" : true
+  },
+  {
+    "name" : "xy.db.IOSet",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods" : true
+  },
+  {
+    "name" : "xy.db.IOAny",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods" : true
+  },
+  {
+    "name" : "co.onmind.AbcBody",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods" : true
+  },
+  {
+    "name" : "co.onmind.AbcAPI",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods" : true
+  },
+  {
+    "name": "co.onmind.AbstractAPI",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "onmindxdb",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  }
+]

@@ -1,0 +1,15 @@
+{
+    "resources": {
+        "includes": [
+            {"pattern": "applicatiom.conf"},
+            {"pattern": "co.onmind/.*"},
+            {"pattern": "META-INF/.*"},
+            {"pattern": "META-INF/services/.*"},
+            {"pattern": "lib/.*"},
+            {"pattern": "org/h2/util/data.zip"},
+            {"pattern": ".*/org/h2/util/data.zip$"},
+            {"pattern": ".*.kotlin_builtins"}
+        ]
+    } 
+}
+  

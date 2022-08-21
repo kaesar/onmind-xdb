@@ -1,32 +1,201 @@
-# OnMind Freeware License Agreement
+                                 Apache License
+                           Version 2.0, January 2004
+                        https://www.apache.org/licenses/
 
-> To downloadable or installables apps (e.g. OnMind-AVE and OnMind-DCE)  
-> Freeware basicly means closed source free software, with private license, without guarantee. Commercial use is too allowed AS IS.  
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 
-> Copyright © 2021 by César Andrés Arcila Buitrago  
-> All rights reserved to César Andrés Arcila Buitrago  
+   1. Definitions.
 
-You should carefully read the following terms and conditions before downloading and installing this software product ("OnMind"). This kind of license just apply to downloadable or installables apps (e.g. OnMind-AVE and OnMind-DCE). By clicking on the "download button or link" and proceeding to download and use the Software, you acknowledge your acceptance of the terms and conditions of this License Agreement ("Agreement"). Clicking on the "download button or link" is a legally valid way to create a binding contract and constitutes your electronic signature of this Agreement.
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
 
-If you do not agree to the terms and conditions of this Agreement, do not download or install the Software.
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
 
-**LICENSE**. Subject to the terms and conditions of this Agreement, "OnMind" grants you a non-exclusive, non-transferable, non-sublicensable license to use the Software solely on your computers or devices to run applications for management, understanding that it installs it locally without being a platform through the Internet (or Cloud). Use of the Software is limited to use in the form of object code only. If you are an organization, then your use of the Software includes use by your Affiliates (as defined below) and will be considered part of "you" and "your organization," subject to all provisions of this Agreement and the following (a) you are responsible for each Affiliate's compliance with this Agreement and will be jointly and severally liable with each Affiliate for any breach of the provisions of this Agreement, and (b) the entity may not use the Software under your license once you cease to be an Affiliate. As used herein, an "Affiliate" means any entity that you control, is controlled by you, or is under your common control, where "control" means ownership of at least 50% of the voting stock of such entity. You may permit your independent contractors and ancillary personnel (collectively "Contractors") to use the Software on your behalf only to the extent necessary to provide services to you, subject to the following: (a) such use is subject to the terms and conditions of this Agreement, (b) you are responsible for the performance of this Agreement by each of your Contractors, and (c) each Contractor must be subject to confidentiality obligations at least as protective of the Software, Documentation and OnMind as those of this Agreement. You may also use documentation that accompanies the Software or that is available on the "OnMind" site https://onmind.co (the "Documentation") solely in connection with your use of the Software.
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
 
-**LIMITATIONS**. You may not access the Software if you are or become a direct competitor of "OnMind" or if it is used to share on a network or install it on a machine exposed in Internet (the Cloud), except with the prior written consent of "OnMind" in a strictly limited manner with expiration. With respect to your use of the Software for Customers as permitted above, you may not provide access to or use of your copies of the Software to a Customer or include the Software as part of a product, service, or other offering you provide. In addition, you must verify that Customer has its own copy of the Software. You acknowledge and agree that the Software and all Documentation and information contained therein represent the confidential and proprietary information of OnMind. You agree to keep such information confidential by exercising reasonable care to prevent its disclosure and not to disclose or use it for any purpose other than as expressly authorized by this Agreement.
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
 
-**RESERVATION OF RIGHTS**. Except for the limited rights expressly granted in this Agreement, "OnMind" reserves all right, title and interest in and to the Software, including all respective intellectual property rights. No rights are granted to you hereunder except as expressly set forth in this Agreement. Without limiting the generality of the foregoing, you may not (a) sublicense or modify the Software, (b) decompile or reverse engineer the Software, (c) remove any proprietary notices from the Software, or (d) attempt to gain unauthorized access to the Software or circumvent any security measures within the Software; and (e) the distribution, copying or public display of the Software is reserved for OnMind author, the OnMind site or site specifically linked for that purpose by the OnMind author.
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
 
-**SUPPORT**. Avoid confusing support with services that occupy or generate personnel activity, in the context of this agreement specifically refers to updates at the will of "OnMind". Support may include new updates or new versions of the Software that "OnMind" generally makes available to its customers; however, the license in this Agreement does not apply to those versions of the Software for which "OnMind" charges a license fee. In addition, "OnMind" may exclude certain versions or versions that contain different functionality or are not offered to the entire "OnMind" customer base as a whole, or versions that are licensed with additional or new license terms to meet the additional commercial or legal requirements of "OnMind. "OnMind" may discontinue support for the Software at any time.
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
 
-**SUGGESTIONS**. You grant "OnMind" a worldwide, irrevocable, perpetual, royalty-free license to use and incorporate into the Software any suggestions, requests for improvement, recommendations, or other information provided by you, including your Registered User, in connection with the Software ("Information"). "OnMind" may use and incorporate any Comments without any compensation or acknowledgement to you.
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
 
-**TERMINATION**. Your license to the Software and Documentation terminates immediately upon the earlier of the following: (a) when you stop using the Software, or (b) when you breach any of the terms contained in this Agreement. In the event of termination for any reason, you must immediately destroy all copies of the Software and any related Documentation in your possession or control. However, you may retain the data you generated using the Software if it is due to local storage.
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
 
-**DISCLAIMER**. The Software is provided free of charge on an "as is" basis. ACCORDINGLY, ONMIND NEITHER OFFERS NOR DISCLAIMS ALL WARRANTIES AND CONDITIONS OF ANY KIND, WHETHER EXPRESS, IMPLIED, STATUTORY OR OTHERWISE, INCLUDING WARRANTIES OF MERCHANTABILITY, NON-INFRINGEMENT, SATISFACTORY QUALITY OR FITNESS FOR A PARTICULAR PURPOSE, TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW. Without limiting the foregoing, you agree that "OnMind" and its officers, directors, agents and employees shall not be liable for any errors or omissions in the output of the Software, including, without limitation, the quality or accuracy of any screen or report, in the transmission and receipt of data or in the processing of such data by the Software.
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
 
-**LIMITATION OF LIABILITY**. In no event shall "OnMind" or its officers, directors, agents and employees be liable to you under this Agreement or otherwise, regardless of the form of claim or action, in an amount exceeding $50. In no event shall "OnMind" or its officers, directors, agents and employees be liable to you for any consequential, exemplary, incidental or indirect damages or costs (including legal fees and expenses) or loss of goodwill or profits in connection with the Software or this Agreement, even if "OnMind" has been advised of the possibility of such damages or costs. Some jurisdictions do not allow the limitation or exclusion of liability for incidental or consequential damages, so this paragraph may not apply to you.
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
 
-**MISCELLANEOUS** The parties are independent contractors. This Agreement does not create a partnership, franchise, agency, fiduciary or employment relationship between the parties. There are no third party beneficiaries of this Agreement. No waiver or modification of any provision of this Agreement shall be effective unless in writing, referred to in this Agreement and signed by authorized representatives of the parties. No failure or delay by either party in the exercise of any right, power or remedy constitutes a waiver of that right, power or remedy. The waiver by either party of performance of any covenant or breach shall not be construed as a waiver of any subsequent breach or any other covenant. If any provision of this Agreement requires judicial interpretation, this Agreement shall not be construed more strictly against one party than the other. If any provision of this Agreement is declared invalid by a court of competent jurisdiction, the provision shall be ineffective only to the extent of the invalidity, so that the remainder of that provision and all other provisions of this Agreement shall continue in full force and effect. You may not assign, sublicense or transfer this Agreement without the prior written consent of "OnMind. Any attempt by you to sublicense, assign, or transfer any right, obligation, or obligation contained herein is null and void. "OnMind" may, in its sole discretion, seek preliminary injunctive relief in any court of competent jurisdiction as necessary to enforce its rights in your intellectual property.
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
 
-> <https://onmind.co>  
-> Last Updated: 13-11-2021
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "{}"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright {yyyy} {name of copyright owner}
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       https://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
