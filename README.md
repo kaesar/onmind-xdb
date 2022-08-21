@@ -44,5 +44,5 @@ La ventana de la aplicación se oculta como un servicio y puede buscarse en la b
 ---
 
 > https://onmind.co  
-> Previous Update: 28-11-2021  
+> Previous Update: 30-11-2021  
 > Last Update: 20-08-2022
