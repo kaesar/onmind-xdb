@@ -1,0 +1,12 @@
+{
+    "resources": {
+        "includes": [
+            {"pattern": "applicatiom.conf"},
+            {"pattern": "co.onmind/.*"},
+            {"pattern": "META-INF/services/java.sql.Driver"},
+            {"pattern": "META-INF/.*"},
+            {"pattern": "org/h2/util/data.zip"}
+          ]
+    } 
+  }
+  

@@ -50,7 +50,7 @@ object onmindxdb {
         )))
 
         println("[  OK!  ] => http://127.0.0.1:${port}")
-        val serve = app.asServer(Netty(port)).start()
+        val serve = app.asServer(Netty(port)).start()  // SunHttp is an alternative
         serve.block()
     }
 }

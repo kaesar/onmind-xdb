@@ -3,12 +3,12 @@ import org.gradle.jvm.tasks.Jar
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 val javaVersion = "11"
-val kotlinVersion = "1.7.10"
-val http4kVersion = "4.27.4.0"
+val kotlinVersion = "1.7.22"
+val http4kVersion = "4.32.3.0"
 val jacksonVersion = "2.13.3"
 
 plugins {
-    kotlin("jvm") version "1.7.10"
+    kotlin("jvm") version "1.7.22"
     id("com.github.johnrengelman.shadow") version "6.1.0"
     //id("maven")
     application
@@ -32,7 +32,8 @@ dependencies {
     //implementation("org.http4k:http4k-multipart:$http4kVersion")
     //implementation("org.http4k:http4k-template-handlebars:$http4kVersion")
     //implementation("org.http4k:http4k-client-apache:$http4kVersion")
-    implementation("org.xerial:sqlite-jdbc:3.36.0.3")
+    //implementation("org.duckdb:duckdb_jdbc:0.6.1")
+    //implementation("org.xerial:sqlite-jdbc:3.40.0.0")
     implementation("com.h2database:h2:2.1.214")
     implementation("commons-dbutils:commons-dbutils:1.7")
     implementation("org.slf4j:slf4j-simple:1.7.36")

@@ -1,0 +1,141 @@
+[
+  {
+    "name": "com.fasterxml.jackson.databind.ObjectMapper",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "[Lorg.eclipse.jetty.servlet.ServletMapping;",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "io.agroal.api.AgroalDataSource",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "io.agroal.pool.ConnectionHandler[]",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "kotlin.reflect.jvm.internal.ReflectionFactoryImpl",
+    "allDeclaredConstructors":true
+  },
+  {
+    "name": "kotlin.KotlinVersion",
+    "allPublicMethods": true,
+    "allDeclaredFields":true,
+    "allDeclaredMethods":true,
+    "allDeclaredConstructors":true
+  },
+  {
+    "name": "kotlin.KotlinVersion[]"
+  },
+  {
+    "name": "kotlin.KotlinVersion$Companion"
+  },
+  {
+    "name": "kotlin.KotlinVersion$Companion[]"
+  },
+  {
+    "name": "org.h2.server.TcpServer",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "org.h2.command.Parser",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.lang.Thread",
+    "methods":[{"name": "getContextClassLoader","parameterTypes": []}]
+  },
+  {
+    "name": "java.util.HashMap",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.util.ArrayList",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.util.Iterator",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.util.Properties",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name" : "java.lang.Class",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.lang.String",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.lang.Boolean",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.lang.Long",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "java.lang.Integer",
+    "allDeclaredConstructors": true
+  },
+  {
+    "name": "co.onmind.AbstractAPI",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "XDBKt",
+    "allDeclaredFields": true,
+    "allPublicFields": true,
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  }
+]

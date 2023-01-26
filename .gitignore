@@ -1,5 +1,13 @@
 .DS_Store
+._.DS_Store
+.gradle/
 bin/
 build/
+old-dce/
+old-http4k/
 gradle*
 make-native*
+*build_artifacts.txt
+*.dll
+onmindxdb*
+onmind-xdb-*

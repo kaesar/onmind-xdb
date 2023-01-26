@@ -106,6 +106,10 @@ object Rote {
             //driver = "org.sqlite.JDBC"
             //boxUrl = "jdbc:sqlite:${path}xybox.db"
         //}
+        //if (driver == "?") {  // DuckDB (local/embedded)
+        //    driver = "org.duckdb.DuckDBDriver"
+        //    boxUrl = "jdbc:duckdb:"
+        //}
 
         print("Opening file/connection ... ")
         val box: Connection?
