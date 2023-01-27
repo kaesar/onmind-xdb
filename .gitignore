@@ -3,8 +3,8 @@
 .gradle/
 bin/
 build/
-old-dce/
 old-http4k/
+old-dce/
 gradle*
 make-native*
 *build_artifacts.txt
