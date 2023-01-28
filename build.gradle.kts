@@ -2,22 +2,21 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.gradle.jvm.tasks.Jar
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
-val javaVersion = "11"
-val kotlinVersion = "1.7.22"
-val http4kVersion = "4.32.3.0"
+val javaVersion = "17"
+val kotlinVersion = "1.8.0"
+val http4kVersion = "4.37.0.0"
 val jacksonVersion = "2.13.3"
 
 plugins {
-    kotlin("jvm") version "1.7.22"
-    id("com.github.johnrengelman.shadow") version "6.1.0"
-    //id("maven")
+    kotlin("jvm") version "1.8.0"
+    id("com.github.johnrengelman.shadow") version "7.1.2"
     application
 }
 
 repositories {
     mavenCentral()
     maven {
-        setUrl("http://repo.maven.apache.org/maven2")
+        setUrl("https://repo.maven.apache.org/maven2")
     }
 }
 
@@ -46,7 +45,7 @@ dependencies {
 }
 
 group = "co.onmind"
-version = "1.0.0-final2022"
+version = "1.0.0-final2023"
 
 application {
     mainClassName = "onmindxdb"

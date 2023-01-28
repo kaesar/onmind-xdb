@@ -4,10 +4,6 @@ package xy.db
  * Created by Cesar Andres Arcila Buitrago from Colombia on 16/12/15.
  */
 
-import org.apache.commons.dbutils.DbUtils
-import org.apache.commons.dbutils.QueryRunner
-import java.time.LocalDateTime
-
 class DBKit(): AbstractDB {
 
     private val kind = "kit"

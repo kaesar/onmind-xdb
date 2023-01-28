@@ -271,6 +271,9 @@ class AbcAPI(): AbstractAPI() {
             else if (choice == "drop") {
                 return drop(req)
             }
+            //else if (choice == "signup") {
+            //    return signup(req)
+            //}
             else if (choice == "whoami") {
                 return whoami(req)
             }
@@ -359,18 +362,8 @@ class AbcAPI(): AbstractAPI() {
                 VALUES ('$id','$scheme','$code','${name.uppercase()}','$title','$hint',$level,'01','+','$scheme','$kit12','$icon',5,'$user','$user','$kiton','$kiton')
                 """.trimIndent()
 
-            //xdb.forUpdate(query)
-
-            //now = LocalDateTime.now()
-            //val idFit = putID(1, user, now)
-            //kiton = now.toString().replace("T"," ")
-            //query = """
-            //    INSERT INTO xyfit (id,fitxy,fit01,fit02,fit03,fit07,fit09,fit16,fit17,fit18,fitof,fitby,fiton,fitat)
-            //    VALUES ('$idFit','$code','$kit12','0','$repo',5,'$kind','IO','$spec','*','$user','$user','$kiton','$kiton')
-            //    """.trimIndent()
-
             val dbKit = DBKit()
-            val xyKit = XYKit(id,scheme,code,name.uppercase(),title,hint, null,null,level,"01","+",null,scheme,kit12,null,icon,null,null,5,null,user,user,kiton,kiton)
+            val xyKit = XYKit(id,scheme,code,name.uppercase(),title,hint,null,null,level,"01","+",null,scheme,kit12,null,icon,null,null,5,null,user,user,kiton,kiton)
             val map = dbKit.mapValues(xyKit)
             query = dbKit.getInsert(map as MutableMap<String, Any?>)
             val rowCount = xdb.forUpdate(query)
@@ -423,9 +416,6 @@ class AbcAPI(): AbstractAPI() {
         else if (listOf("ONE","KEY","YOU","GET","SET","TOP","ASK","PUT","SUM","ADD","LAY","ANY").indexOf(kind) < 0) {
             return sendError("The archetype or object class is not recognized: $kind")
         }
-        //if (listOf("BOX","DUO").indexOf(repo) < 0) {
-        //    return sendError("The repository is not recognized: $repo")
-        //}
         else if (repo != "BOX" && listOf("ONE","KEY","YOU").indexOf(kind) > -1) {
             return sendError("The archetype or object class does not correspond to the repository: $kind ~> $repo")
         }
@@ -451,6 +441,86 @@ class AbcAPI(): AbstractAPI() {
             return sendError(sqle.message ?: "ERROR")
         }
     }
+
+    /*fun signup(req: Request): Response {
+        val body: AbcBody = mapper.readValue(req.bodyString(), AbcBody::class.java)
+        val from = body.from
+        val name = body.some
+        var scheme = body.with ?: "USER"
+        val title = body.show ?: name?.uppercase()
+        var how = body.how
+        val spec = body.puts ?: "{}"
+        var cast = body.cast
+        var size = body.size
+        val call = body.call
+        val keys = body.keys
+        val user = body.user
+        val auth = body.auth
+        val pin = body.pin
+        val hint = body.hint ?: ""
+        val eval = body.level
+        val level: Int = if (eval.isNullOrEmpty() || eval == "null") 90 else eval.toInt()
+        val kind = if (from != "xyany") from.substring(2..4) else "ANY"
+        val repo = if (from.substring(0..1) == "xy") "BOX" else "DUO"
+        val icon = body.icon ?: "table"
+
+        if (!pin.isNullOrEmpty()) scheme = "USER"
+        //val ok = ctx.queryParam("ok") ?: body.get("ok")?.toString() ?: "false"
+        //if (pin.isNullOrEmpty()) {
+        //    return sendError("Falta nomenclatura de identificacion privada")
+        //}
+        if (onmindxdb.os.contains("inux")) {  // Linux
+            return sendError("This system is for production and you dont have this priviledge")
+        }
+        if (scheme.isEmpty()) {
+            return sendError("The scheme is required")
+        }
+        else if (listOf("USER","ROLE").indexOf(scheme) < 0) {
+            return sendError("The scheme is not recognized: $scheme")
+        }
+        if (name.isNullOrEmpty()) {
+            return sendError("The internal code or name is required")
+        }
+        if (user.isNullOrEmpty()) {
+            return sendError("The user is required")
+        }
+        else if (listOf("ONE","KEY","YOU","GET","SET","TOP","ASK","PUT","SUM","ADD","LAY","ANY").indexOf(kind) < 0) {
+            return sendError("The archetype or object class is not recognized: $kind")
+        }
+        else if (repo != "BOX" && listOf("ONE","KEY","YOU").indexOf(kind) > -1) {
+            return sendError("The archetype or object class does not correspond to the repository: $kind ~> $repo")
+        }
+
+        val code = "${name.uppercase()}.${scheme.uppercase()}"
+        try {
+            var now = LocalDateTime.now()
+            val id = putID(1, user, now)
+            var keyon: String? = now.toString()  //.replace("T"," ")
+
+            var query = """
+                INSERT INTO xykey (id,keyxy,key01,key02,key03,key07,key14,keyon,keyat)
+                VALUES ('$id','$scheme','$code','${name.uppercase()}','$user',$level,'EN','$keyon','$keyon')
+                """.trimIndent()
+
+            val dbKey = DBKey()
+            val xyKey = XYKey(id,scheme,null,code,name.uppercase(),user,null,null,null,level,null,null,null,null,null,null,"EN",null,null,null,"OK",null,null,null,null,null,null,null,null,null,keyon,keyon)
+            val map = dbKey.mapValues(xyKey)
+            query = dbKey.getInsert(map as MutableMap<String, Any?>)
+            val rowCount = xdb.forUpdate(query)
+
+            query = "SELECT * FROM xykey WHERE id='$id'"
+            val rows = xdb.forQuery(query)
+            val row = rows?.get(0) ?: mutableMapOf()
+            xdb.savePointKey(row)
+            return sendSuccess(row)
+        }
+        catch (sqle: SQLException) {
+            if (sqle.message!!.uppercase().contains("KIT01"))
+                return sendError("Already exists the object: $code")
+            else
+                return sendError(sqle.message ?: "ERROR")
+        }
+    }*/
 
     private fun whoami(ctx: Request): Response {  // For Windows
         //if (onmindxdb.os.contains("inux")) {  // Linux

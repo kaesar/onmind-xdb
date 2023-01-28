@@ -1,7 +1,6 @@
 .DS_Store
 ._.DS_Store
 .gradle
-.vscode
 bin/
 build/
 old-http4k.zip

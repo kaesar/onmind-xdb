@@ -1,14 +1,12 @@
 package xy.db
 
 import org.h2.mvstore.*;
-//import org.apache.commons.dbutils.DbUtils
 import org.apache.commons.dbutils.QueryRunner
 import org.apache.commons.dbutils.handlers.MapListHandler
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.sql.Connection
 import java.sql.SQLException
 import java.text.DecimalFormat
-import xy.db.*
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 21/08/16.
@@ -59,18 +57,19 @@ class RDB() {
                     insert = DBKit().sqlInsert
                     values = DBKit().values(row)
                 }
-                //else if (y.contains("~set~")) {
-                //    val row = mapper.readValue(x, XYSet::class.java)
-                //    insert = DBSet().sqlInsert
-                    //if (db != "box") insert = insert?.replace("INTO xyset", "INTO xzset")
-                //    values = DBSet().values(row)
-                //}
+                else if (y.contains("~key~")) {
+                    val row = mapper.readValue(x, XYKey::class.java)
+                    insert = DBKey().sqlInsert
+                    values = DBKey().values(row)
+                }
+                else if (y.contains("~set~")) {
+                    val row = mapper.readValue(x, XYSet::class.java)
+                    insert = DBSet().sqlInsert
+                    values = DBSet().values(row)
+                }
                 else if (y.contains("~any~")) {
-                    //insert = DBAny.sqlInsert
-                    //values = DBAny.values(x)
                     val row = mapper.readValue(x, XYAny::class.java)
                     insert = DBAny().sqlInsert
-                    //if (db != "box") insert = insert?.replace("INTO xyany", "INTO xzany")
                     values = DBAny().values(row)
                 }
 
@@ -100,6 +99,7 @@ class RDB() {
             store?.close()
         }
     }
+
     fun savePointKit(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
         var store: MVStore? = null
         val mapper = jacksonObjectMapper()
@@ -138,6 +138,123 @@ class RDB() {
                 mvMap.remove("${row.id}~kit~box")
             mvMap.put("${row.id}~kit~box", jsonValue)
             //mvMap.put("${row.id}~kit~box", row)
+            store?.commit()
+        }
+        catch (e: Exception) {
+            e.printStackTrace()
+        }
+        finally {
+            //println("store unsave => ${store?.hasUnsavedChanges()}")
+            store?.close()
+        }
+    }
+
+    fun savePointKey(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
+        var store: MVStore? = null
+        val mapper = jacksonObjectMapper()
+        try {
+            store = MVStore.open(onmindxdb.dbfile)
+            val mvMap: MVMap<String, String> = store.openMap("xybox")
+            val row = XYKey(
+                map["id"] as String,
+                map["keyxy"] as String,
+                map["key00"] as String?,
+                map["key01"] as String?,
+                map["key02"] as String?,
+                map["key03"] as String?,
+                map["key04"] as String?,
+                map["key05"] as String?,
+                map["key06"] as String?,
+                map["key07"] as Int,
+                map["key08"] as String?,
+                map["key09"] as String?,
+                map["key10"] as String?,
+                map["key11"] as String?,
+                map["key12"] as String?,
+                map["key13"] as String?,
+                map["key14"] as String,
+                map["key15"] as String?,
+                map["key16"] as String?,
+                map["key17"] as String?,
+                map["key18"] as String,
+                map["key19"] as String?,
+                map["key20"] as String?,
+                map["key21"] as String?,
+                map["key22"] as String?,
+                map["key23"] as String?,
+                map["keydo"] as String?,
+                map["keyto"] as String?,
+                map["keyof"] as String?,
+                map["keyby"] as String?,
+                map["keyon"] as String?,
+                map["keyat"] as String?
+            )
+
+            val jsonValue = mapper.writeValueAsString(row)
+            if (forceDelete)
+                mvMap.remove("${row.id}~key~box")
+            mvMap.put("${row.id}~key~box", jsonValue)
+            //mvMap.put("${row.id}~key~box", row)
+            store?.commit()
+        }
+        catch (e: Exception) {
+            e.printStackTrace()
+        }
+        finally {
+            //println("store unsave => ${store?.hasUnsavedChanges()}")
+            store?.close()
+        }
+    }
+
+    fun savePointSet(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
+        var store: MVStore? = null
+        val mapper = jacksonObjectMapper()
+        try {
+            store = MVStore.open(onmindxdb.dbfile)
+            val mvMap: MVMap<String, String> = store.openMap("xybox")
+            val row = XYSet(
+                map["id"] as String,
+                map["setxy"] as String,
+                map["set00"] as String?,
+                map["set01"] as String?,
+                map["set02"] as String?,
+                map["set03"] as String?,
+                map["set04"] as String?,
+                map["set05"] as String?,
+                map["set06"] as String?,
+                map["set07"] as Int,
+                map["set08"] as String,
+                map["set09"] as String,
+                map["set10"] as String?,
+                map["set11"] as String?,
+                map["set12"] as String?,
+                map["set13"] as String?,
+                map["set14"] as Double?,
+                map["set15"] as Int?,
+                map["set16"] as Int?,
+                map["set17"] as String?,
+                map["set18"] as String,
+                map["set19"] as String?,
+                map["set20"] as String?,
+                map["set21"] as String?,
+                map["set22"] as String?,
+                map["seto3"] as String?,
+                map["seto4"] as String?,
+                map["setdo"] as String?,
+                map["setas"] as String?,
+                map["setif"] as Int,
+                map["setto"] as String?,
+                map["setof"] as String?,
+                map["setby"] as String?,
+                map["seton"] as String?,
+                map["setat"] as String?
+            )
+
+            val jsonValue = mapper.writeValueAsString(row)
+            if (forceDelete)
+                mvMap.remove("${row.id}~set~box")
+            mvMap.put("${row.id}~set~box", jsonValue)
+            //mvMap.put("${row.id}~set~box", row)
             store?.commit()
         }
         catch (e: Exception) {

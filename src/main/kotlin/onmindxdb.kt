@@ -41,7 +41,7 @@ object onmindxdb {
         print("Exposing api/db service ... ")
         val app = routes(
             "/" bind Method.GET to { _: Request -> Response(OK).body(Rote.index()) },
-            "/abc" bind Method.GET to abc.useControl(),  //Response(OK).body("pong!")
+            "/abc" bind Method.GET to abc.useControl(),
             "/abc" bind Method.POST to abc.useControl()
         ).withFilter(Cors(CorsPolicy(
             OriginPolicy.AllowAll(),  // .AnyOf(listOf("*"))
