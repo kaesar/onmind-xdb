@@ -54,13 +54,11 @@ object Rote {
         
         return file
     }
-
     fun getConfig(file: String) = Properties().apply {
         FileInputStream(file).use { fis ->
             load(fis)
         }
     }
-
     fun getDB(config: Properties): Connection {
         port = (config.getProperty("dai.port") ?: "9000").toInt()
         val host = config.getProperty("dai.host")
@@ -93,22 +91,10 @@ object Rote {
         if (os.contains("Windows"))
             path = path.replace("/", "\\")
 
-        //if (driver == "0") {  // H2 (embedded)
+        //if (driver == "0" || driver == "org.h2.Driver") {  // H2 (in-memory-embedded)
             embedded = true
             driver = "org.h2.Driver"
             boxUrl = "jdbc:h2:mem:xybox;DATABASE_TO_LOWER=TRUE;IGNORECASE=TRUE"
-        //} else
-        //if (driver == "10") {  // MonetDB/e (local/embedded)
-        //    driver = "org.monetdb.monetdbe.MonetDriver"
-        //    boxUrl = "jdbc:monetdb:file:${path}xybox"
-        //}
-        //if (driver == "5") {  // SQLite (local/embedded)
-            //driver = "org.sqlite.JDBC"
-            //boxUrl = "jdbc:sqlite:${path}xybox.db"
-        //}
-        //if (driver == "?") {  // DuckDB (local/embedded)
-        //    driver = "org.duckdb.DuckDBDriver"
-        //    boxUrl = "jdbc:duckdb:"
         //}
 
         print("Opening file/connection ... ")

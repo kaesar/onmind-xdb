@@ -38,11 +38,23 @@ class RDB() {
         val boxDB = onmindxdb.dbc
         //var i = 0
         try {
-            print("Loading data in memory .... ")  // touchScheme(onmindxdb.dbc)
             val startTime = System.currentTimeMillis()
-            qr.update(onmindxdb.dbc,DBKit().tableDDL("box"))
-            qr.update(onmindxdb.dbc,DBSet().tableDDL("box"))
-            qr.update(onmindxdb.dbc,DBAny().tableDDL("box"))
+            try {
+                qr.update(onmindxdb.dbc,DBKit().tableDDL("box"))
+                qr.update(onmindxdb.dbc,DBKey().tableDDL("box"))
+                qr.update(onmindxdb.dbc,DBSet().tableDDL("box"))
+                qr.update(onmindxdb.dbc,DBAny().tableDDL("box"))
+                print("Loading data in memory .... ")
+            }
+            catch (sqle: SQLException) {
+                if (sqle.errorCode == 42101 || sqle.sqlState == "42S01") {  // Already
+                    print("Loading data from file .... ")
+                    lapsed(startTime)
+                    return
+                }
+                else
+                    print("Loading data in memory .... ")
+            }
 
             store = MVStore.open(onmindxdb.dbfile)
             val mvMap: MVMap<String, String> = store.openMap("xybox")
@@ -85,11 +97,7 @@ class RDB() {
                 }
             }
 
-            val endTime = System.currentTimeMillis()
-            val formatter = DecimalFormat("#0.000")
-            val totalTime = formatter.format((endTime - startTime) / 1000.0)
-            println("[  OK!  ] => $totalTime seconds")
-
+            lapsed(startTime)
         }
         catch (e: Exception) {
             e.printStackTrace()
@@ -98,6 +106,13 @@ class RDB() {
             //println("store upload => $i")
             store?.close()
         }
+    }
+
+    private fun lapsed(startTime: Long) {
+        val endTime = System.currentTimeMillis()
+        val formatter = DecimalFormat("#0.000")
+        val totalTime = formatter.format((endTime - startTime) / 1000.0)
+        println("[  OK!  ] => $totalTime seconds")
     }
 
     fun savePointKit(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
