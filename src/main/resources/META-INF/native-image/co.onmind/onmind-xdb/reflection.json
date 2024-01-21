@@ -41,6 +41,13 @@
     "allPublicMethods": true
   },
   {
+    "name":"org.h2.fulltext.FullTextLucene",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
     "name": "java.lang.Thread",
     "methods":[{"name": "getContextClassLoader","parameterTypes": []}]
   },
@@ -109,50 +116,70 @@
     "allDeclaredConstructors": true
   },
   {
-    "name" : "xy.db.Back",
+    "name" : "co.onmind.xy.XYKit",
     "allDeclaredConstructors": true,
     "allDeclaredMethods" : true
   },
   {
-    "name" : "xy.db.XYKit",
+    "name" : "co.onmind.xy.XYSet",
     "allDeclaredConstructors": true,
     "allDeclaredMethods" : true
   },
   {
-    "name" : "xy.db.XYSet",
+    "name" : "co.onmind.xy.XYAny",
     "allDeclaredConstructors": true,
     "allDeclaredMethods" : true
   },
   {
-    "name" : "xy.db.XYAny",
+    "name" : "co.onmind.xy.XYDoc",
     "allDeclaredConstructors": true,
     "allDeclaredMethods" : true
   },
   {
-    "name" : "xy.db.IOSet",
+    "name" : "co.onmind.io.IOSet",
     "allDeclaredConstructors": true,
     "allDeclaredMethods" : true
   },
   {
-    "name" : "xy.db.IOAny",
+    "name" : "co.onmind.io.IOAny",
     "allDeclaredConstructors": true,
     "allDeclaredMethods" : true
   },
   {
-    "name" : "co.onmind.AbcBody",
+    "name" : "co.onmind.io.IODoc",
     "allDeclaredConstructors": true,
     "allDeclaredMethods" : true
   },
   {
-    "name" : "co.onmind.AbcAPI",
+    "name" : "co.onmind.io.AbcBack",
     "allDeclaredConstructors": true,
     "allDeclaredMethods" : true
   },
   {
-    "name": "co.onmind.AbstractAPI",
+    "name" : "co.onmind.io.AbcBody",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods" : true
+  },
+  {
+    "name" : "co.onmind.io.AbcPair",
+    "allDeclaredConstructors": true,
+    "allDeclaredMethods" : true
+  },
+  {
+    "name" : "co.onmind.api.AbcAPI",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
     "allDeclaredFields": true,
     "allPublicFields": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "co.onmind.trait.AbstractAPI",
     "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredFields": true,
+    "allPublicFields": true,
     "allDeclaredMethods": true,
     "allPublicMethods": true
   },

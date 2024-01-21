@@ -1,4 +1,4 @@
-package co.onmind
+package co.onmind.io
 
 data class AbcBody(
     val way: String = "sql",    // sql, mql, abc (abc = mql-like)

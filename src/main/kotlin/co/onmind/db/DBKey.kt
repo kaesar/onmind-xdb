@@ -1,9 +1,11 @@
-package xy.db
+package co.onmind.db
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 21/12/15.
  */
 
+import co.onmind.trait.AbstractDB
+import co.onmind.xy.XYKey
 import java.time.LocalDateTime
 
 class DBKey(): AbstractDB {

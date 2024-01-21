@@ -9,16 +9,15 @@ import org.http4k.filter.ServerFilters.Cors
 import org.http4k.routing.bind
 import org.http4k.routing.routes
 //import org.http4k.routing.static
-import org.http4k.server.Netty
+import org.http4k.server.SunHttp
 import org.http4k.server.asServer
 //import org.http4k.routing.ResourceLoader.Companion.Classpath
 //import org.http4k.cloudnative.env.Environment
 //import org.http4k.client.ApacheClient
 import java.sql.Connection
-import co.onmind.Rote
-import co.onmind.AbcAPI
-import org.http4k.filter.AnyOf
-import xy.db.RDB
+import co.onmind.util.Rote
+import co.onmind.api.AbcAPI
+import co.onmind.db.RDB
 
 object onmindxdb {
     val os = System.getProperty("os.name")
@@ -44,13 +43,13 @@ object onmindxdb {
             "/abc" bind Method.GET to abc.useControl(),
             "/abc" bind Method.POST to abc.useControl()
         ).withFilter(Cors(CorsPolicy(
-            OriginPolicy.AllowAll(),  // .AnyOf(listOf("*"))
-            listOf("Content-Type"),
-            Method.values().toList()
+            OriginPolicy.AllowAll(),  // AnyOf(listOf("*"))
+            listOf("Content-Type", "Cache-Control"),
+            listOf(Method.POST, Method.GET)  // Method.values().toList()
         )))
 
         println("[  OK!  ] => http://127.0.0.1:${port}")
-        val serve = app.asServer(Netty(port)).start()  // SunHttp is an alternative
+        val serve = app.asServer(SunHttp(port)).start()  // Netty is an alternative
         serve.block()
     }
 }

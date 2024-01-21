@@ -1,9 +1,12 @@
-package xy.db
+package co.onmind.db
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 6/01/16.
  */
 
+import co.onmind.trait.AbstractDB
+import co.onmind.io.IOSet
+import co.onmind.xy.XYSet
 import java.time.LocalDateTime
 
 class DBSet(duo: Boolean = false): AbstractDB {

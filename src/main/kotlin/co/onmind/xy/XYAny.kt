@@ -1,12 +1,12 @@
-package xy.db
+package co.onmind.xy
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 01/12/19.
  */
 
-data class IOAny (
-     val id: String?
-    ,val anyxy: String?
+data class XYAny (
+     val id: String
+    ,val anyxy: String
     ,val anyis: String?
     ,val any00: String?
     ,val any01: String?
@@ -15,9 +15,9 @@ data class IOAny (
     ,val any04: String?
     ,val any05: String?
     ,val any06: String?
-    ,val any07: Int?
-    ,val any08: String?
-    ,val any09: String?
+    ,val any07: Int = 0
+    ,val any08: String = "1"
+    ,val any09: String = "+"
     ,val any10: String?
     ,val any11: String?
     ,val any12: String?
@@ -73,7 +73,7 @@ data class IOAny (
     ,val anyto: String?
     ,val anyio: String?
     ,val anyas: String?
-    ,val anyif: Int?
+    ,val anyif: Int = 4
     ,val anyof: String?
     ,val anyby: String?
     ,val anyon: String?

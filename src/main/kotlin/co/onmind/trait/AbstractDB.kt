@@ -1,4 +1,4 @@
-package xy.db
+package co.onmind.trait
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 12/12/15.

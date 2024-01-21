@@ -1,11 +1,11 @@
-package xy.db
+package co.onmind.io
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 15/12/15.
  */
 
-data class XYSet (
-     val id: String
+data class IOSet (
+     val id: String?
     ,val setxy: String
     ,val set00: String?
     ,val set01: String?
@@ -14,9 +14,9 @@ data class XYSet (
     ,val set04: String?
     ,val set05: String?
     ,val set06: String?
-    ,val set07: Int = 0
-    ,val set08: String = "1"
-    ,val set09: String = "+"
+    ,val set07: Int?
+    ,val set08: String?
+    ,val set09: String?
     ,val set10: String?
     ,val set11: String?
     ,val set12: String?
@@ -34,7 +34,7 @@ data class XYSet (
     ,val seto4: String?
     ,val setdo: String?
     ,val setas: String?
-    ,val setif: Int = 4
+    ,val setif: Int?
     ,val setto: String?
     ,val setof: String?
     ,val setby: String?

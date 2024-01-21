@@ -1,4 +1,4 @@
-package xy.db
+package co.onmind.io
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 15/12/15.

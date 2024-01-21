@@ -1,9 +1,13 @@
-package xy.db
+package co.onmind.db
 
 import org.h2.mvstore.*;
 import org.apache.commons.dbutils.QueryRunner
 import org.apache.commons.dbutils.handlers.MapListHandler
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import co.onmind.xy.XYAny
+import co.onmind.xy.XYKey
+import co.onmind.xy.XYKit
+import co.onmind.xy.XYSet
 import java.sql.Connection
 import java.sql.SQLException
 import java.text.DecimalFormat
@@ -14,6 +18,13 @@ import java.text.DecimalFormat
  */
 
 class RDB() {
+
+    private fun lapsed(startTime: Long) {
+        val endTime = System.currentTimeMillis()
+        val formatter = DecimalFormat("#0.000")
+        val totalTime = formatter.format((endTime - startTime) / 1000.0)
+        println("[  OK!  ] => $totalTime seconds")
+    }
 
     @Throws(SQLException::class)
     fun forQuery(sql: String): List<MutableMap<String, Any?>>? {
@@ -29,6 +40,24 @@ class RDB() {
         return qr.update(conn, sql)
     }
 
+    fun loadPoint(startTime: Long) {
+        val qr = QueryRunner()
+        try {
+            qr.update(onmindxdb.dbc, DBKit().tableDDL("box"))
+            qr.update(onmindxdb.dbc, DBKey().tableDDL("box"))
+            qr.update(onmindxdb.dbc, DBSet().tableDDL("box"))
+            qr.update(onmindxdb.dbc, DBAny().tableDDL("box"))
+            print("Loading data in memory .... ")
+        } catch (sqle: SQLException) {
+            if (sqle.errorCode == 42101 || sqle.sqlState == "42S01") {  // Already
+                print("Loading data from file .... ")
+                lapsed(startTime)
+                return
+            } else
+                print("Loading data in memory .... ")
+        }
+    }
+
     fun readPoint() {
         var store: MVStore? = null
         val mapper = jacksonObjectMapper()
@@ -36,25 +65,10 @@ class RDB() {
         var insert: String?
         var values: Array<out Any?> = emptyArray()
         val boxDB = onmindxdb.dbc
+        val startTime = System.currentTimeMillis()
         //var i = 0
         try {
-            val startTime = System.currentTimeMillis()
-            try {
-                qr.update(onmindxdb.dbc,DBKit().tableDDL("box"))
-                qr.update(onmindxdb.dbc,DBKey().tableDDL("box"))
-                qr.update(onmindxdb.dbc,DBSet().tableDDL("box"))
-                qr.update(onmindxdb.dbc,DBAny().tableDDL("box"))
-                print("Loading data in memory .... ")
-            }
-            catch (sqle: SQLException) {
-                if (sqle.errorCode == 42101 || sqle.sqlState == "42S01") {  // Already
-                    print("Loading data from file .... ")
-                    lapsed(startTime)
-                    return
-                }
-                else
-                    print("Loading data in memory .... ")
-            }
+            loadPoint(startTime)
 
             store = MVStore.open(onmindxdb.dbfile)
             val mvMap: MVMap<String, String> = store.openMap("xybox")
@@ -106,13 +120,6 @@ class RDB() {
             //println("store upload => $i")
             store?.close()
         }
-    }
-
-    private fun lapsed(startTime: Long) {
-        val endTime = System.currentTimeMillis()
-        val formatter = DecimalFormat("#0.000")
-        val totalTime = formatter.format((endTime - startTime) / 1000.0)
-        println("[  OK!  ] => $totalTime seconds")
     }
 
     fun savePointKit(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
