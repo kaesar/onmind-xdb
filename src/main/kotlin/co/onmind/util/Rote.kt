@@ -15,7 +15,7 @@ import java.lang.Exception
 
 object Rote {
     val os: String = System.getProperty("os.name")
-    val home: String = System.getProperty("user.home")
+    var home: String = System.getProperty("user.home")
     val separator: String = System.getProperty("file.separator")
     val fileName = "onmind.ini"
     var file: String = "..$separator$fileName"
@@ -28,9 +28,12 @@ object Rote {
             // 1. Verificar archivo de configuracion en directorio inmediatamente anterior
             if (!File(file).isFile()) {
                 // 2. Verificar archivo de configuracion en directorio del usuario y subdirectorio 'onmind'
-                file = "$home${separator}onmind${separator}$fileName"
-                if (os.contains("Windows", true))
-                    file = "${home.replace("C:Users","C:\\Users\\")}${separator}${separator}onmind${separator}${separator}$fileName"
+                if (os.contains("Windows", true)) {
+                    home = home.replace("\\Users\\", "/Users/")
+                    file = "$home/onmind/$fileName"
+                }
+                else
+                    file = "$home${separator}onmind${separator}$fileName"
 
                 if (!File(file).isFile()) {
                     // 7. Verificar archivo de configuracion en el mismo directorio
@@ -128,9 +131,9 @@ object Rote {
             path = path.replace("/", "\\")
 
         //if (driver == "0" || driver == "org.h2.Driver") {  // H2 (in-memory-embedded)
-            embedded = true
-            driver = "org.h2.Driver"
-            boxUrl = "jdbc:h2:mem:xybox;DATABASE_TO_LOWER=TRUE;IGNORECASE=TRUE"
+        embedded = true
+        driver = "org.h2.Driver"
+        boxUrl = "jdbc:h2:mem:xybox;DATABASE_TO_LOWER=TRUE;IGNORECASE=TRUE"
         //}
 
         print("Opening file/connection ... ")

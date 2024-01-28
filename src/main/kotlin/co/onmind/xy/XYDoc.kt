@@ -1,5 +1,9 @@
 package co.onmind.xy
 
+/**
+ * Created by Cesar Andres Arcila Buitrago from Colombia on 15/12/15.
+ */
+
 data class XYDoc (
         val id: String
         ,val docxy: String

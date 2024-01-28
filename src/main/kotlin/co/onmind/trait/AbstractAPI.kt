@@ -1,10 +1,10 @@
 package co.onmind.trait
 
-import org.http4k.format.Jackson.auto
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import co.onmind.io.AbcBack
 import org.http4k.core.*
 import org.http4k.lens.BiDiBodyLens
-import co.onmind.io.AbcBack
+import org.http4k.format.Jackson.auto
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.time.LocalDateTime
 import java.util.Random
 import java.util.UUID
@@ -14,13 +14,16 @@ open class AbstractAPI() {
     val mapper = jacksonObjectMapper()
     val apiSend: BiDiBodyLens<AbcBack> = Body.auto<AbcBack>().toLens()
 
-    fun sendSuccess(result: Map<String, Any?>) = apiSend.inject(AbcBack(listOf(result), 1), Response(Status.OK))
-        //Response(Status.OK).header("Content -Type",ContentType.APPLICATION_JSON.value).body(mapper.writeValueAsString(result))
+    fun sendSuccess(result: Map<String, Any?>) =
+        Response(Status.OK)
+            .header("Content-Type",ContentType.APPLICATION_JSON.value)
+            .body(mapper.writeValueAsString(result))
 
-    fun sendSuccess(result: List<MutableMap<String, Any?>>?) = apiSend.inject(AbcBack(result, result?.size), Response(Status.OK))
+    fun sendSuccess(result: List<MutableMap<String, Any?>>?) =
+        apiSend.inject(AbcBack(true, Status.OK.code.toString(), result, result?.size), Response(Status.OK))
 
     fun sendSuccess(message: String) =
-        apiSend.inject(AbcBack(true, "200", message), Response(Status.OK))
+        apiSend.inject(AbcBack(true, Status.OK.code.toString(), message), Response(Status.OK))
 
     fun sendError(message: String) =
         apiSend.inject(AbcBack(false, Status.BAD_REQUEST.code.toString(), message), Response(Status.BAD_REQUEST))

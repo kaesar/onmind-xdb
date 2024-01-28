@@ -12,6 +12,8 @@ import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import org.http4k.core.HttpHandler
 import org.http4k.core.Request
 import org.http4k.core.Response
+import org.http4k.core.ContentType
+import org.http4k.core.Status
 import java.time.LocalDateTime
 import java.lang.IllegalStateException
 import java.sql.SQLException
@@ -33,11 +35,11 @@ class AbcAPI(): AbstractAPI() {
         try {
             body = mapper.readValue(req.bodyString(), AbcBody::class.java)
         }
-        catch (mie: MismatchedInputException) {
-            return if (mie.message!!.contains("AbcBody[\"puts\"]"))
+        catch (jsone: MismatchedInputException) {
+            return if (jsone.message!!.contains("AbcBody[\"puts\"]"))
                 sendError("It seems that 'puts' isn't expressed as valid JSON string. Try to stringify, dumps or pre-request script.")
             else
-                sendError(mie.message ?: "ERROR")
+                sendError(jsone.message ?: "ERROR")
         }
 
         val way = body.way
@@ -208,7 +210,7 @@ class AbcAPI(): AbstractAPI() {
                 val rows = xdb.forQuery(query)
                 val row = rows?.get(0) ?: mutableMapOf()
                 xdb.savePointAny(row)
-                return sendSuccess(row)
+                return sendSuccess(listOf(row))
             }
             else if (choice == "update") {
                 if (with.isNullOrEmpty()) {
@@ -252,7 +254,7 @@ class AbcAPI(): AbstractAPI() {
                 val rows = xdb.forQuery(query)
                 val row = rows?.get(0) ?: mutableMapOf()
                 xdb.savePointAny(row)
-                return sendSuccess(row)
+                return sendSuccess(listOf(row))
             }
             else if (choice == "delete") {
                 if (with.isNullOrEmpty()) {
@@ -266,7 +268,7 @@ class AbcAPI(): AbstractAPI() {
                 query = "DELETE FROM ${from.lowercase()} WHERE id='$with'"
                 val rowCount = xdb.forUpdate(query)
                 xdb.movePoint(with)
-                return sendSuccess(row)
+                return sendSuccess(listOf(row))
             }
             //else if (choice == "idlist") {
             //    if (with.isNullOrEmpty()) {
@@ -277,16 +279,16 @@ class AbcAPI(): AbstractAPI() {
             //    return sendSuccess(rows)
             //}
             else if (choice == "create") {
-                return create(req)
+                return create(body)
             }
             else if (choice == "drop") {
-                return drop(req)
+                return drop(body)
             }
             else if (choice == "define") {
-                return define(req)
+                return define(body)
             }
             else if (choice == "list") {
-                return list(req)
+                return list(body)
             }
             //else if (choice == "signup") {
             //    return signup(req)
@@ -310,10 +312,12 @@ class AbcAPI(): AbstractAPI() {
             else
                 sendError(sqle.message ?: "ERROR")
         }
+        catch (ex: Exception) {
+            return sendError(ex.message ?: "ERROR")
+        }
     }
 
-    fun create(req: Request): Response {
-        val body: AbcBody = mapper.readValue(req.bodyString(), AbcBody::class.java)
+    fun create(body: AbcBody): Response {
         val from = body.from
         val name = body.some
         var scheme = body.with ?: "SHEET"
@@ -399,8 +403,7 @@ class AbcAPI(): AbstractAPI() {
         }
     }
 
-    fun drop(req: Request): Response {  // POST => name, scheme, kind, user
-        val body: AbcBody = mapper.readValue(req.bodyString(), AbcBody::class.java)
+    fun drop(body: AbcBody): Response {  // POST => name, scheme, kind, user
         val from = body.from
         val name = body.some
         var scheme = body.with ?: "SHEET"
@@ -456,8 +459,7 @@ class AbcAPI(): AbstractAPI() {
         }
     }
 
-    fun define(req: Request): Response {
-        val body: AbcBody = mapper.readValue(req.bodyString(), AbcBody::class.java)
+    fun define(body: AbcBody): Response {
         val from = body.from
         val name = body.some
         var scheme = body.with ?: "SHEET"
@@ -500,8 +502,7 @@ class AbcAPI(): AbstractAPI() {
         }
     }
 
-    fun list(req: Request): Response {
-        val body: AbcBody = mapper.readValue(req.bodyString(), AbcBody::class.java)
+    fun list(body: AbcBody): Response {
         var scheme = body.with ?: "SHEET"
         try {
             val query = "SELECT id, kit01 as code, kit02 as name, kit03 as title, kit04 as hint, kit05 as spec FROM xykit WHERE kitxy = '$scheme'"
@@ -559,8 +560,7 @@ class AbcAPI(): AbstractAPI() {
         return result
     }
 
-    /*fun signup(req: Request): Response {
-        val body: AbcBody = mapper.readValue(req.bodyString(), AbcBody::class.java)
+    /*fun signup(body: AbcBody): Response {
         val from = body.from
         val name = body.some
         var scheme = body.with ?: "USER"
@@ -644,7 +644,7 @@ class AbcAPI(): AbstractAPI() {
         //    return sendError("This system is for production and you don't have this priviledge")
         //}
         val result = mapOf(
-            //"success" to true,
+            "ok" to true,
             "user" to System.getProperty("user.name"),
             "home" to System.getProperty("user.home"),
             "os" to System.getProperty("os.name")

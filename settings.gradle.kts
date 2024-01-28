@@ -3,3 +3,10 @@
  */
 
 rootProject.name = "onmind-xdb"
+
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}

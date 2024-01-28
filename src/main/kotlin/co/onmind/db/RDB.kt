@@ -1,13 +1,13 @@
 package co.onmind.db
 
-import org.h2.mvstore.*;
-import org.apache.commons.dbutils.QueryRunner
-import org.apache.commons.dbutils.handlers.MapListHandler
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import co.onmind.xy.XYAny
 import co.onmind.xy.XYKey
 import co.onmind.xy.XYKit
 import co.onmind.xy.XYSet
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import org.h2.mvstore.*;
+import org.apache.commons.dbutils.QueryRunner
+import org.apache.commons.dbutils.handlers.MapListHandler
 import java.sql.Connection
 import java.sql.SQLException
 import java.text.DecimalFormat
@@ -18,6 +18,8 @@ import java.text.DecimalFormat
  */
 
 class RDB() {
+
+    val mapper = jacksonObjectMapper()
 
     private fun lapsed(startTime: Long) {
         val endTime = System.currentTimeMillis()
@@ -60,7 +62,6 @@ class RDB() {
 
     fun readPoint() {
         var store: MVStore? = null
-        val mapper = jacksonObjectMapper()
         val qr = QueryRunner()
         var insert: String?
         var values: Array<out Any?> = emptyArray()
@@ -124,7 +125,6 @@ class RDB() {
 
     fun savePointKit(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
         var store: MVStore? = null
-        val mapper = jacksonObjectMapper()
         try {
             store = MVStore.open(onmindxdb.dbfile)
             val mvMap: MVMap<String, String> = store.openMap("xybox")
@@ -173,7 +173,6 @@ class RDB() {
 
     fun savePointKey(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
         var store: MVStore? = null
-        val mapper = jacksonObjectMapper()
         try {
             store = MVStore.open(onmindxdb.dbfile)
             val mvMap: MVMap<String, String> = store.openMap("xybox")
@@ -230,7 +229,6 @@ class RDB() {
 
     fun savePointSet(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
         var store: MVStore? = null
-        val mapper = jacksonObjectMapper()
         try {
             store = MVStore.open(onmindxdb.dbfile)
             val mvMap: MVMap<String, String> = store.openMap("xybox")
@@ -290,7 +288,6 @@ class RDB() {
 
     fun savePointAny(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
         var store: MVStore? = null
-        val mapper = jacksonObjectMapper()
         try {
             store = MVStore.open(onmindxdb.dbfile)
             val mvMap: MVMap<String, String> = store.openMap("xybox")

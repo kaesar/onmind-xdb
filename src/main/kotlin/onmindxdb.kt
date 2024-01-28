@@ -32,6 +32,9 @@ object onmindxdb {
         val config = Rote.getConfig(filex)  //val resource = Class::class.java.getResource("/application.conf")
         dbc = Rote.getDB(config)
         dbfile = config.getProperty("app.local") + "xy/xybox.xdb"
+        if (Rote.os.contains("Windows"))
+            dbfile = dbfile!!.replace("/", "\\")
+
         val port = Rote.port
         val abc = AbcAPI()
         val xdb = RDB()
