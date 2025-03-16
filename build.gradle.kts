@@ -1,16 +1,16 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.gradle.jvm.tasks.Jar
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 
 val javaVersion = "17"
-val kotlinVersion = "1.9.22"
-val http4kVersion = "5.13.2.0"
-val jacksonVersion = "2.16.1"
+val kotlinVersion = "1.9.25"  //"2.1.10"
+val http4kVersion = "5.47.0.0"  //"6.1.0.1"
+val jacksonVersion = "2.18.3"
 
 plugins {
-    kotlin("jvm") version "1.9.22"
-    id("com.github.johnrengelman.shadow") version "7.1.2"
-	id("org.graalvm.buildtools.native") version "0.9.28"
+    kotlin("jvm") version "1.9.25"  //"2.1.10"
+    id("com.github.johnrengelman.shadow") version "7.1.2"  //"8.1.1"
+    id("org.graalvm.buildtools.native") version "0.9.28"
     application
 }
 
@@ -42,12 +42,12 @@ application {
     mainClass.set("onmindxdb")
 }
 
-val compileKotlin: KotlinCompile by tasks
+val compileKotlin: KotlinJvmCompile by tasks
 compileKotlin.kotlinOptions {
     jvmTarget = javaVersion
 }
 
-val compileTestKotlin: KotlinCompile by tasks
+val compileTestKotlin: KotlinJvmCompile by tasks
 compileTestKotlin.kotlinOptions {
     jvmTarget = javaVersion
 }
