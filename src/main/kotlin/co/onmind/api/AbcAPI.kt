@@ -647,7 +647,8 @@ class AbcAPI(): AbstractAPI() {
             "ok" to true,
             "user" to System.getProperty("user.name"),
             "home" to System.getProperty("user.home"),
-            "os" to System.getProperty("os.name")
+            "os" to System.getProperty("os.name"),
+            "engine" to if (onmindxdb.driver.contains("org.h2")) "default" else "qdb",
         )
         return sendSuccess(result)
     }

@@ -22,7 +22,7 @@ import co.onmind.db.RDB
 object onmindxdb {
     val os = System.getProperty("os.name")
     var dbc: Connection? = null  // AgroalDataSource? = null
-    val driver = "org.h2.Driver"
+    var driver = "org.h2.Driver"
     var dbfile: String? = null
     var queryLimit = 1200
 

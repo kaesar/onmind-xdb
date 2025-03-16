@@ -4,8 +4,9 @@ import co.onmind.xy.XYAny
 import co.onmind.xy.XYKey
 import co.onmind.xy.XYKit
 import co.onmind.xy.XYSet
+import co.onmind.kv.MVStorePlug
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.h2.mvstore.*;
+import org.h2.mvstore.MVMap
 import org.apache.commons.dbutils.QueryRunner
 import org.apache.commons.dbutils.handlers.MapListHandler
 import java.sql.Connection
@@ -19,6 +20,7 @@ import java.text.DecimalFormat
 
 class RDB() {
 
+    val XYBOX = "xybox"
     val mapper = jacksonObjectMapper()
 
     private fun lapsed(startTime: Long) {
@@ -61,7 +63,7 @@ class RDB() {
     }
 
     fun readPoint() {
-        var store: MVStore? = null
+        val store = MVStorePlug()
         val qr = QueryRunner()
         var insert: String?
         var values: Array<out Any?> = emptyArray()
@@ -71,8 +73,8 @@ class RDB() {
         try {
             loadPoint(startTime)
 
-            store = MVStore.open(onmindxdb.dbfile)
-            val mvMap: MVMap<String, String> = store.openMap("xybox")
+            store.init(onmindxdb.dbfile, XYBOX)
+            val mvMap: MVMap<String, String> = store.map()!!
             mvMap.forEach { (key, value) ->
                 val x = value  // mvMap.get(value)
                 val y = key  // mvMap.get(key)
@@ -119,15 +121,15 @@ class RDB() {
         }
         finally {
             //println("store upload => $i")
-            store?.close()
+            store.close()
         }
     }
 
     fun savePointKit(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
-        var store: MVStore? = null
+        val store = MVStorePlug()
         try {
-            store = MVStore.open(onmindxdb.dbfile)
-            val mvMap: MVMap<String, String> = store.openMap("xybox")
+            store.init(onmindxdb.dbfile, XYBOX)
+            val mvMap: MVMap<String, String> = store.map()!!
             val row = XYKit(
                 map["id"] as String,
                 map["kitxy"] as String,
@@ -160,22 +162,22 @@ class RDB() {
                 mvMap.remove("${row.id}~kit~box")
             mvMap.put("${row.id}~kit~box", jsonValue)
             //mvMap.put("${row.id}~kit~box", row)
-            store?.commit()
+            store.commit()
         }
         catch (e: Exception) {
             e.printStackTrace()
         }
         finally {
             //println("store unsave => ${store?.hasUnsavedChanges()}")
-            store?.close()
+            store.close()
         }
     }
 
     fun savePointKey(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
-        var store: MVStore? = null
+        val store = MVStorePlug()
         try {
-            store = MVStore.open(onmindxdb.dbfile)
-            val mvMap: MVMap<String, String> = store.openMap("xybox")
+            store.init(onmindxdb.dbfile, XYBOX)
+            val mvMap: MVMap<String, String> = store.map()!!
             val row = XYKey(
                 map["id"] as String,
                 map["keyxy"] as String,
@@ -216,22 +218,22 @@ class RDB() {
                 mvMap.remove("${row.id}~key~box")
             mvMap.put("${row.id}~key~box", jsonValue)
             //mvMap.put("${row.id}~key~box", row)
-            store?.commit()
+            store.commit()
         }
         catch (e: Exception) {
             e.printStackTrace()
         }
         finally {
             //println("store unsave => ${store?.hasUnsavedChanges()}")
-            store?.close()
+            store.close()
         }
     }
 
     fun savePointSet(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
-        var store: MVStore? = null
+        val store = MVStorePlug()
         try {
-            store = MVStore.open(onmindxdb.dbfile)
-            val mvMap: MVMap<String, String> = store.openMap("xybox")
+            store.init(onmindxdb.dbfile, XYBOX)
+            val mvMap: MVMap<String, String> = store.map()!!
             val row = XYSet(
                 map["id"] as String,
                 map["setxy"] as String,
@@ -275,22 +277,22 @@ class RDB() {
                 mvMap.remove("${row.id}~set~box")
             mvMap.put("${row.id}~set~box", jsonValue)
             //mvMap.put("${row.id}~set~box", row)
-            store?.commit()
+            store.commit()
         }
         catch (e: Exception) {
             e.printStackTrace()
         }
         finally {
             //println("store unsave => ${store?.hasUnsavedChanges()}")
-            store?.close()
+            store.close()
         }
     }
 
     fun savePointAny(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
-        var store: MVStore? = null
+        val store = MVStorePlug()
         try {
-            store = MVStore.open(onmindxdb.dbfile)
-            val mvMap: MVMap<String, String> = store.openMap("xybox")
+            store.init(onmindxdb.dbfile, XYBOX)
+            val mvMap: MVMap<String, String> = store.map()!!
             val row = XYAny(
                 map["id"] as String,
                 map["anyxy"] as String,
@@ -372,30 +374,30 @@ class RDB() {
                 mvMap.remove("${row.id}~any~box")
             mvMap.put("${row.id}~any~box", jsonValue)
             //mvMap.put("${row.id}~any~box", row)
-            store?.commit()
+            store.commit()
         }
         catch (e: Exception) {
             e.printStackTrace()
         }
         finally {
             //println("store unsave => ${store?.hasUnsavedChanges()}")
-            store?.close()
+            store.close()
         }
     }
 
     fun movePoint(id: String, prefix: String = "any") {
-        var store: MVStore? = null
+        val store = MVStorePlug()
         try {
-            store = MVStore.open(onmindxdb.dbfile)
-            val mvMap: MVMap<String, String> = store.openMap("xybox")
+            store.init(onmindxdb.dbfile, XYBOX)
+            val mvMap: MVMap<String, String> = store.map()!!
             mvMap.remove("${id}~${prefix}~box")
-            store?.commit()
+            store.commit()
         }
         catch (e: Exception) {
             e.printStackTrace()
         }
         finally {
-            store?.close()
+            store.close()
         }
     }
 }

@@ -25,7 +25,11 @@ dependencies {
     implementation(kotlin("stdlib-jdk8"))
     implementation("org.http4k:http4k-core:$http4kVersion")
     implementation("org.http4k:http4k-format-jackson:$http4kVersion")
-    implementation("com.h2database:h2:2.2.224")
+    implementation("com.h2database:h2:2.3.232")
+    implementation("org.ehcache:ehcache:3.10.8")
+    //implementation("org.postgresql:postgresql:42.7.5")
+    //implementation("org.duckdb:duckdb_jdbc:1.2.1")  // ENABLE THIS JUST FOR JAR VERSION
+    //implementation("org.herddb:herddb-jdbc:0.29.0")  // ENABLE THIS JUST FOR JAR VERSION
     implementation("commons-dbutils:commons-dbutils:1.8.1")
     implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
@@ -35,7 +39,7 @@ group = "co.onmind"
 version = "1.0.0-final2024"
 
 application {
-    mainClassName = "onmindxdb"
+    mainClass.set("onmindxdb")
 }
 
 val compileKotlin: KotlinCompile by tasks

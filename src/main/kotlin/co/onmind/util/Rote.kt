@@ -4,14 +4,15 @@
 
 package co.onmind.util
 
-import java.util.Properties
+import onmindxdb
 import java.io.File
 import java.io.FileInputStream
-import java.sql.DriverManager
 import java.sql.Connection
+import java.sql.DriverManager
 import java.sql.SQLException
 import java.sql.Timestamp
-import java.lang.Exception
+import java.util.*
+
 
 object Rote {
     val os: String = System.getProperty("os.name")
@@ -60,9 +61,9 @@ object Rote {
 
                             # Parametros de la base de datos
                             db.driver = 0
-                            db.port = 9991
+                            db.port = 8812
                             db.host = localhost
-                            db.name = xe
+                            db.name = qdb
                             db.user = xy
                             db.password = password
                             db.max_pool_size = 10
@@ -130,16 +131,32 @@ object Rote {
         if (os.contains("Windows"))
             path = path.replace("/", "\\")
 
-        //if (driver == "0" || driver == "org.h2.Driver") {  // H2 (in-memory-embedded)
-        embedded = true
-        driver = "org.h2.Driver"
-        boxUrl = "jdbc:h2:mem:xybox;DATABASE_TO_LOWER=TRUE;IGNORECASE=TRUE"
-        //}
+        if /*(driver == "5") {  // HerdDB (local)
+            dbPort = "7000"
+            driver = "herddb.jdbc.Driver"
+            boxUrl = "jdbc:herddb:server:localhost:$dbPort"
+        }
+        else if*/ (driver == "6") {  // DuckDB (in-memory-embedded)
+            embedded = true
+            driver = "org.duckdb.DuckDBDriver"
+            boxUrl = "jdbc:duckdb:"
+        }
+        else {  // H2 (in-memory-embedded) | Driver => 0
+            embedded = true
+            driver = "org.h2.Driver"
+            boxUrl = "jdbc:h2:mem:xybox;DATABASE_TO_LOWER=TRUE;IGNORECASE=TRUE"
+        }
 
         print("Opening file/connection ... ")
+        onmindxdb.driver = driver
         val box: Connection?
         try {
-            box = DriverManager.getConnection(boxUrl, user, password)
+            if (driver.contains("h2"))
+                box = DriverManager.getConnection(boxUrl, user, password)
+            else {
+                Class.forName(driver)
+                box = DriverManager.getConnection(boxUrl)
+            }
             println("[  OK!  ] => ${Timestamp(System.currentTimeMillis())}")
         }
         catch (e: SQLException) {
