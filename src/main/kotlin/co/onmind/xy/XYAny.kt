@@ -2,6 +2,7 @@ package co.onmind.xy
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 01/12/19.
+ * ANY: Data
  */
 
 data class XYAny (

@@ -2,6 +2,7 @@ package co.onmind.db
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 21/12/15.
+ * KEY: Distinguished/Designated (users & roles)
  */
 
 import co.onmind.trait.AbstractDB

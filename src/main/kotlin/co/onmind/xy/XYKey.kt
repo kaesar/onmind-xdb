@@ -2,6 +2,7 @@ package co.onmind.xy
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 15/12/15.
+ * KEY: Distinguished/Designated (users & roles)
  */
 
 data class XYKey (

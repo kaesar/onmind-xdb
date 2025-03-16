@@ -5,6 +5,7 @@ import co.onmind.xy.XYKit
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 16/12/15.
+ * KIT: Definitions (entities)
  */
 
 class DBKit(): AbstractDB {

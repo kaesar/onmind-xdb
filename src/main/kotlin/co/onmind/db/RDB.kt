@@ -1,6 +1,7 @@
 package co.onmind.db
 
 import co.onmind.xy.XYAny
+import co.onmind.xy.XYDoc
 import co.onmind.xy.XYKey
 import co.onmind.xy.XYKit
 import co.onmind.xy.XYSet
@@ -100,6 +101,11 @@ class RDB() {
                     val row = mapper.readValue(x, XYAny::class.java)
                     insert = DBAny().sqlInsert
                     values = DBAny().values(row)
+                }
+                else if (y.contains("~doc~")) {
+                    val row = mapper.readValue(x, XYDoc::class.java)
+                    insert = DBDoc().sqlInsert
+                    values = DBDoc().values(row)
                 }
 
                 if (insert != null) {
@@ -374,6 +380,51 @@ class RDB() {
                 mvMap.remove("${row.id}~any~box")
             mvMap.put("${row.id}~any~box", jsonValue)
             //mvMap.put("${row.id}~any~box", row)
+            store.commit()
+        }
+        catch (e: Exception) {
+            e.printStackTrace()
+        }
+        finally {
+            //println("store unsave => ${store?.hasUnsavedChanges()}")
+            store.close()
+        }
+    }
+
+    fun savePointDoc(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
+        val store = MVStorePlug()
+        try {
+            store.init(onmindxdb.dbfile, XYBOX)
+            val mvMap: MVMap<String, String> = store.map()!!
+            val row = XYDoc(
+                map["id"] as String,
+                map["docxy"] as String,
+                map["doc00"] as String?,
+                map["doc01"] as String?,
+                map["doc02"] as String?,
+                map["doc03"] as String?,
+                map["doc04"] as String?,
+                map["doc05"] as String?,
+                map["doc06"] as String?,
+                map["doc07"] as Int,
+                map["doc08"] as String,
+                map["doc09"] as String,
+                map["doc10"] as String?,
+                map["docdo"] as String?,
+                map["docas"] as String?,
+                map["docif"] as Int,
+                map["docto"] as String?,
+                map["docof"] as String?,
+                map["docby"] as String?,
+                map["docon"] as String?,
+                map["docat"] as String?
+            )
+
+            val jsonValue = mapper.writeValueAsString(row)
+            if (forceDelete)
+                mvMap.remove("${row.id}~doc~box")
+            mvMap.put("${row.id}~doc~box", jsonValue)
+            //mvMap.put("${row.id}~doc~box", row)
             store.commit()
         }
         catch (e: Exception) {

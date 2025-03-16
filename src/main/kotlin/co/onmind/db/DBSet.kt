@@ -2,6 +2,7 @@ package co.onmind.db
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 6/01/16.
+ * SET: Domains (categories/picklists)
  */
 
 import co.onmind.trait.AbstractDB

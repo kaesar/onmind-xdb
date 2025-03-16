@@ -2,6 +2,7 @@ package co.onmind.xy
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 15/12/15.
+ * SET: Domains (categories/picklists)
  */
 
 data class XYSet (

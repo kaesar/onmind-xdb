@@ -59,11 +59,11 @@ object Rote {
                             dai.host = http://localhost
                             dai.cors = *
 
-                            # Parametros de la base de datos
+                            # Parametros conector de base de datos
                             db.driver = 0
-                            db.port = 8812
+                            db.port = 9091
                             db.host = localhost
-                            db.name = qdb
+                            db.name = xe
                             db.user = xy
                             db.password = password
                             db.max_pool_size = 10
