@@ -27,6 +27,7 @@ dependencies {
     implementation("org.http4k:http4k-format-jackson:$http4kVersion")
     implementation("com.h2database:h2:2.3.232")
     implementation("org.ehcache:ehcache:3.10.8")
+    implementation("software.amazon.awssdk:dynamodb:2.31.1")
     //implementation("org.postgresql:postgresql:42.7.5")
     //implementation("org.duckdb:duckdb_jdbc:1.2.1")  // ENABLE THIS JUST FOR JAR VERSION
     //implementation("org.herddb:herddb-jdbc:0.29.0")  // ENABLE THIS JUST FOR JAR VERSION
@@ -41,6 +42,12 @@ version = "1.0.0-final2024"
 application {
     mainClass.set("onmindxdb")
 }
+
+/*java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(javaVersion.toInt()))
+    }
+}*/
 
 val compileKotlin: KotlinJvmCompile by tasks
 compileKotlin.kotlinOptions {
