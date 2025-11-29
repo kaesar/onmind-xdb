@@ -66,4 +66,19 @@ class DynamoPlug: KVStore {
     override fun close() {
         dynamoDbClient?.close()
     }
+    
+    override fun forEach(action: (String, String) -> Unit) {
+        val request = ScanRequest.builder()
+            .tableName(tableName)
+            .build()
+        
+        val response = dynamoDbClient?.scan(request)
+        response?.items()?.forEach { item ->
+            val key = item["Key"]?.s()
+            val value = item["Value"]?.s()
+            if (key != null && value != null) {
+                action(key, value)
+            }
+        }
+    }
 }

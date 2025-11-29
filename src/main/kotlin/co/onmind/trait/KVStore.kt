@@ -12,4 +12,6 @@ interface KVStore {
     fun commit()
 
     fun close()
+    
+    fun forEach(action: (String, String) -> Unit)
 }

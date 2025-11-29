@@ -6,10 +6,8 @@ import co.onmind.xy.XYKey
 import co.onmind.xy.XYKit
 import co.onmind.xy.XYSet
 import co.onmind.kv.KVStoreFactory
-import co.onmind.kv.MVStorePlug
 import co.onmind.trait.KVStore
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.h2.mvstore.MVMap
 import org.apache.commons.dbutils.QueryRunner
 import org.apache.commons.dbutils.handlers.MapListHandler
 import java.sql.Connection
@@ -31,7 +29,7 @@ class RDB() {
         
         private fun getStore(): KVStore {
             if (storeInstance == null) {
-                val config = co.onmind.util.Rote.getConfig(co.onmind.util.Rote.getConfigFile())
+                val config = onmindxdb.config ?: throw IllegalStateException("Configuration not initialized")
                 storeInstance = KVStoreFactory.createStore(config)
             }
             return storeInstance!!
@@ -65,6 +63,7 @@ class RDB() {
             qr.update(onmindxdb.dbc, DBKit().tableDDL("box"))
             qr.update(onmindxdb.dbc, DBKey().tableDDL("box"))
             qr.update(onmindxdb.dbc, DBSet().tableDDL("box"))
+            qr.update(onmindxdb.dbc, DBDoc().tableDDL("box"))
             qr.update(onmindxdb.dbc, DBAny().tableDDL("box"))
             print("Loading data in memory .... ")
         } catch (sqle: SQLException) {
@@ -84,26 +83,13 @@ class RDB() {
         val startTime = System.currentTimeMillis()
         try {
             loadPoint(startTime)
-
-            // Para MVStore mantenemos compatibilidad con el código existente
-            if (store is MVStorePlug) {
-                val mvMap: MVMap<String, String> = store.map()!!
-                mvMap.forEach { (key, value) ->
-                    processStoreEntry(key, value, qr, boxDB)
-                }
-            } else {
-                // Para otros stores, necesitaríamos implementar iteración
-                // Por ahora solo cargamos desde MVStore para compatibilidad
-                println("Non-MVStore detected, skipping data load from KV store")
+            store.forEach { key, value ->
+                processStoreEntry(key, value, qr, boxDB)
             }
-
             lapsed(startTime)
         }
         catch (e: Exception) {
             e.printStackTrace()
-        }
-        finally {
-            store.close()
         }
     }
 

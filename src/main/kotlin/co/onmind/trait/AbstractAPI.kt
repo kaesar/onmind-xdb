@@ -28,6 +28,12 @@ open class AbstractAPI() {
     fun sendError(message: String) =
         apiSend.inject(AbcBack(false, Status.BAD_REQUEST.code.toString(), message), Response(Status.BAD_REQUEST))
 
+    fun sendError(message: String, status: Status) =
+        apiSend.inject(AbcBack(false, status.code.toString(), message), Response(status))
+
+    fun sendError(message: String, status: Status, total: Int) =
+        apiSend.inject(AbcBack(false, status.code.toString(), message, total, null), Response(status))
+
     fun Int.asLeadingZeros(n: Int): String {
         var result = this.toString()
         val size = result.length

@@ -47,4 +47,8 @@ class EhCachePlug: KVStore {
     override fun close() {
         cacheManager?.close()
     }
+    
+    override fun forEach(action: (String, String) -> Unit) {
+        cache?.forEach { entry -> action(entry.key, entry.value) }
+    }
 }

@@ -39,4 +39,8 @@ class MVStorePlug: KVStore {
     override fun close() {
         mvStore?.close()
     }
+    
+    override fun forEach(action: (String, String) -> Unit) {
+        mvMap?.forEach { (key, value) -> action(key, value) }
+    }
 }

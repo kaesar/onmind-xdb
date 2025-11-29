@@ -14,6 +14,7 @@ import co.onmind.io.IOSet
 import co.onmind.io.IODoc
 import co.onmind.trait.AbstractAPI
 import co.onmind.xy.XYKit
+import co.onmind.xy.XYKey
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
 import org.http4k.core.HttpHandler
 import org.http4k.core.Request
@@ -33,6 +34,7 @@ class AbcAPI(): AbstractAPI() {
 
     private val dbc = onmindxdb.dbc
     private val xdb = RDB()
+    private val kvStore = onmindxdb.config?.getProperty("kv.store", "mvstore") ?: "mvstore"
 
     fun useControl(): HttpHandler = { request: Request ->  mainControl(request) }
 
@@ -52,19 +54,22 @@ class AbcAPI(): AbstractAPI() {
                 "drop" -> drop(body)
                 "define" -> define(body)
                 "list" -> list(body)
-                "whoami" -> whoami(req)
-                "login" -> login(req)
+                "whoami" -> whoami()
+                "signup" -> signup(body)
+                "signin" -> signin(req)
                 else -> sendError("Wrong Request, please check it!")
             }
+        } catch (iae: IllegalArgumentException) {
+            sendError(iae.message ?: "Invalid argument")
         } catch (ise: IllegalStateException) {
-            sendError(ise.message ?: "ERROR")
+            sendError(ise.message ?: "Invalid state")
         } catch (sqle: SQLException) {
             if (sqle.message!!.uppercase().contains("UXY"))
                 sendError("Already exists data with the same code")
             else
-                sendError(sqle.message ?: "ERROR")
+                sendError(sqle.message ?: "Database error", Status.INTERNAL_SERVER_ERROR, 0)
         } catch (ex: Exception) {
-            sendError(ex.message ?: "ERROR")
+            sendError(ex.message ?: "Internal server error", Status.INTERNAL_SERVER_ERROR, 0)
         }
     }
 
@@ -85,9 +90,9 @@ class AbcAPI(): AbstractAPI() {
         val body: AbcBody
     ) {
         val prefix: String = if (body.from != "xyany") body.from.substring(2..4) else "any"
-        val choice: String = body.call?.lowercase() ?: body.what?.lowercase() ?: "?"
+        val choice: String = body.call?.lowercase() ?: body.what.lowercase()
         val size: String = run {
-            val limit = onmindxdb.queryLimit ?: 1200
+            val limit = onmindxdb.queryLimit
             if (body.size.toInt() > limit) limit.toString() else body.size
         }
         val some: String? = run {
@@ -144,6 +149,9 @@ class AbcAPI(): AbstractAPI() {
         query += " LIMIT ${context.size}"
 
         val rows = xdb.forQuery(query)
+        if (rows.isNullOrEmpty()) {
+            return sendError("Does not exists a record with that criteria", Status.NOT_FOUND, 0)
+        }
         return sendSuccess(rows)
     }
 
@@ -262,8 +270,10 @@ class AbcAPI(): AbstractAPI() {
     private fun getUpdatedRecord(context: RequestContext): Response {
         val query = "SELECT * FROM ${context.body.from.lowercase()} WHERE id='${context.body.with}'"
         val rows = xdb.forQuery(query)
-        val row = rows?.get(0) ?: mutableMapOf()
-        
+        if (rows.isNullOrEmpty()) {
+            return sendError("Does not exists a record with that criteria", Status.NOT_FOUND, 0)
+        }
+        val row = rows[0]
         savePoint(context.prefix, row)
         return sendSuccess(listOf(row))
     }
@@ -276,7 +286,10 @@ class AbcAPI(): AbstractAPI() {
 
         val selectQuery = "SELECT * FROM ${body.from.lowercase()} WHERE id='${body.with}'"
         val rows = xdb.forQuery(selectQuery)
-        val row = rows?.get(0) ?: mutableMapOf()
+        if (rows.isNullOrEmpty()) {
+            return sendError("Does not exists a record with that criteria", Status.NOT_FOUND, 0)
+        }
+        val row = rows[0]
 
         val deleteQuery = "DELETE FROM ${body.from.lowercase()} WHERE id='${body.with}'"
         xdb.forUpdate(deleteQuery)
@@ -299,14 +312,8 @@ class AbcAPI(): AbstractAPI() {
         val name = body.some
         var scheme = body.with ?: "SHEET"
         val title = body.show ?: name?.uppercase()
-        var how = body.how
         val spec = body.puts ?: "[]"
-        var cast = body.cast
-        var size = body.size
-        val call = body.call
-        val keys = body.keys
         val user = body.user
-        val auth = body.auth
         val pin = body.pin
         val hint = body.hint ?: ""
         val eval = body.level
@@ -354,10 +361,7 @@ class AbcAPI(): AbstractAPI() {
             val kit12 = "${code.lowercase()}.0"
             var kiton: String? = now.toString()  //.replace("T"," ")
 
-            var query = """
-                INSERT INTO xykit (id,kitxy,kit01,kit02,kit03,kit04,kit05,kit07,kit08,kit09,kit11,kit12,kit14,kitif,kitof,kitby,kiton,kitat)
-                VALUES ('$id','$scheme','$code','${name.uppercase()}','$title','$hint','$spec',$level,'01','+','$scheme','$kit12','$icon',5,'$user','$user','$kiton','$kiton')
-                """.trimIndent()
+            var query: String
 
             val dbKit = DBKit()
             val xyKit = XYKit(id,scheme,code,name.uppercase(),title,hint,spec,null,level,"01","+",null,scheme,kit12,null,icon,null,null,5,null,user,user,kiton,kiton)
@@ -418,7 +422,7 @@ class AbcAPI(): AbstractAPI() {
         val code = "${name.uppercase()}.${scheme.uppercase()}"
         try {
             val prefix = kind.lowercase()
-            val kit12 = "${code.lowercase()}.0"
+            // val kit12 = "${code.lowercase()}.0"
 
             var query = "SELECT * FROM $from WHERE ${prefix}xy='$code' LIMIT 1"
             val res2 = xdb.forQuery(query)
@@ -437,19 +441,13 @@ class AbcAPI(): AbstractAPI() {
     }
 
     fun define(body: AbcBody): Response {
-        val from = body.from
         val name = body.some
         var scheme = body.with ?: "SHEET"
         val spec = body.puts ?: "[]"
-        val user = body.user
         val pin = body.pin
-        val kind = if (from != "xyany") from.substring(2..4) else "ANY"
-        val repo = if (from.substring(0..1) == "co/onmind/xy") "BOX" else "DUO"
+        // val user = body.user
 
         if (!pin.isNullOrEmpty()) scheme = "SHEET"
-        //if (pin.isNullOrEmpty()) {
-        //    return sendError("Falta nomenclatura de identificacion privada")
-        //}
         if (scheme.isEmpty()) {
             return sendError("The scheme is required")
         }
@@ -459,7 +457,6 @@ class AbcAPI(): AbstractAPI() {
 
         val code = "${name.uppercase()}.${scheme.uppercase()}"
         try {
-            //var query = "UPDATE xykit SET kit05 = '$spec' WHERE kit01 = '$code'"
             var query = "SELECT * FROM xykit WHERE kit01 = '$code'"
             val rows = xdb.forQuery(query)
             val row = rows?.get(0) ?: mutableMapOf()
@@ -537,35 +534,27 @@ class AbcAPI(): AbstractAPI() {
         return result
     }
 
-    /*fun signup(body: AbcBody): Response {
-        val from = body.from
+    private fun whoami(): Response {
+        val result = mapOf(
+            "ok" to true,
+            "user" to System.getProperty("user.name"),
+            "home" to System.getProperty("user.home"),
+            "os" to System.getProperty("os.name"),
+            "engine" to if (onmindxdb.driver.contains("org.h2")) "default" else "duckdb",
+            "kvstore" to kvStore
+        )
+        return sendSuccess(result)
+    }
+
+    fun signup(body: AbcBody): Response {
         val name = body.some
         var scheme = body.with ?: "USER"
-        val title = body.show ?: name?.uppercase()
-        var how = body.how
-        val spec = body.puts ?: "{}"
-        var cast = body.cast
-        var size = body.size
-        val call = body.call
-        val keys = body.keys
         val user = body.user
-        val auth = body.auth
         val pin = body.pin
-        val hint = body.hint ?: ""
         val eval = body.level
         val level: Int = if (eval.isNullOrEmpty() || eval == "null") 90 else eval.toInt()
-        val kind = if (from != "xyany") from.substring(2..4) else "ANY"
-        val repo = if (from.substring(0..1) == "xy") "BOX" else "DUO"
-        val icon = body.icon ?: "table"
 
         if (!pin.isNullOrEmpty()) scheme = "USER"
-        //val ok = ctx.queryParam("ok") ?: body.get("ok")?.toString() ?: "false"
-        //if (pin.isNullOrEmpty()) {
-        //    return sendError("Falta nomenclatura de identificacion privada")
-        //}
-        if (onmindxdb.os.contains("inux")) {  // Linux
-            return sendError("This system is for production and you dont have this priviledge")
-        }
         if (scheme.isEmpty()) {
             return sendError("The scheme is required")
         }
@@ -578,63 +567,60 @@ class AbcAPI(): AbstractAPI() {
         if (user.isNullOrEmpty()) {
             return sendError("The user is required")
         }
-        else if (listOf("ONE","KEY","YOU","GET","SET","TOP","ASK","PUT","SUM","ADD","LAY","ANY").indexOf(kind) < 0) {
-            return sendError("The archetype or object class is not recognized: $kind")
-        }
-        else if (repo != "BOX" && listOf("ONE","KEY","YOU").indexOf(kind) > -1) {
-            return sendError("The archetype or object class does not correspond to the repository: $kind ~> $repo")
-        }
 
         val code = "${name.uppercase()}.${scheme.uppercase()}"
         try {
-            var now = LocalDateTime.now()
+            val now = LocalDateTime.now()
             val id = putID(1, user, now)
-            var keyon: String? = now.toString()  //.replace("T"," ")
-
-            var query = """
-                INSERT INTO xykey (id,keyxy,key01,key02,key03,key07,key14,keyon,keyat)
-                VALUES ('$id','$scheme','$code','${name.uppercase()}','$user',$level,'EN','$keyon','$keyon')
-                """.trimIndent()
+            val keyon: String = now.toString()
 
             val dbKey = DBKey()
-            val xyKey = XYKey(id,scheme,null,code,name.uppercase(),user,null,null,null,level,null,null,null,null,null,null,"EN",null,null,null,"OK",null,null,null,null,null,null,null,null,null,keyon,keyon)
-            val map = dbKey.mapValues(xyKey)
-            query = dbKey.getInsert(map as MutableMap<String, Any?>)
-            val rowCount = xdb.forUpdate(query)
+            val map = mutableMapOf<String, Any?>(
+                "keyxy" to scheme,
+                "key00" to pin,
+                "key01" to code,
+                "key02" to name,
+                "key03" to name.uppercase(),
+                "key09" to level,
+                "key16" to "EN",
+                "key20" to "OK",
+                "keyon" to keyon
+            )
+            val query = dbKey.getInsert(map, "XYKEY", user, id, now, pin)
+            xdb.forUpdate(query)
 
-            query = "SELECT * FROM xykey WHERE id='$id'"
-            val rows = xdb.forQuery(query)
+            val selectQuery = "SELECT * FROM xykey WHERE id='$id'"
+            val rows = xdb.forQuery(selectQuery)
             val row = rows?.get(0) ?: mutableMapOf()
             xdb.savePointKey(row)
-            return sendSuccess(row)
+            return sendSuccess(listOf(row))
         }
         catch (sqle: SQLException) {
-            if (sqle.message!!.uppercase().contains("KIT01"))
+            if (sqle.message!!.uppercase().contains("KEY01"))
                 return sendError("Already exists the object: $code")
             else
-                return sendError(sqle.message ?: "ERROR")
+                return sendError(sqle.message ?: "Database error", Status.INTERNAL_SERVER_ERROR, 0)
         }
-    }*/
-
-    private fun whoami(ctx: Request): Response {  // For Windows
-        //if (onmindxdb.os.contains("inux")) {  // Linux
-        //    return sendError("This system is for production and you don't have this priviledge")
-        //}
-        val config = co.onmind.util.Rote.getConfig(co.onmind.util.Rote.getConfigFile())
-        val kvStore = config.getProperty("kv.store", "mvstore")
-        val result = mapOf(
-            "ok" to true,
-            "user" to System.getProperty("user.name"),
-            "home" to System.getProperty("user.home"),
-            "os" to System.getProperty("os.name"),
-            "engine" to if (onmindxdb.driver.contains("org.h2")) "default" else "duckdb",
-            "kvstore" to kvStore
-        )
-        return sendSuccess(result)
     }
 
-    private fun login(ctx: Request): Response {
-        return sendSuccess("OK")
+    private fun signin(req: Request): Response {
+        val body = parseRequestBody(req)
+        val name = body.user
+        val scheme = body.with ?: "USER"
+        
+        if (name.isNullOrEmpty()) {
+            return sendError("The username is required")
+        }
+        
+        val code = "${name.uppercase()}.${scheme.uppercase()}"
+        val query = "SELECT * FROM xykey WHERE key01='$code'"
+        val rows = xdb.forQuery(query)
+        
+        if (rows.isNullOrEmpty()) {
+            return sendError("User not found", Status.NOT_FOUND, 0)
+        }
+        
+        return sendSuccess(rows)
     }
 
 }

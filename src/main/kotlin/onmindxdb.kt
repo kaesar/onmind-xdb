@@ -15,6 +15,7 @@ import org.http4k.server.asServer
 //import org.http4k.cloudnative.env.Environment
 //import org.http4k.client.ApacheClient
 import java.sql.Connection
+import java.util.Properties
 import co.onmind.util.Rote
 import co.onmind.api.AbcAPI
 import co.onmind.db.RDB
@@ -25,13 +26,15 @@ object onmindxdb {
     var driver = "org.h2.Driver"
     var dbfile: String? = null
     var queryLimit = 1200
+    var config: Properties? = null
 
     @JvmStatic
     fun main(args: Array<String>) {
         val filex = Rote.getConfigFile()
-        val config = Rote.getConfig(filex)  //val resource = Class::class.java.getResource("/application.conf")
-        dbc = Rote.getDB(config)
-        dbfile = config.getProperty("app.local") + "xy/xybox.xdb"
+        val cfg = Rote.getConfig(filex)  //val resource = Class::class.java.getResource("/application.conf")
+        config = cfg
+        dbc = Rote.getDB(cfg)
+        dbfile = cfg.getProperty("app.local") + "xy/xybox.xdb"
         if (Rote.os.contains("Windows"))
             dbfile = dbfile!!.replace("/", "\\")
 
