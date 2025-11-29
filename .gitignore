@@ -14,3 +14,4 @@ make-native*
 *.dll
 onmindxdb*
 onmind-xdb-*
+SWAGGER.md

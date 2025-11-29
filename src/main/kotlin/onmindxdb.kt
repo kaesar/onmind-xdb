@@ -8,10 +8,13 @@ import org.http4k.filter.OriginPolicy
 import org.http4k.filter.ServerFilters.Cors
 import org.http4k.routing.bind
 import org.http4k.routing.routes
-//import org.http4k.routing.static
+import org.http4k.routing.static
 import org.http4k.server.SunHttp
 import org.http4k.server.asServer
-//import org.http4k.routing.ResourceLoader.Companion.Classpath
+import org.http4k.routing.ResourceLoader.Companion.Classpath
+import org.http4k.contract.openapi.ApiInfo
+import org.http4k.contract.openapi.v3.OpenApi3
+import org.http4k.format.Jackson
 //import org.http4k.cloudnative.env.Environment
 //import org.http4k.client.ApacheClient
 import java.sql.Connection
@@ -20,6 +23,43 @@ import co.onmind.util.Rote
 import co.onmind.api.AbcAPI
 import co.onmind.db.RDB
 
+fun swaggerUI(): String {
+    val yamlContent = onmindxdb::class.java.getResourceAsStream("/swagger.yml")?.bufferedReader()?.readText() ?: ""
+    return """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>OnMind-XDB API Documentation</title>
+        <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
+    </head>
+    <body>
+        <div id="swagger-ui"></div>
+        <script src="https://unpkg.com/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+        <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
+        <script>
+            window.onload = function() {
+                const yamlText = document.getElementById('swagger-spec').textContent;
+                const spec = jsyaml.load(yamlText);
+                SwaggerUIBundle({
+                    spec: spec,
+                    dom_id: '#swagger-ui',
+                    deepLinking: true,
+                    presets: [
+                        SwaggerUIBundle.presets.apis,
+                        SwaggerUIBundle.SwaggerUIStandalonePreset
+                    ]
+                });
+            };
+        </script>
+        <script id="swagger-spec" type="text/yaml">
+$yamlContent
+        </script>
+    </body>
+    </html>
+    """.trimIndent()
+}
+
 object onmindxdb {
     val os = System.getProperty("os.name")
     var dbc: Connection? = null  // AgroalDataSource? = null
@@ -27,6 +67,7 @@ object onmindxdb {
     var dbfile: String? = null
     var queryLimit = 1200
     var config: Properties? = null
+    val version = "1.0.0"
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -43,12 +84,24 @@ object onmindxdb {
         val xdb = RDB()
         xdb.readPoint()
 
+        val appMode = cfg.getProperty("app.mode", "production")
+        val enableSwagger = appMode != "production"
+        
         print("Exposing api/db service ... ")
-        val app = routes(
+        val routesList = mutableListOf(
             "/" bind Method.GET to { _: Request -> Response(OK).body(Rote.index()) },
-            "/abc" bind Method.GET to abc.useControl(),
-            "/abc" bind Method.POST to abc.useControl()
-        ).withFilter(Cors(CorsPolicy(
+            "/abc" bind Method.POST to abc.useControl(),
+            "/abc" bind Method.GET to { _: Request ->
+                Response(OK).body("""{"ok":true,"status":"200","service":"OnMind-XDB","version":"${version}","driver":"${driver}","embedded":${Rote.embedded}}""")
+                    .header("Content-Type", "application/json")
+            }
+        )
+        
+        if (enableSwagger) {
+            routesList.add("/swagger" bind Method.GET to { _: Request -> Response(OK).body(swaggerUI()).header("Content-Type", "text/html") })
+        }
+        
+        val app = routes(*routesList.toTypedArray()).withFilter(Cors(CorsPolicy(
             OriginPolicy.AllowAll(),  // AnyOf(listOf("*"))
             listOf("Content-Type", "Cache-Control"),
             listOf(Method.POST, Method.GET)  // Method.values().toList()

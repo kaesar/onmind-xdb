@@ -25,6 +25,7 @@ dependencies {
     implementation(kotlin("stdlib-jdk8"))
     implementation("org.http4k:http4k-core:$http4kVersion")
     implementation("org.http4k:http4k-format-jackson:$http4kVersion")
+    implementation("org.http4k:http4k-contract:$http4kVersion")
     implementation("com.h2database:h2:2.3.232")
     implementation("org.ehcache:ehcache:3.10.8")
     implementation("software.amazon.awssdk:dynamodb:2.31.1")

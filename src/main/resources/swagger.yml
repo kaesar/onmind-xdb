@@ -1,0 +1,346 @@
+openapi: 3.0.3
+info:
+  title: OnMind-XDB API
+  description: |
+    Fast No-SQL in-memory Database with simple query language.
+    
+    **OnMind-XDB** provides a unified endpoint `/abc` that handles all database operations through a flexible body structure.
+  version: 1.0.0-final2024
+  contact:
+    name: Cesar Andres Arcila
+    url: https://onmind.co
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: http://127.0.0.1:9990
+    description: Local server
+
+paths:
+  /abc:
+    get:
+      summary: Get database status
+      description: Returns the current status and configuration of the database
+      operationId: abcStatus
+      responses:
+        '200':
+          description: Database status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  status:
+                    type: string
+                    example: "200"
+                  service:
+                    type: string
+                    example: "OnMind-XDB"
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  driver:
+                    type: string
+                    example: "org.h2.Driver"
+                  embedded:
+                    type: boolean
+                    example: true
+
+    post:
+      summary: Execute database operations
+      description: Perform CRUD operations on the database
+      operationId: abcPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AbcBody'
+            examples:
+              find:
+                summary: Find records
+                value:
+                  what: "find"
+                  from: "xykey"
+                  some: "USER"
+                  with: "key01='admin'"
+                  show: "*"
+                  size: "10"
+              insert:
+                summary: Insert new record
+                value:
+                  what: "insert"
+                  from: "xykey"
+                  some: "USER"
+                  puts: "{\"key01\":\"admin\",\"key02\":\"Administrator\"}"
+                  user: "system"
+              update:
+                summary: Update existing record
+                value:
+                  what: "update"
+                  from: "xykey"
+                  some: "USER"
+                  with: "key01='admin'"
+                  puts: "{\"key02\":\"Super Admin\"}"
+                  user: "system"
+              delete:
+                summary: Delete record
+                value:
+                  what: "delete"
+                  from: "xykey"
+                  some: "USER"
+                  with: "key01='admin'"
+                  user: "system"
+              create:
+                summary: Create new archetype
+                value:
+                  what: "create"
+                  some: "PRODUCT"
+                  user: "system"
+              drop:
+                summary: Drop archetype
+                value:
+                  what: "drop"
+                  some: "PRODUCT"
+                  user: "system"
+              define:
+                summary: Define archetype structure
+                value:
+                  what: "define"
+                  some: "PRODUCT"
+                  puts: "{\"key01\":\"code\",\"key02\":\"name\"}"
+                  user: "system"
+              list:
+                summary: List all archetypes
+                value:
+                  what: "list"
+              whoami:
+                summary: Get current user info
+                value:
+                  call: "whoami"
+              signup:
+                summary: Register new user
+                value:
+                  call: "signup"
+                  puts: "{\"key01\":\"newuser\",\"key02\":\"password\"}"
+              signin:
+                summary: User login
+                value:
+                  call: "signin"
+                  user: "admin"
+                  auth: "password"
+      responses:
+        '200':
+          description: Successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+              examples:
+                insertSuccess:
+                  summary: Insert successful
+                  value:
+                    status: "ok"
+                    data: [{"id": "1", "keyxy": "USER.SHEET", "key01": "admin"}]
+                findSuccess:
+                  summary: Find successful
+                  value:
+                    status: "ok"
+                    data: [{"id": "1", "key01": "value1"}, {"id": "2", "key01": "value2"}]
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  schemas:
+    AbcBody:
+      type: object
+      properties:
+        way:
+          type: string
+          default: "sql"
+          description: Query language (sql, mql, abc)
+          enum: [sql, mql, abc]
+        what:
+          type: string
+          default: "!"
+          description: Operation to perform
+          enum: [find, insert, update, delete, create, drop, define, list, invoke, "!"]
+        from:
+          type: string
+          default: "xyany"
+          description: Source table/archetype
+          enum: [xyany, xykey, xyset, xydoc, xykit]
+        some:
+          type: string
+          nullable: true
+          description: Archetype name (e.g., USER, PRODUCT)
+        with:
+          type: string
+          nullable: true
+          description: WHERE clause conditions
+        show:
+          type: string
+          nullable: true
+          description: Columns to select (default "*")
+        how:
+          type: string
+          nullable: true
+          description: Additional query modifiers
+        puts:
+          type: string
+          nullable: true
+          description: JSON string with data to insert/update
+        cast:
+          type: string
+          nullable: true
+          description: Type casting information
+        size:
+          type: string
+          default: "1200"
+          description: Maximum number of records to return
+        call:
+          type: string
+          nullable: true
+          description: Special function call (whoami, signup, signin)
+          enum: [whoami, signup, signin]
+        keys:
+          type: string
+          nullable: true
+          description: Key fields specification
+        user:
+          type: string
+          nullable: true
+          description: User performing the operation
+        auth:
+          type: string
+          nullable: true
+          description: Authentication token/password
+        pin:
+          type: string
+          nullable: true
+          description: PIN for additional security
+        hint:
+          type: string
+          nullable: true
+          description: Hint text
+        icon:
+          type: string
+          nullable: true
+          description: Icon identifier
+        level:
+          type: string
+          nullable: true
+          description: Access level
+
+    SuccessResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+        status:
+          type: string
+          example: "200"
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    ErrorResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: false
+        status:
+          type: string
+          example: "400"
+        message:
+          type: string
+          example: "Error description"
+
+  responses:
+    BadRequest:
+      description: Bad request - Invalid parameters or missing required fields
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            missingField:
+              summary: Missing required field
+              value:
+                ok: false
+                status: "400"
+                message: "'SOME' is missing. You must set it!"
+            wrongOperation:
+              summary: Invalid operation
+              value:
+                ok: false
+                status: "400"
+                message: "'WHAT' is wrong. Valid values are: find, insert, update, delete, create, drop, define, list, invoke"
+            invalidJson:
+              summary: Invalid JSON in puts
+              value:
+                ok: false
+                status: "400"
+                message: "It seems that 'puts' isn't expressed as valid JSON string. Try to stringify, dumps or pre-request script."
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              summary: Record not found
+              value:
+                ok: false
+                status: "404"
+                message: "Does not exists a record with that criteria"
+            archetypeNotFound:
+              summary: Archetype does not exist
+              value:
+                ok: false
+                status: "404"
+                message: "Does not exists the object: PRODUCT"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            sqlError:
+              summary: Database error
+              value:
+                ok: false
+                status: "500"
+                message: "Database error"
+            duplicateKey:
+              summary: Duplicate key constraint
+              value:
+                ok: false
+                status: "500"
+                message: "Already exists data with the same code"
+            genericError:
+              summary: Generic server error
+              value:
+                ok: false
+                status: "500"
+                message: "Internal server error"
+
+tags:
+  - name: database
+    description: Database operations
