@@ -1,11 +1,17 @@
 package co.onmind.api
 
 import co.onmind.db.DBAny
+import co.onmind.db.DBKey
+import co.onmind.db.DBSet
+import co.onmind.db.DBDoc
 import co.onmind.db.DBKit
 import co.onmind.db.RDB
 import co.onmind.io.AbcBody
 import co.onmind.io.AbcPair
 import co.onmind.io.IOAny
+import co.onmind.io.IOKey
+import co.onmind.io.IOSet
+import co.onmind.io.IODoc
 import co.onmind.trait.AbstractAPI
 import co.onmind.xy.XYKit
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
@@ -197,19 +203,56 @@ class AbcAPI(): AbstractAPI() {
                 query += ")"
                 xdb.forUpdate(query)*/
 
-                val dbAny = DBAny()
-                val ioAny = mapper.readValue(puts, IOAny::class.java)
-                val map = dbAny.mapValues(ioAny)
-                if (map["any01"] == null && map["any02"] == null) {
-                    return sendError("Column '${prefix}02' is missing and is required!")
+                val map: Map<String, Any?>
+                when (prefix) {
+                    "key" -> {
+                        val dbKey = DBKey()
+                        val ioKey = mapper.readValue(puts, IOKey::class.java)
+                        map = dbKey.mapValues(ioKey)
+                        if (map["key01"] == null && map["key02"] == null) {
+                            return sendError("Column '${prefix}02' is missing and is required!")
+                        }
+                        query = dbKey.getInsert(map as MutableMap<String, Any?>, some!!, user, id, now, pin)
+                    }
+                    "set" -> {
+                        val dbSet = DBSet()
+                        val ioSet = mapper.readValue(puts, IOSet::class.java)
+                        map = dbSet.mapValues(ioSet)
+                        if (map["set01"] == null && map["set02"] == null) {
+                            return sendError("Column '${prefix}02' is missing and is required!")
+                        }
+                        query = dbSet.getInsert(map as MutableMap<String, Any?>, some!!, user, id, now, pin)
+                    }
+                    "doc" -> {
+                        val dbDoc = DBDoc()
+                        val ioDoc = mapper.readValue(puts, IODoc::class.java)
+                        map = dbDoc.mapValues(ioDoc)
+                        if (map["doc01"] == null && map["doc02"] == null) {
+                            return sendError("Column '${prefix}02' is missing and is required!")
+                        }
+                        query = dbDoc.getInsert(map as MutableMap<String, Any?>, some!!, user, id, now, pin)
+                    }
+                    else -> {
+                        val dbAny = DBAny()
+                        val ioAny = mapper.readValue(puts, IOAny::class.java)
+                        map = dbAny.mapValues(ioAny)
+                        if (map["any01"] == null && map["any02"] == null) {
+                            return sendError("Column '${prefix}02' is missing and is required!")
+                        }
+                        query = dbAny.getInsert(map as MutableMap<String, Any?>, some!!, user, id, now, pin)
+                    }
                 }
-                query = dbAny.getInsert(map as MutableMap<String, Any?>, some!!, user, id, now, pin)
                 xdb.forUpdate(query)
 
                 query = "SELECT * FROM ${from.lowercase()} WHERE id='$id'"
                 val rows = xdb.forQuery(query)
                 val row = rows?.get(0) ?: mutableMapOf()
-                xdb.savePointAny(row)
+                when (prefix) {
+                    "key" -> xdb.savePointKey(row)
+                    "set" -> xdb.savePointSet(row)
+                    "doc" -> xdb.savePointDoc(row)
+                    else -> xdb.savePointAny(row)
+                }
                 return sendSuccess(listOf(row))
             }
             else if (choice == "update") {
@@ -244,16 +287,44 @@ class AbcAPI(): AbstractAPI() {
                 query += " WHERE id='$with'"
                 xdb.forUpdate(query)*/
 
-                val dbAny = DBAny()
-                val ioAny = mapper.readValue(puts, IOAny::class.java)
-                val map = dbAny.mapValues(ioAny)
-                query = dbAny.getUpdate(map as MutableMap<String, Any?>, with)
+                val map: Map<String, Any?>
+                when (prefix) {
+                    "key" -> {
+                        val dbKey = DBKey()
+                        val ioKey = mapper.readValue(puts, IOKey::class.java)
+                        map = dbKey.mapValues(ioKey)
+                        query = dbKey.getUpdate(map as MutableMap<String, Any?>, with)
+                    }
+                    "set" -> {
+                        val dbSet = DBSet()
+                        val ioSet = mapper.readValue(puts, IOSet::class.java)
+                        map = dbSet.mapValues(ioSet)
+                        query = dbSet.getUpdate(map as MutableMap<String, Any?>, with)
+                    }
+                    "doc" -> {
+                        val dbDoc = DBDoc()
+                        val ioDoc = mapper.readValue(puts, IODoc::class.java)
+                        map = dbDoc.mapValues(ioDoc)
+                        query = dbDoc.getUpdate(map as MutableMap<String, Any?>, with)
+                    }
+                    else -> {
+                        val dbAny = DBAny()
+                        val ioAny = mapper.readValue(puts, IOAny::class.java)
+                        map = dbAny.mapValues(ioAny)
+                        query = dbAny.getUpdate(map as MutableMap<String, Any?>, with)
+                    }
+                }
                 xdb.forUpdate(query)
 
                 query = "SELECT * FROM ${from.lowercase()} WHERE id='$with'"
                 val rows = xdb.forQuery(query)
                 val row = rows?.get(0) ?: mutableMapOf()
-                xdb.savePointAny(row)
+                when (prefix) {
+                    "key" -> xdb.savePointKey(row)
+                    "set" -> xdb.savePointSet(row)
+                    "doc" -> xdb.savePointDoc(row)
+                    else -> xdb.savePointAny(row)
+                }
                 return sendSuccess(listOf(row))
             }
             else if (choice == "delete") {
@@ -267,7 +338,7 @@ class AbcAPI(): AbstractAPI() {
 
                 query = "DELETE FROM ${from.lowercase()} WHERE id='$with'"
                 val rowCount = xdb.forUpdate(query)
-                xdb.movePoint(with)
+                xdb.movePoint(with, prefix)
                 return sendSuccess(listOf(row))
             }
             //else if (choice == "idlist") {
