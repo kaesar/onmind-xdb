@@ -37,354 +37,260 @@ class AbcAPI(): AbstractAPI() {
     fun useControl(): HttpHandler = { request: Request ->  mainControl(request) }
 
     fun mainControl(req: Request): Response {
-        val body: AbcBody
-        try {
-            body = mapper.readValue(req.bodyString(), AbcBody::class.java)
-        }
-        catch (jsone: MismatchedInputException) {
-            return if (jsone.message!!.contains("AbcBody[\"puts\"]"))
-                sendError("It seems that 'puts' isn't expressed as valid JSON string. Try to stringify, dumps or pre-request script.")
-            else
-                sendError(jsone.message ?: "ERROR")
-        }
-
-        val way = body.way
-        val what = body.what
-        val from = body.from
-        var some = body.some
-        val with = body.with  // ¿id?...
-        val show = body.show ?: "*"
-        var how = body.how
-        var puts = body.puts
-        var cast = body.cast
-        var size = body.size
-        val call = body.call  // ¿login?...
-        val keys = body.keys
-        val user = body.user
-        val auth = body.auth
-        val pin = body.pin
-        var query = ""
-        val prefix = if (from != "xyany") from.substring(2..4) else "any"
-        var choice = call?.lowercase() ?: "?"
-        val limit = onmindxdb.queryLimit ?: 1200
-        if (size.toInt() > limit) size = limit.toString()
-//println("way: ${way}\nwhat: ${what}\nfrom: ${from}\nsome: ${some}\nwith: ${with}\nputs: ${puts}\nshow: ${show}\nhow: ${how}\ncall: ${call}")
-
-        try {
-            if (what != "!") {  // find, insert, update, delete, create, drop, define, list, invoke
-                choice = what.lowercase()
-
-                if (listOf("find","insert","update","delete","create","drop","define","list","invoke").indexOf(what) < 0) {
-                    return sendError("'WHAT' is wrong. Valid values are: find, insert, update, delete, create, drop, define, list, invoke")
-                }
-
-                if (!call.isNullOrEmpty() && what != "invoke") {
-                    return sendError("That kind of 'WHAT' can't be mixed with 'CALL'")
-                }
-
-                if (what != "invoke" && what != "list") {
-                    if (some.isNullOrEmpty()) {
-                        return sendError("'SOME' is missing. You must set it!")
-                    }
-                    else if (listOf("xydot","xykit","xyone","xykey").indexOf(from.lowercase()) < 0 && !some.contains("."))  // check scheme
-                        some = some.uppercase() + ".SHEET"
-                    else
-                        some = some.uppercase()
-
-                    if (listOf("find","insert","update","delete","drop").indexOf(what) > -1 && from.lowercase() != "xykit") {
-                        query = "SELECT * FROM xykit WHERE kit01='$some'"
-                        val exists = xdb.forQuery(query)
-                        if (exists?.size == 0) {
-                            return sendError("Does not exists the object: $some")
-                        }
-                    }
-                }
+        return try {
+            val body = parseRequestBody(req)
+            val context = RequestContext(body)
+            
+            validateRequest(context)?.let { return it }
+            
+            when (context.choice) {
+                "find" -> handleFind(context)
+                "insert" -> handleInsert(context)
+                "update" -> handleUpdate(context)
+                "delete" -> handleDelete(context)
+                "create" -> create(body)
+                "drop" -> drop(body)
+                "define" -> define(body)
+                "list" -> list(body)
+                "whoami" -> whoami(req)
+                "login" -> login(req)
+                else -> sendError("Wrong Request, please check it!")
             }
-
-            if (choice == "find") {
-                query = "SELECT ${show?.replace(";",",")} FROM ${from.lowercase()} WHERE ${prefix?.lowercase()}xy='${some}' "
-                if (!with.isNullOrEmpty())
-                    query += "AND $with"
-                query += " LIMIT ${size}"
-
-                val rows = xdb.forQuery(query)
-                return sendSuccess(rows)
-            }
-            else if (choice == "insert") {
-                val now = LocalDateTime.now()
-                val id = putID(1, user, now)
-                if (puts == null) {  // .isNullOrEmpty()
-                    return sendError("'PUTS' is missing. You must set it!")
-                }
-                /*else if (how.isNullOrEmpty()) {
-                    return sendError("'HOW' is missing. You must set it!")
-                }
-
-                how += ",${prefix.lowercase()}xy"
-                puts += ";${some!!.uppercase()}"
-                if (cast.isNullOrEmpty())
-                    cast += ",string"
-                if (listOf("dot","kit","one","key").indexOf(prefix.lowercase()) < 0) {
-                    how += ",${prefix.lowercase()}as"
-                    puts += ";${some.lowercase()}.0"
-                    if (cast.isNullOrEmpty())
-                        cast += ",string"
-                    if (prefix == "any" && !how.contains("anyis")) {
-                        how += ",${prefix.lowercase()}is"
-                        puts += ";${prefix.uppercase()}"
-                        if (cast.isNullOrEmpty())
-                            cast += ",string"
-                    }
-                }
-                //if (!how.contains("id")) {
-                    how += ",id"
-                    puts += ";$id"
-                    if (cast.isNullOrEmpty())
-                        cast += ",string"
-                //}
-                if (prefix == "any" && !how.contains("of")) {
-                    how += ",${prefix.lowercase()}of"
-                    puts += ";$user"
-                    if (cast.isNullOrEmpty())
-                        cast += ",string"
-                }
-                if (prefix == "any" && !how.contains("by")) {
-                    how += ",${prefix.lowercase()}by"
-                    puts += ";$user"
-                    if (cast.isNullOrEmpty())
-                        cast += ",string"
-                }
-                if (prefix == "any" && !how.contains("on")) {
-                    how += ",${prefix.lowercase()}on"
-                    puts += ";$now"
-                    if (cast.isNullOrEmpty())
-                        cast += ",string"
-                }
-                if (prefix == "any" && !how.contains("at")) {
-                    how += ",${prefix.lowercase()}at"
-                    puts += ";$now"
-                    if (cast.isNullOrEmpty())
-                        cast += ",string"
-                }
-                var howList = how.split(",")
-                var putsList = puts.split(";")  // use ';' to avoid mix values with ','
-                if (howList.size != putsList.size) {
-                    return sendError("Column count does not match!")
-                }
-
-                if (!how.contains("01") && !how.contains("02")) {
-                    return sendError("Column '${prefix}02' is missing and is required!")
-                }
-                else if (!how.contains("01")) {
-                    val col02 = putsList[howList.indexOf("${prefix}02")]
-                    var col01 = "${col02.uppercase()}~${some.uppercase()}"
-                    if (pin != null) col01 += "~$pin"
-                    how += ",${prefix}01"
-                    puts += ";$col01"
-                    if (cast.isNullOrEmpty())
-                        cast += ",string"
-                    howList = how.split(",")
-                    putsList = puts.split(";")  // use ';' to avoid mix values with ','
-                }
-
-                query = "INSERT INTO ${from.lowercase()} (${how.replace(";",",")}) VALUES ("
-                val castList = if (cast.isNullOrEmpty()) cast?.split(",") else listOf()
-                var vary = ""
-                var i = 0
-                while (i < putsList.size) {
-                    vary = "'${putsList[i]}'"
-                    if ((castList?.size ?: 0) > 0 && castList!![i] != "string")
-                        vary = putsList[i]
-                    if (i > 0)
-                        vary = ",$vary"
-                    query += vary
-                    i++
-                }
-                query += ")"
-                xdb.forUpdate(query)*/
-
-                val map: Map<String, Any?>
-                when (prefix) {
-                    "key" -> {
-                        val dbKey = DBKey()
-                        val ioKey = mapper.readValue(puts, IOKey::class.java)
-                        map = dbKey.mapValues(ioKey)
-                        if (map["key01"] == null && map["key02"] == null) {
-                            return sendError("Column '${prefix}02' is missing and is required!")
-                        }
-                        query = dbKey.getInsert(map as MutableMap<String, Any?>, some!!, user, id, now, pin)
-                    }
-                    "set" -> {
-                        val dbSet = DBSet()
-                        val ioSet = mapper.readValue(puts, IOSet::class.java)
-                        map = dbSet.mapValues(ioSet)
-                        if (map["set01"] == null && map["set02"] == null) {
-                            return sendError("Column '${prefix}02' is missing and is required!")
-                        }
-                        query = dbSet.getInsert(map as MutableMap<String, Any?>, some!!, user, id, now, pin)
-                    }
-                    "doc" -> {
-                        val dbDoc = DBDoc()
-                        val ioDoc = mapper.readValue(puts, IODoc::class.java)
-                        map = dbDoc.mapValues(ioDoc)
-                        if (map["doc01"] == null && map["doc02"] == null) {
-                            return sendError("Column '${prefix}02' is missing and is required!")
-                        }
-                        query = dbDoc.getInsert(map as MutableMap<String, Any?>, some!!, user, id, now, pin)
-                    }
-                    else -> {
-                        val dbAny = DBAny()
-                        val ioAny = mapper.readValue(puts, IOAny::class.java)
-                        map = dbAny.mapValues(ioAny)
-                        if (map["any01"] == null && map["any02"] == null) {
-                            return sendError("Column '${prefix}02' is missing and is required!")
-                        }
-                        query = dbAny.getInsert(map as MutableMap<String, Any?>, some!!, user, id, now, pin)
-                    }
-                }
-                xdb.forUpdate(query)
-
-                query = "SELECT * FROM ${from.lowercase()} WHERE id='$id'"
-                val rows = xdb.forQuery(query)
-                val row = rows?.get(0) ?: mutableMapOf()
-                when (prefix) {
-                    "key" -> xdb.savePointKey(row)
-                    "set" -> xdb.savePointSet(row)
-                    "doc" -> xdb.savePointDoc(row)
-                    else -> xdb.savePointAny(row)
-                }
-                return sendSuccess(listOf(row))
-            }
-            else if (choice == "update") {
-                if (with.isNullOrEmpty()) {
-                    return sendError("'WITH' is missing. You must set it!")
-                }
-                else if (puts.isNullOrEmpty()) {
-                    return sendError("'PUTS' is missing. You must set it!")
-                }
-                /*else if (how.isNullOrEmpty()) {
-                    return sendError("'HOW' is missing. You must set it!")
-                }
-                val howList = how.split(",")
-                val putsList = puts.split(";")  // use ';' to avoid mix values with ','
-                if (howList.size != putsList.size) {
-                    return sendError("Column count does not match!")
-                }
-
-                query = "UPDATE ${from.lowercase()} SET "
-                val castList = if (cast.isNullOrEmpty()) cast?.split(",") else listOf()
-                var vary = ""
-                var i = 0
-                while (i < putsList.size) {
-                    vary = "${howList[i]}='${putsList[i]}'"
-                    if ((castList?.size ?: 0) > 0 && castList!![i] != "string")
-                        vary = "${howList[i]}=${putsList[i]}"
-                    if (i > 0)
-                        vary = ", $vary"
-                    query += vary
-                    i++
-                }
-                query += " WHERE id='$with'"
-                xdb.forUpdate(query)*/
-
-                val map: Map<String, Any?>
-                when (prefix) {
-                    "key" -> {
-                        val dbKey = DBKey()
-                        val ioKey = mapper.readValue(puts, IOKey::class.java)
-                        map = dbKey.mapValues(ioKey)
-                        query = dbKey.getUpdate(map as MutableMap<String, Any?>, with)
-                    }
-                    "set" -> {
-                        val dbSet = DBSet()
-                        val ioSet = mapper.readValue(puts, IOSet::class.java)
-                        map = dbSet.mapValues(ioSet)
-                        query = dbSet.getUpdate(map as MutableMap<String, Any?>, with)
-                    }
-                    "doc" -> {
-                        val dbDoc = DBDoc()
-                        val ioDoc = mapper.readValue(puts, IODoc::class.java)
-                        map = dbDoc.mapValues(ioDoc)
-                        query = dbDoc.getUpdate(map as MutableMap<String, Any?>, with)
-                    }
-                    else -> {
-                        val dbAny = DBAny()
-                        val ioAny = mapper.readValue(puts, IOAny::class.java)
-                        map = dbAny.mapValues(ioAny)
-                        query = dbAny.getUpdate(map as MutableMap<String, Any?>, with)
-                    }
-                }
-                xdb.forUpdate(query)
-
-                query = "SELECT * FROM ${from.lowercase()} WHERE id='$with'"
-                val rows = xdb.forQuery(query)
-                val row = rows?.get(0) ?: mutableMapOf()
-                when (prefix) {
-                    "key" -> xdb.savePointKey(row)
-                    "set" -> xdb.savePointSet(row)
-                    "doc" -> xdb.savePointDoc(row)
-                    else -> xdb.savePointAny(row)
-                }
-                return sendSuccess(listOf(row))
-            }
-            else if (choice == "delete") {
-                if (with.isNullOrEmpty()) {
-                    return sendError("'WITH' is missing. You must set it!")
-                }
-
-                query = "SELECT * FROM ${from.lowercase()} WHERE id='$with'"
-                val rows = xdb.forQuery(query)
-                val row = rows?.get(0) ?: mutableMapOf()
-
-                query = "DELETE FROM ${from.lowercase()} WHERE id='$with'"
-                val rowCount = xdb.forUpdate(query)
-                xdb.movePoint(with, prefix)
-                return sendSuccess(listOf(row))
-            }
-            //else if (choice == "idlist") {
-            //    if (with.isNullOrEmpty()) {
-            //        return sendError("'WITH' is missing. You must set it!")
-            //    }
-            //    query = "SELECT id FROM ${from.lowercase()} WHERE ${prefix?.lowercase()}xy='${some}' AND $with"
-            //    val rows = xdb.forQuery(query)
-            //    return sendSuccess(rows)
-            //}
-            else if (choice == "create") {
-                return create(body)
-            }
-            else if (choice == "drop") {
-                return drop(body)
-            }
-            else if (choice == "define") {
-                return define(body)
-            }
-            else if (choice == "list") {
-                return list(body)
-            }
-            //else if (choice == "signup") {
-            //    return signup(req)
-            //}
-            else if (choice == "whoami") {
-                return whoami(req)
-            }
-            else if (choice == "login") {
-                return login(req)
-            }
-            else {
-                return sendError("Wrong Request, please check it!")
-            }
-        }
-        catch (ise: IllegalStateException) {
-            return sendError(ise.message ?: "ERROR")
-        }
-        catch (sqle: SQLException) {
-            return if (sqle.message!!.uppercase().contains("UXY"))
+        } catch (ise: IllegalStateException) {
+            sendError(ise.message ?: "ERROR")
+        } catch (sqle: SQLException) {
+            if (sqle.message!!.uppercase().contains("UXY"))
                 sendError("Already exists data with the same code")
             else
                 sendError(sqle.message ?: "ERROR")
+        } catch (ex: Exception) {
+            sendError(ex.message ?: "ERROR")
         }
-        catch (ex: Exception) {
-            return sendError(ex.message ?: "ERROR")
+    }
+
+    private fun parseRequestBody(req: Request): AbcBody {
+        return try {
+            mapper.readValue(req.bodyString(), AbcBody::class.java)
+        } catch (jsone: MismatchedInputException) {
+            throw IllegalArgumentException(
+                if (jsone.message!!.contains("AbcBody[\"puts\"]"))
+                    "It seems that 'puts' isn't expressed as valid JSON string. Try to stringify, dumps or pre-request script."
+                else
+                    jsone.message ?: "ERROR"
+            )
+        }
+    }
+
+    private data class RequestContext(
+        val body: AbcBody
+    ) {
+        val prefix: String = if (body.from != "xyany") body.from.substring(2..4) else "any"
+        val choice: String = body.call?.lowercase() ?: body.what?.lowercase() ?: "?"
+        val size: String = run {
+            val limit = onmindxdb.queryLimit ?: 1200
+            if (body.size.toInt() > limit) limit.toString() else body.size
+        }
+        val some: String? = run {
+            val result = body.some
+            if (body.what != "invoke" && body.what != "list" && !result.isNullOrEmpty()) {
+                if (listOf("xydot", "xykit", "xyone", "xykey").indexOf(body.from.lowercase()) < 0 && !result.contains("."))
+                    result.uppercase() + ".SHEET"
+                else
+                    result.uppercase()
+            } else {
+                result
+            }
+        }
+    }
+
+    private fun validateRequest(context: RequestContext): Response? {
+        val body = context.body
+        
+        if (body.what != "!") {
+            val validOperations = listOf("find", "insert", "update", "delete", "create", "drop", "define", "list", "invoke")
+            if (body.what !in validOperations) {
+                return sendError("'WHAT' is wrong. Valid values are: ${validOperations.joinToString(", ")}")
+            }
+
+            if (!body.call.isNullOrEmpty() && body.what != "invoke") {
+                return sendError("That kind of 'WHAT' can't be mixed with 'CALL'")
+            }
+
+            if (body.what != "invoke" && body.what != "list") {
+                if (context.some.isNullOrEmpty()) {
+                    return sendError("'SOME' is missing. You must set it!")
+                }
+
+                if (listOf("find", "insert", "update", "delete", "drop").contains(body.what) && body.from.lowercase() != "xykit") {
+                    val query = "SELECT * FROM xykit WHERE kit01='${context.some}'"
+                    val exists = xdb.forQuery(query)
+                    if (exists?.size == 0) {
+                        return sendError("Does not exists the object: ${context.some}")
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    private fun handleFind(context: RequestContext): Response {
+        val body = context.body
+        val show = body.show?.replace(";", ",") ?: "*"
+        var query = "SELECT $show FROM ${body.from.lowercase()} WHERE ${context.prefix.lowercase()}xy='${context.some}' "
+        
+        if (!body.with.isNullOrEmpty()) {
+            query += "AND ${body.with}"
+        }
+        query += " LIMIT ${context.size}"
+
+        val rows = xdb.forQuery(query)
+        return sendSuccess(rows)
+    }
+
+    private fun handleInsert(context: RequestContext): Response {
+        val body = context.body
+        if (body.puts == null) {
+            return sendError("'PUTS' is missing. You must set it!")
+        }
+
+        val now = LocalDateTime.now()
+        val id = putID(1, body.user, now)
+        val query = buildInsertQuery(context, id, now)
+        
+        xdb.forUpdate(query)
+        return getInsertedRecord(context, id)
+    }
+
+    private fun buildInsertQuery(context: RequestContext, id: String, now: LocalDateTime): String {
+        val body = context.body
+        val map: Map<String, Any?>
+        
+        when (context.prefix) {
+            "key" -> {
+                val dbKey = DBKey()
+                val ioKey = mapper.readValue(body.puts, IOKey::class.java)
+                map = dbKey.mapValues(ioKey)
+                validateRequiredColumns(map, "key01", "key02", context.prefix)
+                return dbKey.getInsert(map as MutableMap<String, Any?>, context.some ?: "", body.user, id, now, body.pin)
+            }
+            "set" -> {
+                val dbSet = DBSet()
+                val ioSet = mapper.readValue(body.puts, IOSet::class.java)
+                map = dbSet.mapValues(ioSet)
+                validateRequiredColumns(map, "set01", "set02", context.prefix)
+                return dbSet.getInsert(map as MutableMap<String, Any?>, context.some ?: "", body.user, id, now, body.pin)
+            }
+            "doc" -> {
+                val dbDoc = DBDoc()
+                val ioDoc = mapper.readValue(body.puts, IODoc::class.java)
+                map = dbDoc.mapValues(ioDoc)
+                validateRequiredColumns(map, "doc01", "doc02", context.prefix)
+                return dbDoc.getInsert(map as MutableMap<String, Any?>, context.some ?: "", body.user, id, now, body.pin)
+            }
+            else -> {
+                val dbAny = DBAny()
+                val ioAny = mapper.readValue(body.puts, IOAny::class.java)
+                map = dbAny.mapValues(ioAny)
+                validateRequiredColumns(map, "any01", "any02", context.prefix)
+                return dbAny.getInsert(map as MutableMap<String, Any?>, context.some ?: "", body.user, id, now, body.pin)
+            }
+        }
+    }
+
+    private fun validateRequiredColumns(map: Map<String, Any?>, col1: String, col2: String, prefix: String) {
+        if (map[col1] == null && map[col2] == null) {
+            throw IllegalArgumentException("Column '${prefix}02' is missing and is required!")
+        }
+    }
+
+    private fun getInsertedRecord(context: RequestContext, id: String): Response {
+        val query = "SELECT * FROM ${context.body.from.lowercase()} WHERE id='$id'"
+        val rows = xdb.forQuery(query)
+        val row = rows?.get(0) ?: mutableMapOf()
+        
+        savePoint(context.prefix, row)
+        return sendSuccess(listOf(row))
+    }
+
+    private fun handleUpdate(context: RequestContext): Response {
+        val body = context.body
+        if (body.with.isNullOrEmpty()) {
+            return sendError("'WITH' is missing. You must set it!")
+        }
+        if (body.puts.isNullOrEmpty()) {
+            return sendError("'PUTS' is missing. You must set it!")
+        }
+
+        val query = buildUpdateQuery(context)
+        xdb.forUpdate(query)
+        return getUpdatedRecord(context)
+    }
+
+    private fun buildUpdateQuery(context: RequestContext): String {
+        val body = context.body
+        val withValue = body.with ?: throw IllegalArgumentException("'WITH' is missing")
+        val map: Map<String, Any?>
+        
+        when (context.prefix) {
+            "key" -> {
+                val dbKey = DBKey()
+                val ioKey = mapper.readValue(body.puts, IOKey::class.java)
+                map = dbKey.mapValues(ioKey)
+                return dbKey.getUpdate(map as MutableMap<String, Any?>, withValue)
+            }
+            "set" -> {
+                val dbSet = DBSet()
+                val ioSet = mapper.readValue(body.puts, IOSet::class.java)
+                map = dbSet.mapValues(ioSet)
+                return dbSet.getUpdate(map as MutableMap<String, Any?>, withValue)
+            }
+            "doc" -> {
+                val dbDoc = DBDoc()
+                val ioDoc = mapper.readValue(body.puts, IODoc::class.java)
+                map = dbDoc.mapValues(ioDoc)
+                return dbDoc.getUpdate(map as MutableMap<String, Any?>, withValue)
+            }
+            else -> {
+                val dbAny = DBAny()
+                val ioAny = mapper.readValue(body.puts, IOAny::class.java)
+                map = dbAny.mapValues(ioAny)
+                return dbAny.getUpdate(map as MutableMap<String, Any?>, withValue)
+            }
+        }
+    }
+
+    private fun getUpdatedRecord(context: RequestContext): Response {
+        val query = "SELECT * FROM ${context.body.from.lowercase()} WHERE id='${context.body.with}'"
+        val rows = xdb.forQuery(query)
+        val row = rows?.get(0) ?: mutableMapOf()
+        
+        savePoint(context.prefix, row)
+        return sendSuccess(listOf(row))
+    }
+
+    private fun handleDelete(context: RequestContext): Response {
+        val body = context.body
+        if (body.with.isNullOrEmpty()) {
+            return sendError("'WITH' is missing. You must set it!")
+        }
+
+        val selectQuery = "SELECT * FROM ${body.from.lowercase()} WHERE id='${body.with}'"
+        val rows = xdb.forQuery(selectQuery)
+        val row = rows?.get(0) ?: mutableMapOf()
+
+        val deleteQuery = "DELETE FROM ${body.from.lowercase()} WHERE id='${body.with}'"
+        xdb.forUpdate(deleteQuery)
+        xdb.movePoint(body.with, context.prefix)
+        
+        return sendSuccess(listOf(row))
+    }
+
+    private fun savePoint(prefix: String, row: MutableMap<String, Any?>) {
+        when (prefix) {
+            "key" -> xdb.savePointKey(row)
+            "set" -> xdb.savePointSet(row)
+            "doc" -> xdb.savePointDoc(row)
+            else -> xdb.savePointAny(row)
         }
     }
 
@@ -714,12 +620,15 @@ class AbcAPI(): AbstractAPI() {
         //if (onmindxdb.os.contains("inux")) {  // Linux
         //    return sendError("This system is for production and you don't have this priviledge")
         //}
+        val config = co.onmind.util.Rote.getConfig(co.onmind.util.Rote.getConfigFile())
+        val kvStore = config.getProperty("kv.store", "mvstore")
         val result = mapOf(
             "ok" to true,
             "user" to System.getProperty("user.name"),
             "home" to System.getProperty("user.home"),
             "os" to System.getProperty("os.name"),
             "engine" to if (onmindxdb.driver.contains("org.h2")) "default" else "duckdb",
+            "kvstore" to kvStore
         )
         return sendSuccess(result)
     }

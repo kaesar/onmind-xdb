@@ -69,6 +69,14 @@ object Rote {
                             db.max_pool_size = 10
                             db.query_limit = 1200
                             db.charset = UTF-8
+
+                            # Parametros de persistencia
+                            kv.store = mvstore
+                            kv.mvstore.name = xybox
+                            kv.ehcache.name = xybox
+                            kv.ehcache.max_entries = 10000
+                            kv.dynamodb.table = onmind-xdb
+                            kv.dynamodb.region = us-east-1
                         """.trimIndent()
                         try {
                             File(file.replace(fileName,"")).mkdir()

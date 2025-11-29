@@ -5,7 +5,9 @@ import co.onmind.xy.XYDoc
 import co.onmind.xy.XYKey
 import co.onmind.xy.XYKit
 import co.onmind.xy.XYSet
+import co.onmind.kv.KVStoreFactory
 import co.onmind.kv.MVStorePlug
+import co.onmind.trait.KVStore
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.h2.mvstore.MVMap
 import org.apache.commons.dbutils.QueryRunner
@@ -23,6 +25,18 @@ class RDB() {
 
     val XYBOX = "xybox"
     val mapper = jacksonObjectMapper()
+    
+    companion object {
+        private var storeInstance: KVStore? = null
+        
+        private fun getStore(): KVStore {
+            if (storeInstance == null) {
+                val config = co.onmind.util.Rote.getConfig(co.onmind.util.Rote.getConfigFile())
+                storeInstance = KVStoreFactory.createStore(config)
+            }
+            return storeInstance!!
+        }
+    }
 
     private fun lapsed(startTime: Long) {
         val endTime = System.currentTimeMillis()
@@ -64,60 +78,23 @@ class RDB() {
     }
 
     fun readPoint() {
-        val store = MVStorePlug()
+        val store = getStore()
         val qr = QueryRunner()
-        var insert: String?
-        var values: Array<out Any?> = emptyArray()
         val boxDB = onmindxdb.dbc
         val startTime = System.currentTimeMillis()
-        //var i = 0
         try {
             loadPoint(startTime)
 
-            store.init(onmindxdb.dbfile, XYBOX)
-            val mvMap: MVMap<String, String> = store.map()!!
-            mvMap.forEach { (key, value) ->
-                val x = value  // mvMap.get(value)
-                val y = key  // mvMap.get(key)
-                val db = "box"  // if (y.contains("~")) y.split("~")[2] else "duo"
-                insert = null
-
-                if (y.contains("~kit~")) {
-                    val row = mapper.readValue(x, XYKit::class.java)
-                    insert = DBKit().sqlInsert
-                    values = DBKit().values(row)
+            // Para MVStore mantenemos compatibilidad con el código existente
+            if (store is MVStorePlug) {
+                val mvMap: MVMap<String, String> = store.map()!!
+                mvMap.forEach { (key, value) ->
+                    processStoreEntry(key, value, qr, boxDB)
                 }
-                else if (y.contains("~key~")) {
-                    val row = mapper.readValue(x, XYKey::class.java)
-                    insert = DBKey().sqlInsert
-                    values = DBKey().values(row)
-                }
-                else if (y.contains("~set~")) {
-                    val row = mapper.readValue(x, XYSet::class.java)
-                    insert = DBSet().sqlInsert
-                    values = DBSet().values(row)
-                }
-                else if (y.contains("~any~")) {
-                    val row = mapper.readValue(x, XYAny::class.java)
-                    insert = DBAny().sqlInsert
-                    values = DBAny().values(row)
-                }
-                else if (y.contains("~doc~")) {
-                    val row = mapper.readValue(x, XYDoc::class.java)
-                    insert = DBDoc().sqlInsert
-                    values = DBDoc().values(row)
-                }
-
-                if (insert != null) {
-                    try {
-                        qr.update(boxDB, insert, *values)
-                        //i++
-                    }
-                    catch (sqle: SQLException) {
-                        if (sqle.errorCode != 23505)
-                            println(sqle.message)
-                    }
-                }
+            } else {
+                // Para otros stores, necesitaríamos implementar iteración
+                // Por ahora solo cargamos desde MVStore para compatibilidad
+                println("Non-MVStore detected, skipping data load from KV store")
             }
 
             lapsed(startTime)
@@ -126,16 +103,56 @@ class RDB() {
             e.printStackTrace()
         }
         finally {
-            //println("store upload => $i")
             store.close()
         }
     }
 
+    private fun processStoreEntry(key: String, value: String, qr: QueryRunner, boxDB: java.sql.Connection?) {
+        val x = value
+        val y = key
+        var insert: String? = null
+        var values: Array<out Any?> = emptyArray()
+
+        if (y.contains("~kit~")) {
+            val row = mapper.readValue(x, XYKit::class.java)
+            insert = DBKit().sqlInsert
+            values = DBKit().values(row)
+        }
+        else if (y.contains("~key~")) {
+            val row = mapper.readValue(x, XYKey::class.java)
+            insert = DBKey().sqlInsert
+            values = DBKey().values(row)
+        }
+        else if (y.contains("~set~")) {
+            val row = mapper.readValue(x, XYSet::class.java)
+            insert = DBSet().sqlInsert
+            values = DBSet().values(row)
+        }
+        else if (y.contains("~any~")) {
+            val row = mapper.readValue(x, XYAny::class.java)
+            insert = DBAny().sqlInsert
+            values = DBAny().values(row)
+        }
+        else if (y.contains("~doc~")) {
+            val row = mapper.readValue(x, XYDoc::class.java)
+            insert = DBDoc().sqlInsert
+            values = DBDoc().values(row)
+        }
+
+        if (insert != null) {
+            try {
+                qr.update(boxDB, insert, *values)
+            }
+            catch (sqle: SQLException) {
+                if (sqle.errorCode != 23505)
+                    println(sqle.message)
+            }
+        }
+    }
+
     fun savePointKit(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
-        val store = MVStorePlug()
+        val store = getStore()
         try {
-            store.init(onmindxdb.dbfile, XYBOX)
-            val mvMap: MVMap<String, String> = store.map()!!
             val row = XYKit(
                 map["id"] as String,
                 map["kitxy"] as String,
@@ -164,26 +181,20 @@ class RDB() {
             )
 
             val jsonValue = mapper.writeValueAsString(row)
+            val key = "${row.id}~kit~box"
             if (forceDelete)
-                mvMap.remove("${row.id}~kit~box")
-            mvMap.put("${row.id}~kit~box", jsonValue)
-            //mvMap.put("${row.id}~kit~box", row)
+                store.delete(key)
+            store.put(key, jsonValue)
             store.commit()
         }
         catch (e: Exception) {
             e.printStackTrace()
         }
-        finally {
-            //println("store unsave => ${store?.hasUnsavedChanges()}")
-            store.close()
-        }
     }
 
     fun savePointKey(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
-        val store = MVStorePlug()
+        val store = getStore()
         try {
-            store.init(onmindxdb.dbfile, XYBOX)
-            val mvMap: MVMap<String, String> = store.map()!!
             val row = XYKey(
                 map["id"] as String,
                 map["keyxy"] as String,
@@ -220,26 +231,20 @@ class RDB() {
             )
 
             val jsonValue = mapper.writeValueAsString(row)
+            val key = "${row.id}~key~box"
             if (forceDelete)
-                mvMap.remove("${row.id}~key~box")
-            mvMap.put("${row.id}~key~box", jsonValue)
-            //mvMap.put("${row.id}~key~box", row)
+                store.delete(key)
+            store.put(key, jsonValue)
             store.commit()
         }
         catch (e: Exception) {
             e.printStackTrace()
         }
-        finally {
-            //println("store unsave => ${store?.hasUnsavedChanges()}")
-            store.close()
-        }
     }
 
     fun savePointSet(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
-        val store = MVStorePlug()
+        val store = getStore()
         try {
-            store.init(onmindxdb.dbfile, XYBOX)
-            val mvMap: MVMap<String, String> = store.map()!!
             val row = XYSet(
                 map["id"] as String,
                 map["setxy"] as String,
@@ -279,26 +284,20 @@ class RDB() {
             )
 
             val jsonValue = mapper.writeValueAsString(row)
+            val key = "${row.id}~set~box"
             if (forceDelete)
-                mvMap.remove("${row.id}~set~box")
-            mvMap.put("${row.id}~set~box", jsonValue)
-            //mvMap.put("${row.id}~set~box", row)
+                store.delete(key)
+            store.put(key, jsonValue)
             store.commit()
         }
         catch (e: Exception) {
             e.printStackTrace()
         }
-        finally {
-            //println("store unsave => ${store?.hasUnsavedChanges()}")
-            store.close()
-        }
     }
 
     fun savePointAny(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
-        val store = MVStorePlug()
+        val store = getStore()
         try {
-            store.init(onmindxdb.dbfile, XYBOX)
-            val mvMap: MVMap<String, String> = store.map()!!
             val row = XYAny(
                 map["id"] as String,
                 map["anyxy"] as String,
@@ -376,26 +375,20 @@ class RDB() {
             )
 
             val jsonValue = mapper.writeValueAsString(row)
+            val key = "${row.id}~any~box"
             if (forceDelete)
-                mvMap.remove("${row.id}~any~box")
-            mvMap.put("${row.id}~any~box", jsonValue)
-            //mvMap.put("${row.id}~any~box", row)
+                store.delete(key)
+            store.put(key, jsonValue)
             store.commit()
         }
         catch (e: Exception) {
             e.printStackTrace()
         }
-        finally {
-            //println("store unsave => ${store?.hasUnsavedChanges()}")
-            store.close()
-        }
     }
 
     fun savePointDoc(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
-        val store = MVStorePlug()
+        val store = getStore()
         try {
-            store.init(onmindxdb.dbfile, XYBOX)
-            val mvMap: MVMap<String, String> = store.map()!!
             val row = XYDoc(
                 map["id"] as String,
                 map["docxy"] as String,
@@ -421,34 +414,25 @@ class RDB() {
             )
 
             val jsonValue = mapper.writeValueAsString(row)
+            val key = "${row.id}~doc~box"
             if (forceDelete)
-                mvMap.remove("${row.id}~doc~box")
-            mvMap.put("${row.id}~doc~box", jsonValue)
-            //mvMap.put("${row.id}~doc~box", row)
+                store.delete(key)
+            store.put(key, jsonValue)
             store.commit()
         }
         catch (e: Exception) {
             e.printStackTrace()
-        }
-        finally {
-            //println("store unsave => ${store?.hasUnsavedChanges()}")
-            store.close()
         }
     }
 
     fun movePoint(id: String, prefix: String = "any") {
-        val store = MVStorePlug()
+        val store = getStore()
         try {
-            store.init(onmindxdb.dbfile, XYBOX)
-            val mvMap: MVMap<String, String> = store.map()!!
-            mvMap.remove("${id}~${prefix}~box")
+            store.delete("${id}~${prefix}~box")
             store.commit()
         }
         catch (e: Exception) {
             e.printStackTrace()
-        }
-        finally {
-            store.close()
         }
     }
 }

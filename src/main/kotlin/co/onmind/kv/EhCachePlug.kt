@@ -1,32 +1,31 @@
 package co.onmind.kv
 
 import co.onmind.trait.KVStore
-import org.ehcache.Cache
 import org.ehcache.CacheManager
 import org.ehcache.config.builders.CacheConfigurationBuilder
 import org.ehcache.config.builders.CacheManagerBuilder
 import org.ehcache.config.builders.ResourcePoolsBuilder
-import org.ehcache.expiry.Duration
-import org.ehcache.expiry.Expirations
-import java.util.concurrent.TimeUnit
 
 class EhCachePlug: KVStore {
 
-    private var cache: Cache<String, String>? = null
+    private var cacheManager: CacheManager? = null
+    private var cache: org.ehcache.Cache<String, String>? = null
 
     override fun init(vararg params: Any?) {
-        val store =  params[1] as String?
-        val cacheManager: CacheManager = CacheManagerBuilder.newCacheManagerBuilder().build()
-        cacheManager.init()
-        this.cache = cacheManager.createCache(
-            store,
-            CacheConfigurationBuilder.newCacheConfigurationBuilder<String, String>(
-                String::class.java, String::class.java,
-                ResourcePoolsBuilder.heap(100)
+        val cacheName = params[0] as String? ?: "xybox"
+        val maxEntries = (params[1] as? String)?.toLongOrNull() ?: 10000L
+
+        cacheManager = CacheManagerBuilder.newCacheManagerBuilder()
+            .withCache(cacheName,
+                CacheConfigurationBuilder.newCacheConfigurationBuilder(
+                    String::class.java, String::class.java,
+                    ResourcePoolsBuilder.heap(maxEntries)
+                )
             )
-                .withExpiry(Expirations.timeToLiveExpiration(Duration.of(1, TimeUnit.HOURS)))
-                .build()
-        )
+            .build()
+
+        cacheManager?.init()
+        cache = cacheManager?.getCache(cacheName, String::class.java, String::class.java)
     }
 
     override fun put(key: String, value: String) {
@@ -41,7 +40,11 @@ class EhCachePlug: KVStore {
         cache?.remove(key)
     }
 
-    override fun commit() {}
+    override fun commit() {
+        // EhCache no requiere commit explícito
+    }
 
-    override fun close() {}
+    override fun close() {
+        cacheManager?.close()
+    }
 }
