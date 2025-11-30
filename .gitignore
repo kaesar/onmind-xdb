@@ -3,9 +3,10 @@
 .gradle
 .idea
 .vscode
-app/
+/app/
 bin/
 build/
+jte-classes/
 old-http4k.zip
 old-dce.zip
 gradle*
@@ -15,3 +16,4 @@ make-native*
 onmindxdb*
 onmind-xdb-*
 SWAGGER.md
+OnMind-XDB.md

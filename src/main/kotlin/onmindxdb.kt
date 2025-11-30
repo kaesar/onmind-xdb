@@ -2,6 +2,7 @@ import org.http4k.core.Method
 import org.http4k.core.Request
 import org.http4k.core.Response
 import org.http4k.core.Status.Companion.OK
+import org.http4k.core.Status.Companion.FOUND
 import org.http4k.filter.AllowAll
 import org.http4k.filter.CorsPolicy
 import org.http4k.filter.OriginPolicy
@@ -21,7 +22,9 @@ import java.sql.Connection
 import java.util.Properties
 import co.onmind.util.Rote
 import co.onmind.api.AbcAPI
+import co.onmind.app.AppUI
 import co.onmind.db.RDB
+import org.http4k.core.Status
 
 fun swaggerUI(): String {
     val yamlContent = onmindxdb::class.java.getResourceAsStream("/swagger.yml")?.bufferedReader()?.readText() ?: ""
@@ -81,6 +84,7 @@ object onmindxdb {
 
         val port = Rote.port
         val abc = AbcAPI()
+        val appUI = AppUI()
         val xdb = RDB()
         xdb.readPoint()
 
@@ -89,12 +93,13 @@ object onmindxdb {
         
         print("Exposing api/db service ... ")
         val routesList = mutableListOf(
-            "/" bind Method.GET to { _: Request -> Response(OK).body(Rote.index()) },
+            "/" bind Method.GET to { _: Request -> Response(OK).status(Status.FOUND).header("Location", "/_/") },
             "/abc" bind Method.POST to abc.useControl(),
             "/abc" bind Method.GET to { _: Request ->
                 Response(OK).body("""{"ok":true,"status":"200","service":"OnMind-XDB","version":"${version}","driver":"${driver}","embedded":${Rote.embedded}}""")
                     .header("Content-Type", "application/json")
-            }
+            },
+            appUI.routes()
         )
         
         if (enableSwagger) {

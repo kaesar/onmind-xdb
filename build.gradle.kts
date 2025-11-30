@@ -1,6 +1,7 @@
 import org.gradle.jvm.tasks.Jar
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
+import java.nio.file.Path
 
 val javaVersion = "17"
 val kotlinVersion = "1.9.25"  //"2.1.10"
@@ -11,6 +12,7 @@ plugins {
     kotlin("jvm") version "1.9.25"  //"2.1.10"
     id("com.github.johnrengelman.shadow") version "7.1.2"  //"8.1.1"
     id("org.graalvm.buildtools.native") version "0.9.28"
+    id("gg.jte.gradle") version "3.1.9"
     application
 }
 
@@ -26,6 +28,8 @@ dependencies {
     implementation("org.http4k:http4k-core:$http4kVersion")
     implementation("org.http4k:http4k-format-jackson:$http4kVersion")
     implementation("org.http4k:http4k-contract:$http4kVersion")
+    implementation("gg.jte:jte:3.1.9")
+    implementation("gg.jte:jte-kotlin:3.1.9")
     implementation("com.h2database:h2:2.3.232")
     implementation("org.ehcache:ehcache:3.10.8")
     implementation("software.amazon.awssdk:dynamodb:2.31.1")
@@ -58,6 +62,12 @@ compileKotlin.kotlinOptions {
 val compileTestKotlin: KotlinJvmCompile by tasks
 compileTestKotlin.kotlinOptions {
     jvmTarget = javaVersion
+}
+
+jte {
+    generate()
+    sourceDirectory.set(Path.of("src", "main", "resources", "jte"))
+    contentType.set(gg.jte.ContentType.Html)
 }
 
 val jar by tasks.getting(Jar::class) {
