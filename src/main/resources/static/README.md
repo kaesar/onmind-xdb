@@ -6,10 +6,8 @@ This directory contains the UI libraries required for the frontend to work offli
 
 ### JavaScript (`/js`)
 
-- **htmx.min.js** (v2.0.4)
-  - HTML interactivity framework
-  - Source: https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js
-  - License: BSD 2-Clause
+- **abcapi.js** (2021-06-28)
+  - My own JS client written as static resource for OnMind-XDB with `/abc` endpoint
 
 - **tailwind.min.js** (v3.4.1)
   - Utility-first CSS framework
