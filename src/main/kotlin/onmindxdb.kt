@@ -99,6 +99,7 @@ object onmindxdb {
                 Response(OK).body("""{"ok":true,"status":"200","service":"OnMind-XDB","version":"${version}","driver":"${driver}","embedded":${Rote.embedded}}""")
                     .header("Content-Type", "application/json")
             },
+            "/static" bind static(Classpath("/static")),
             appUI.routes()
         )
         

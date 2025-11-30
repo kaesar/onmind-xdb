@@ -7,8 +7,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${title} - OnMind-XDB</title>
-    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/static/js/htmx.min.js"></script>
+    <script src="/static/js/tailwind.min.js"></script>
     <script>
         tailwind.config = {
             corePlugins: {
@@ -16,8 +16,7 @@
             }
         }
     </script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="https://unpkg.com/@primefaces/themes@4.2.0/volt/indigo/theme.css">
+    <script src="/static/js/lucide.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: system-ui, -apple-system, sans-serif; overflow-x: hidden; transition: background-color 0.3s, color 0.3s; }
@@ -49,6 +48,12 @@
         body.dark tr:hover td { color: #1f2937 !important; }
         tbody button, tbody a { cursor: pointer; }
         tbody button i, tbody a i { pointer-events: none; }
+        /* Toast notifications */
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #1e293b; color: white; padding: 1rem 1.5rem; border-radius: 0.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 9999; animation: slideIn 0.3s ease-out; display: flex; align-items: center; gap: 0.75rem; min-width: 300px; }
+        .toast.hide { animation: slideOut 0.3s ease-out; }
+        @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(400px); opacity: 0; } }
+        body.dark .toast { background: #334155; }
     </style>
 </head>
 <body>
@@ -131,6 +136,42 @@
         initTheme();
         initMobile();
         lucide.createIcons();
+        
+        // Table filter function
+        function filterTable(input, tableId) {
+            const filter = input.value.toLowerCase();
+            const table = document.getElementById(tableId);
+            const rows = table.getElementsByTagName('tr');
+            
+            for (let i = 0; i < rows.length; i++) {
+                const cells = rows[i].getElementsByTagName('td');
+                let found = false;
+                
+                for (let j = 0; j < cells.length; j++) {
+                    const cell = cells[j];
+                    if (cell && cell.textContent.toLowerCase().indexOf(filter) > -1) {
+                        found = true;
+                        break;
+                    }
+                }
+                
+                rows[i].style.display = found || cells.length === 0 ? '' : 'none';
+            }
+        }
+        
+        // Toast notification
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.innerHTML = '<i data-lucide="info" class="w-5 h-5"></i><span>' + message + '</span>';
+            document.body.appendChild(toast);
+            lucide.createIcons();
+            
+            setTimeout(function() {
+                toast.classList.add('hide');
+                setTimeout(function() { toast.remove(); }, 300);
+            }, 3000);
+        }
     </script>
 </body>
 </html>

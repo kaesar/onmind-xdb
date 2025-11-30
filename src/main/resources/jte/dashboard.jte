@@ -91,8 +91,9 @@
         </div>
     </div>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.2/ace.js"></script>
+    <script src="/static/js/ace.js"></script>
     <script>
+        ace.config.set('basePath', '/static/js');
         const editor = ace.edit("editor");
         editor.setTheme("ace/theme/github");
         editor.session.setMode("ace/mode/json");

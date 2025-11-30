@@ -9,6 +9,15 @@
             </button>
         </div>
         
+        @if(!sheets.isEmpty())
+        <div class="mb-4">
+            <div class="relative">
+                <i data-lucide="search" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="filterInput" onkeyup="filterTable(this, 'dataTable')" placeholder="Filter collections..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+        @endif
+        
         <div class="bg-white rounded-lg shadow">
             @if(sheets.isEmpty())
                 <div class="p-8 text-center text-slate-500">
@@ -26,7 +35,7 @@
                                 <th class="px-6 py-3 text-right text-xs font-medium text-slate-600 uppercase">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-200">
+                        <tbody id="dataTable" class="divide-y divide-slate-200">
                             @for(var sheet : sheets)
                                 <tr class="hover:bg-slate-50">
                                     <td class="px-6 py-4 text-sm font-mono text-slate-800">${sheet.get("code").toString()}</td>
