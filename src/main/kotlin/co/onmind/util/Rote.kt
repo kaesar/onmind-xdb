@@ -52,6 +52,7 @@ object Rote {
                             app.language = en
                             app.modality = 5
                             app.deploy = 0
+                            app.ui = +
 
                             # Parametros del servicio adaptador de datos
                             dai.deploy = xdb
@@ -174,10 +175,38 @@ object Rote {
 
         return box
     }
+    
+    fun isUIEnabled(config: Properties): Boolean {
+        return config.getProperty("app.ui", "+") == "+"
+    }
 
     fun index() = """<!doctype html>
         <html><head><title>OnMind | eXpress DataBase (XDB)</title><link rel="shortcut icon" href="server/view/favicon.ico">
         <style>body { font-family: 'Lucida Console', 'Courier New', Helvetica, Arial, sans-serif; color: gainsboro; background: black; }</style></head>
         <body><p>[ Hi, this is OK! ]> <span id="hi">_</span></p></body></html>
+        """.trimIndent()
+    
+    fun welcome() = """<!doctype html>
+        <html><head><title>OnMind-XDB</title>
+        <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
+                   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+            .container { text-align: center; color: white; padding: 2rem; }
+            h1 { font-size: 3rem; margin: 0 0 1rem 0; font-weight: 700; }
+            p { font-size: 1.25rem; margin: 0.5rem 0; opacity: 0.9; }
+            .version { font-size: 0.875rem; margin-top: 2rem; opacity: 0.7; }
+            .icon { font-size: 4rem; margin-bottom: 1rem; }
+        </style></head>
+        <body>
+            <div class="container">
+                <!-- <div class="icon">🗄️</div> -->
+                <h1>OnMind-XDB</h1>
+                <p>eXpress DataBase WebApp</p>
+                <p style="margin-top: 2rem;">Admin UI is disabled for this environment</p>
+                <p style="font-size: 1rem; opacity: 0.8;">API service is running normally</p>
+                <div class="version">v${onmindxdb.version}</div>
+            </div>
+        </body></html>
         """.trimIndent()
 }

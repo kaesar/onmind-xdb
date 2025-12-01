@@ -1,10 +1,12 @@
 package co.onmind.app
 
 import co.onmind.db.RDB
+import co.onmind.util.Rote
 import gg.jte.ContentType
 import gg.jte.TemplateEngine
 import gg.jte.output.StringOutput
 import gg.jte.resolve.DirectoryCodeResolver
+import onmindxdb
 import org.http4k.core.Method
 import org.http4k.core.Request
 import org.http4k.core.Response
@@ -39,11 +41,17 @@ class AppUI {
     )
 
     private fun dashboard(): Response {
+        if (!onmindxdb.uiEnabled) {
+            return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
+        }
         val output = renderTemplate("dashboard", mapOf("title" to "Dashboard"))
         return Response(Status.OK).body(output).header("Content-Type", "text/html; charset=utf-8")
     }
 
     private fun dataList(req: Request): Response {
+        if (!onmindxdb.uiEnabled) {
+            return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
+        }
         val query = "SELECT id, kit01 as code, kit02 as name, kit03 as title FROM xykit WHERE kitxy = 'SHEET' AND kit01 LIKE '%.SHEET'"
         val sheets = xdb.forQuery(query) ?: emptyList()
         val output = renderTemplate("data-list", mapOf("sheets" to sheets))
@@ -51,6 +59,9 @@ class AppUI {
     }
 
     private fun dataView(req: Request): Response {
+        if (!onmindxdb.uiEnabled) {
+            return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
+        }
         val sheetLens = PathLens.of("sheet")
         val sheet = sheetLens(req)
         val code = "${sheet.uppercase()}.SHEET"
@@ -73,6 +84,9 @@ class AppUI {
     }
 
     private fun usersList(): Response {
+        if (!onmindxdb.uiEnabled) {
+            return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
+        }
         val query = "SELECT * FROM xykey WHERE keyxy IN ('USER', 'ROLE')"
         val users = xdb.forQuery(query) ?: emptyList()
         val output = renderTemplate("users-list", mapOf("users" to users))
@@ -80,6 +94,9 @@ class AppUI {
     }
 
     private fun settingsList(): Response {
+        if (!onmindxdb.uiEnabled) {
+            return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
+        }
         val query = "SELECT * FROM xyset"
         val settings = xdb.forQuery(query) ?: emptyList()
         val output = renderTemplate("settings-list", mapOf("settings" to settings))
@@ -87,7 +104,10 @@ class AppUI {
     }
 
     private fun sheetsList(): Response {
-        val query = "SELECT * FROM xykit WHERE kitxy = 'SHEET'"
+        if (!onmindxdb.uiEnabled) {
+            return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
+        }
+        val query = "SELECT * FROM xykit WHERE kitxy IN ('SHEET','SETUP')"
         val sheets = xdb.forQuery(query) ?: emptyList()
         val output = renderTemplate("sheets-list", mapOf("sheets" to sheets))
         return Response(Status.OK).body(output).header("Content-Type", "text/html; charset=utf-8")

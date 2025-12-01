@@ -92,7 +92,8 @@
     </div>
     
     <script src="/static/js/ace.js"></script>
-    <script>
+    <script type="module">
+        import * as abc from '/static/js/abcapi.js';
         ace.config.set('basePath', '/static/js');
         const editor = ace.edit("editor");
         editor.setTheme("ace/theme/github");
@@ -126,31 +127,18 @@
             }
         }
         
-        async function executeRequest() {
+        window.executeRequest = async function() {
             try {
                 const bodyText = editor.getValue();
                 const bodyObj = JSON.parse(bodyText);
                 
-                if (bodyObj.puts && typeof bodyObj.puts === 'object') {
-                    bodyObj.puts = JSON.stringify(bodyObj.puts);
-                }
-                
                 const startTime = performance.now();
-                const response = await fetch('/abc', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(bodyObj)
-                });
-                const data = await response.json();
+                const data = await abc.ask('/abc', bodyObj);
                 const endTime = performance.now();
                 const duration = ((endTime - startTime) / 1000).toFixed(3);
                 
                 document.getElementById('responseTime').textContent = duration + 's';
-                
-                sessionStorage.setItem('onmind-xdb-request', bodyText);
-                sessionStorage.setItem('onmind-xdb-response', JSON.stringify(data));
-                sessionStorage.setItem('onmind-xdb-response-time', duration + 's');
-                
+
                 if (data.total > 0 && data.data) {
                     localStorage.setItem('onmind-xdb-view-mode', 'table');
                     showTableView(data.data, bodyObj.from);
@@ -158,6 +146,10 @@
                     localStorage.setItem('onmind-xdb-view-mode', 'json');
                     showJsonView(data);
                 }
+
+                sessionStorage.setItem('onmind-xdb-request', bodyText);
+                sessionStorage.setItem('onmind-xdb-response', JSON.stringify(data));
+                sessionStorage.setItem('onmind-xdb-response-time', duration + 's');
             } catch (error) {
                 document.getElementById('responseTime').textContent = '';
                 showJsonView({ error: error.message });

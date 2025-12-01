@@ -4,7 +4,7 @@
     <div class="p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-slate-800 ml-12">Users & Roles</h1>
-            <button onclick="showToast('Function pending to include or release')" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 border-0 cursor-pointer">
+            <button onclick="openNewUserModal()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 border-0 cursor-pointer">
                 + New User
             </button>
         </div>
@@ -53,10 +53,12 @@
                                     </td>
                                     <td class="px-6 py-4 text-sm text-right">
                                         <div class="flex justify-end gap-2">
+                                            <!-- TODO: Implement Edit functionality
                                             <button onclick="showToast('Function pending to include or release')" class="text-blue-600 hover:text-blue-800 p-1 border-0 bg-transparent cursor-pointer" title="Edit">
                                                 <i data-lucide="pencil" class="w-4 h-4"></i>
                                             </button>
-                                            <button onclick="showToast('Function pending to include or release')" class="text-red-600 hover:text-red-800 p-1 border-0 bg-transparent cursor-pointer" title="Delete">
+                                            -->
+                                            <button onclick="deleteUser('${user.get("id").toString()}', '${user.get("key02").toString()}')" class="text-red-600 hover:text-red-800 p-1 border-0 bg-transparent cursor-pointer" title="Delete">
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         </div>
@@ -69,4 +71,109 @@
             @endif
         </div>
     </div>
+    
+    <!-- Modal -->
+    <div id="newUserModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-slate-800">New User</h2>
+                <button onclick="closeNewUserModal()" class="text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                    <input type="text" id="userName" placeholder="john" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                    <input type="email" id="userEmail" placeholder="john@example.com" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                    <select id="userType" class="w-full px-3 py-2 border border-slate-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="USER">USER</option>
+                        <option value="ROLE">ROLE</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="closeNewUserModal()" class="px-4 py-2 border border-slate-300 rounded hover:bg-slate-50 cursor-pointer">
+                    Cancel
+                </button>
+                <button onclick="createUser()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 border-0 cursor-pointer">
+                    Create
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import * as abc from '/static/js/abcapi.js';
+        
+        window.openNewUserModal = function() {
+            document.getElementById('newUserModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+        
+        window.closeNewUserModal = function() {
+            document.getElementById('newUserModal').classList.add('hidden');
+            document.getElementById('userName').value = '';
+            document.getElementById('userEmail').value = '';
+            document.getElementById('userType').value = 'USER';
+        }
+        
+        window.createUser = async function() {
+            const name = document.getElementById('userName').value.trim();
+            const email = document.getElementById('userEmail').value.trim();
+            const scheme = document.getElementById('userType').value;
+            
+            if (!name) {
+                showToast('Name is required');
+                return;
+            }
+            if (!email) {
+                showToast('Email is required');
+                return;
+            }
+            
+            const data = {
+                some: name,
+                user: email,
+                with: scheme
+            };
+            
+            const result = await abc.signup('/abc', data);
+            
+            if (result.ok) {
+                showToast('User created successfully');
+                closeNewUserModal();
+                setTimeout(() => window.location.reload(true), 800);
+            } else {
+                showToast(result.message || 'Error creating user');
+            }
+        }
+        
+        window.deleteUser = async function(id, name) {
+            if (!confirm('Delete user "' + name + '"?')) return;
+            
+            const data = {
+                from: 'xykey',
+                some: 'USER',
+                with: id
+            };
+            
+            const result = await abc.remove('/abc', data);
+            
+            if (result.ok || result.success) {
+                showToast('User deleted successfully');
+                setTimeout(() => window.location.reload(true), 800);
+            } else {
+                showToast(result.message || 'Error deleting user');
+            }
+        }
+    </script>
 `)

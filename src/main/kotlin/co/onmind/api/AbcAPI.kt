@@ -179,21 +179,30 @@ class AbcAPI(): AbstractAPI() {
                 val ioKey = mapper.readValue(body.puts, IOKey::class.java)
                 map = dbKey.mapValues(ioKey)
                 validateRequiredColumns(map, "key01", "key02", context.prefix)
-                return dbKey.getInsert(map as MutableMap<String, Any?>, context.some ?: "", body.user, id, now, body.pin)
+                val keyxy = (map as MutableMap)["keyxy"] ?: body.some ?: "USER"
+                return dbKey.getInsert(map, keyxy.toString(), body.user, id, now, body.pin)
             }
             "set" -> {
                 val dbSet = DBSet()
-                val ioSet = mapper.readValue(body.puts, IOSet::class.java)
+                val putsJson = mapper.readTree(body.puts)
+                if (!putsJson.has("setxy") && context.some != null) {
+                    (putsJson as com.fasterxml.jackson.databind.node.ObjectNode).put("setxy", context.some)
+                }
+                val ioSet = mapper.treeToValue(putsJson, IOSet::class.java)
                 map = dbSet.mapValues(ioSet)
                 validateRequiredColumns(map, "set01", "set02", context.prefix)
-                return dbSet.getInsert(map as MutableMap<String, Any?>, context.some ?: "", body.user, id, now, body.pin)
+                return dbSet.getInsert(map as MutableMap<String, Any?>, map["setxy"].toString(), body.user, id, now, body.pin)
             }
             "doc" -> {
                 val dbDoc = DBDoc()
-                val ioDoc = mapper.readValue(body.puts, IODoc::class.java)
+                val putsJson = mapper.readTree(body.puts)
+                if (!putsJson.has("docxy") && context.some != null) {
+                    (putsJson as com.fasterxml.jackson.databind.node.ObjectNode).put("docxy", context.some)
+                }
+                val ioDoc = mapper.treeToValue(putsJson, IODoc::class.java)
                 map = dbDoc.mapValues(ioDoc)
                 validateRequiredColumns(map, "doc01", "doc02", context.prefix)
-                return dbDoc.getInsert(map as MutableMap<String, Any?>, context.some ?: "", body.user, id, now, body.pin)
+                return dbDoc.getInsert(map as MutableMap<String, Any?>, map["docxy"].toString(), body.user, id, now, body.pin)
             }
             else -> {
                 val dbAny = DBAny()
@@ -344,7 +353,7 @@ class AbcAPI(): AbstractAPI() {
         if (user.isNullOrEmpty()) {
             return sendError("The user is required")
         }
-        else if (listOf("ONE","KEY","YOU","GET","SET","TOP","ASK","PUT","SUM","ADD","LAY","ANY").indexOf(kind) < 0) {
+        else if (listOf("ONE","KEY","YOU","GET","SET","TOP","ASK","PUT","SUM","ADD","LAY","ANY","DOC").indexOf(kind) < 0) {
             return sendError("The archetype or object class is not recognized: $kind")
         }
         //if (listOf("BOX","DUO").indexOf(repo) < 0) {
@@ -412,7 +421,7 @@ class AbcAPI(): AbstractAPI() {
         if (user.isNullOrEmpty()) {
             return sendError("The user is required")
         }
-        else if (listOf("ONE","KEY","YOU","GET","SET","TOP","ASK","PUT","SUM","ADD","LAY","ANY").indexOf(kind) < 0) {
+        else if (listOf("ONE","KEY","YOU","GET","SET","TOP","ASK","PUT","SUM","ADD","LAY","ANY","DOC").indexOf(kind) < 0) {
             return sendError("The archetype or object class is not recognized: $kind")
         }
         else if (repo != "BOX" && listOf("ONE","KEY","YOU").indexOf(kind) > -1) {
@@ -535,13 +544,16 @@ class AbcAPI(): AbstractAPI() {
     }
 
     private fun whoami(): Response {
+        val appMode = onmindxdb.config?.getProperty("app.mode", "production") ?: "production"
         val result = mapOf(
             "ok" to true,
             "user" to System.getProperty("user.name"),
             "home" to System.getProperty("user.home"),
             "os" to System.getProperty("os.name"),
+            "mode" to appMode,
             "engine" to if (onmindxdb.driver.contains("org.h2")) "default" else "duckdb",
-            "kvstore" to kvStore
+            "kvstore" to kvStore,
+            "version" to onmindxdb.version
         )
         return sendSuccess(result)
     }
@@ -581,12 +593,12 @@ class AbcAPI(): AbstractAPI() {
                 "key01" to code,
                 "key02" to name,
                 "key03" to name.uppercase(),
-                "key09" to level,
+                "key09" to level.toString(),  // TODO: check why this works
                 "key16" to "EN",
                 "key20" to "OK",
                 "keyon" to keyon
             )
-            val query = dbKey.getInsert(map, "XYKEY", user, id, now, pin)
+            val query = dbKey.getInsert(map, scheme, user, id, now, pin)
             xdb.forUpdate(query)
 
             val selectQuery = "SELECT * FROM xykey WHERE id='$id'"

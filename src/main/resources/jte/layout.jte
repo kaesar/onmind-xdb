@@ -90,6 +90,10 @@
                 <i data-lucide="table" class="w-5 h-5"></i>
                 <span>Sheets</span>
             </a>
+            <a href="https://onmind.net/onmind/en/OnMind-XDB" target="_blank">
+                <i data-lucide="book-open" class="w-5 h-5"></i>
+                <span>Documentation</span>
+            </a>
         </div>
     </nav>
     <main class="main-content" id="mainContent">

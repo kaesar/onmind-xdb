@@ -26,6 +26,67 @@ import co.onmind.app.AppUI
 import co.onmind.db.RDB
 import org.http4k.core.Status
 
+object onmindxdb {
+    val os = System.getProperty("os.name")
+    var dbc: Connection? = null  // AgroalDataSource? = null
+    var driver = "org.h2.Driver"
+    var dbfile: String? = null
+    var queryLimit = 1200
+    var config: Properties? = null
+    val version = "0.7.0"
+    var uiEnabled = true
+
+    @JvmStatic
+    fun main(args: Array<String>) {
+        val filex = Rote.getConfigFile()
+        val cfg = Rote.getConfig(filex)  //val resource = Class::class.java.getResource("/application.conf")
+        config = cfg
+        dbc = Rote.getDB(cfg)
+        dbfile = cfg.getProperty("app.local") + "xy/xybox.xdb"
+        if (Rote.os.contains("Windows"))
+            dbfile = dbfile!!.replace("/", "\\")
+
+        val port = Rote.port
+        val abc = AbcAPI()
+        val appUI = AppUI()
+        val xdb = RDB()
+        xdb.readPoint()
+
+        val appMode = cfg.getProperty("app.mode", "production")
+        val enableSwagger = appMode != "production"
+        uiEnabled = cfg.getProperty("app.ui", "+") == "+"
+        
+        print("Exposing api/db service ... ")
+        val routesList = mutableListOf(
+            "/" bind Method.GET to { _: Request -> 
+                if (uiEnabled) Response(OK).status(Status.FOUND).header("Location", "/_/")
+                else Response(OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
+            },
+            "/abc" bind Method.POST to abc.useControl(),
+            "/abc" bind Method.GET to { _: Request ->
+                Response(OK).body("""{"ok":true,"status":"200","service":"OnMind-XDB","version":"${version}","driver":"${driver}","embedded":${Rote.embedded}}""")
+                    .header("Content-Type", "application/json")
+            },
+            "/static" bind static(Classpath("/static")),
+            appUI.routes()
+        )
+        
+        if (enableSwagger) {
+            routesList.add("/swagger" bind Method.GET to { _: Request -> Response(OK).body(swaggerUI()).header("Content-Type", "text/html") })
+        }
+        
+        val app = routes(*routesList.toTypedArray()).withFilter(Cors(CorsPolicy(
+            OriginPolicy.AllowAll(),  // AnyOf(listOf("*"))
+            listOf("Content-Type", "Cache-Control"),
+            listOf(Method.POST, Method.GET)  // Method.values().toList()
+        )))
+
+        println("[  OK!  ] => http://127.0.0.1:${port}")
+        val serve = app.asServer(SunHttp(port)).start()  // Netty is an alternative
+        serve.block()
+    }
+}
+
 fun swaggerUI(): String {
     val yamlContent = onmindxdb::class.java.getResourceAsStream("/swagger.yml")?.bufferedReader()?.readText() ?: ""
     return """
@@ -61,60 +122,4 @@ $yamlContent
     </body>
     </html>
     """.trimIndent()
-}
-
-object onmindxdb {
-    val os = System.getProperty("os.name")
-    var dbc: Connection? = null  // AgroalDataSource? = null
-    var driver = "org.h2.Driver"
-    var dbfile: String? = null
-    var queryLimit = 1200
-    var config: Properties? = null
-    val version = "1.0.0"
-
-    @JvmStatic
-    fun main(args: Array<String>) {
-        val filex = Rote.getConfigFile()
-        val cfg = Rote.getConfig(filex)  //val resource = Class::class.java.getResource("/application.conf")
-        config = cfg
-        dbc = Rote.getDB(cfg)
-        dbfile = cfg.getProperty("app.local") + "xy/xybox.xdb"
-        if (Rote.os.contains("Windows"))
-            dbfile = dbfile!!.replace("/", "\\")
-
-        val port = Rote.port
-        val abc = AbcAPI()
-        val appUI = AppUI()
-        val xdb = RDB()
-        xdb.readPoint()
-
-        val appMode = cfg.getProperty("app.mode", "production")
-        val enableSwagger = appMode != "production"
-        
-        print("Exposing api/db service ... ")
-        val routesList = mutableListOf(
-            "/" bind Method.GET to { _: Request -> Response(OK).status(Status.FOUND).header("Location", "/_/") },
-            "/abc" bind Method.POST to abc.useControl(),
-            "/abc" bind Method.GET to { _: Request ->
-                Response(OK).body("""{"ok":true,"status":"200","service":"OnMind-XDB","version":"${version}","driver":"${driver}","embedded":${Rote.embedded}}""")
-                    .header("Content-Type", "application/json")
-            },
-            "/static" bind static(Classpath("/static")),
-            appUI.routes()
-        )
-        
-        if (enableSwagger) {
-            routesList.add("/swagger" bind Method.GET to { _: Request -> Response(OK).body(swaggerUI()).header("Content-Type", "text/html") })
-        }
-        
-        val app = routes(*routesList.toTypedArray()).withFilter(Cors(CorsPolicy(
-            OriginPolicy.AllowAll(),  // AnyOf(listOf("*"))
-            listOf("Content-Type", "Cache-Control"),
-            listOf(Method.POST, Method.GET)  // Method.values().toList()
-        )))
-
-        println("[  OK!  ] => http://127.0.0.1:${port}")
-        val serve = app.asServer(SunHttp(port)).start()  // Netty is an alternative
-        serve.block()
-    }
 }
