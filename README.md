@@ -9,7 +9,7 @@ This also use an embedded database (H2) that run SQL internally in-memory for qu
 
 Just this code, AS IS, is under Apache 2.0 License (Open Source).
 
-> [**See Documentation**](https://onmind.co/doc/code/en/OnMind-XDB.md)
+> [**See Documentation**](https://onmind.net/onmind/en/OnMind-XDB)
 
 ## Installing OnMind-XDB
 
@@ -44,5 +44,6 @@ La ventana de la aplicación se oculta como un servicio y puede buscarse en la b
 ---
 
 > https://onmind.co  
-> Previous Update: 30-11-2021  
-> Last Update: 20-08-2022
+> Old Key Update: 2021-11-30  
+> Previous Key Update: 2022-08-20  
+> Version Update: 2025-08-07

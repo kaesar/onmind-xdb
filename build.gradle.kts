@@ -4,15 +4,15 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 import java.nio.file.Path
 
 val javaVersion = "17"
-val kotlinVersion = "1.9.25"  //"2.1.10"
-val http4kVersion = "5.47.0.0"  //"6.1.0.1"
+val kotlinVersion = "2.0.21"
+val http4kVersion = "5.47.0.0"
 val jacksonVersion = "2.18.3"
 
 plugins {
-    kotlin("jvm") version "1.9.25"  //"2.1.10"
-    id("com.github.johnrengelman.shadow") version "7.1.2"  //"8.1.1"
-    id("org.graalvm.buildtools.native") version "0.9.28"
-    id("gg.jte.gradle") version "3.1.9"
+    kotlin("jvm") version "2.0.21"
+    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("org.graalvm.buildtools.native") version "0.10.4"
+    id("gg.jte.gradle") version "3.1.15"
     application
 }
 
@@ -28,11 +28,11 @@ dependencies {
     implementation("org.http4k:http4k-core:$http4kVersion")
     implementation("org.http4k:http4k-format-jackson:$http4kVersion")
     implementation("org.http4k:http4k-contract:$http4kVersion")
-    implementation("gg.jte:jte:3.1.9")
-    implementation("gg.jte:jte-kotlin:3.1.9")
+    implementation("gg.jte:jte:3.1.15")
+    implementation("gg.jte:jte-kotlin:3.1.15")
     implementation("com.h2database:h2:2.3.232")
     implementation("org.ehcache:ehcache:3.10.8")
-    implementation("software.amazon.awssdk:dynamodb:2.31.1")
+    implementation("software.amazon.awssdk:dynamodb:2.29.39")
     //implementation("org.postgresql:postgresql:42.7.5")
     //implementation("org.duckdb:duckdb_jdbc:1.2.1")  // ENABLE THIS JUST FOR JAR VERSION
     //implementation("org.herddb:herddb-jdbc:0.29.0")  // ENABLE THIS JUST FOR JAR VERSION
@@ -42,7 +42,7 @@ dependencies {
 }
 
 group = "co.onmind"
-version = "1.0.0-final2024"
+version = "1.0.0-final2025"
 
 application {
     mainClass.set("onmindxdb")
@@ -54,14 +54,10 @@ application {
     }
 }*/
 
-val compileKotlin: KotlinJvmCompile by tasks
-compileKotlin.kotlinOptions {
-    jvmTarget = javaVersion
-}
-
-val compileTestKotlin: KotlinJvmCompile by tasks
-compileTestKotlin.kotlinOptions {
-    jvmTarget = javaVersion
+tasks.withType<KotlinJvmCompile>().configureEach {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }
 
 jte {

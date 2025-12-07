@@ -1,9 +1,9 @@
 # OnMind-XDB - Guía Tecnica
 
 > Una base de datos No-SQL rápida en memoria con lenguaje de consulta simple  
-> por Cesar Andres Arcila
+> por Cesar Andres Arcila B.
 
-## 📋 Tabla de Contenidos
+## Tabla de Contenido
 
 1. [Introducción](#introducción)
 2. [Instalación](#instalación)
@@ -11,9 +11,7 @@
 4. [Estructura del Proyecto](#estructura-del-proyecto)
 5. [Interfaz de Usuario](#interfaz-de-usuario)
 6. [API y Operaciones](#api-y-operaciones)
-7. [Ejemplos HTMX](#ejemplos-htmx)
-8. [Próximos Pasos](#próximos-pasos)
-9. [Desarrollo](#desarrollo)
+7[Desarrollo](#desarrollo)
 
 ---
 

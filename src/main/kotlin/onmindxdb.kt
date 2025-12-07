@@ -33,7 +33,7 @@ object onmindxdb {
     var dbfile: String? = null
     var queryLimit = 1200
     var config: Properties? = null
-    val version = "0.7.0"
+    val version = "0.8.0"
     var uiEnabled = true
 
     @JvmStatic
