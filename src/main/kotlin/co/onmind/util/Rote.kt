@@ -180,12 +180,6 @@ object Rote {
         return config.getProperty("app.ui", "+") == "+"
     }
 
-    fun index() = """<!doctype html>
-        <html><head><title>OnMind | eXpress DataBase (XDB)</title><link rel="shortcut icon" href="server/view/favicon.ico">
-        <style>body { font-family: 'Lucida Console', 'Courier New', Helvetica, Arial, sans-serif; color: gainsboro; background: black; }</style></head>
-        <body><p>[ Hi, this is OK! ]> <span id="hi">_</span></p></body></html>
-        """.trimIndent()
-    
     fun welcome() = """<!doctype html>
         <html><head><title>OnMind-XDB</title>
         <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">

@@ -453,6 +453,7 @@ class AbcAPI(): AbstractAPI() {
         val name = body.some
         var scheme = body.with ?: "SHEET"
         val spec = body.puts ?: "[]"
+        val title = body.show
         val pin = body.pin
         // val user = body.user
 
@@ -470,6 +471,9 @@ class AbcAPI(): AbstractAPI() {
             val rows = xdb.forQuery(query)
             val row = rows?.get(0) ?: mutableMapOf()
             row.put("kit05", spec)
+            if (!title.isNullOrEmpty()) {
+                row.put("kit03", title)
+            }
             xdb.savePointKit(row)
 
             val dbKit = DBKit()

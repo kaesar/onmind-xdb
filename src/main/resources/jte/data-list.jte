@@ -4,7 +4,7 @@
     <div class="p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-slate-800 ml-12">Data Collections</h1>
-            <button onclick="window.location.href='/_/sheets'" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 border-0 cursor-pointer">
+            <button onclick="window.location.href='/app/sheets'" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 border-0 cursor-pointer">
                 In Sheets...
             </button>
         </div>
@@ -43,7 +43,7 @@
                                     <td class="px-6 py-4 text-sm text-slate-600">${sheet.get("title").toString()}</td>
                                     <td class="px-6 py-4 text-sm text-right">
                                         <div class="flex justify-end gap-2">
-                                            <button onclick="window.location.href='/_/data/${sheet.get("name").toString()}'" class="text-blue-600 hover:text-blue-800 p-1 border-0 bg-transparent cursor-pointer" title="View">
+                                            <button onclick="window.location.href='/app/data/${sheet.get("name").toString()}'" class="text-blue-600 hover:text-blue-800 p-1 border-0 bg-transparent cursor-pointer" title="View">
                                                 <i data-lucide="eye" class="w-4 h-4"></i>
                                             </button>
                                         </div>

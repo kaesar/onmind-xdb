@@ -5,7 +5,7 @@
         <h1 class="text-3xl font-bold text-slate-800 mb-6 ml-12">eXpress DataBase WebApp</h1>
         
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <a href="/_/data" class="bg-white rounded-lg shadow p-6 hover:shadow-lg dark:hover:shadow-slate-700/50 transition cursor-pointer no-underline">
+            <a href="/app/data" class="bg-white rounded-lg shadow p-6 hover:shadow-lg dark:hover:shadow-slate-700/50 transition cursor-pointer no-underline">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
                         <i data-lucide="database" class="w-10 h-10 text-blue-500"></i>
@@ -17,7 +17,7 @@
                 </div>
             </a>
             
-            <a href="/_/users" class="bg-white rounded-lg shadow p-6 hover:shadow-lg dark:hover:shadow-slate-700/50 transition cursor-pointer no-underline">
+            <a href="/app/users" class="bg-white rounded-lg shadow p-6 hover:shadow-lg dark:hover:shadow-slate-700/50 transition cursor-pointer no-underline">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
                         <i data-lucide="users" class="w-10 h-10 text-purple-500"></i>
@@ -29,7 +29,7 @@
                 </div>
             </a>
             
-            <a href="/_/settings" class="bg-white rounded-lg shadow p-6 hover:shadow-lg dark:hover:shadow-slate-700/50 transition cursor-pointer no-underline">
+            <a href="/app/settings" class="bg-white rounded-lg shadow p-6 hover:shadow-lg dark:hover:shadow-slate-700/50 transition cursor-pointer no-underline">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
                         <i data-lucide="settings" class="w-10 h-10 text-orange-500"></i>
@@ -41,7 +41,7 @@
                 </div>
             </a>
             
-            <a href="/_/sheets" class="bg-white rounded-lg shadow p-6 hover:shadow-lg dark:hover:shadow-slate-700/50 transition cursor-pointer no-underline">
+            <a href="/app/sheets" class="bg-white rounded-lg shadow p-6 hover:shadow-lg dark:hover:shadow-slate-700/50 transition cursor-pointer no-underline">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-3">
                         <i data-lucide="table" class="w-10 h-10 text-green-500"></i>

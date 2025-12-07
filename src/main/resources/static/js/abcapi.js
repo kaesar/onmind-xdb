@@ -102,6 +102,12 @@ export function drop(url, datax) {
     return response(json);
 }
 
+export function define(url, datax) {
+    datax.what = 'define';
+    const json = fetch(url, request(datax));
+    return response(json);
+}
+
 export function ask(url, datax) {
     let what = datax.what
     if (what == 'find')
@@ -116,6 +122,8 @@ export function ask(url, datax) {
         return this.create(url, datax)
     else if (what == 'drop')
         return this.drop(url, datax)
+    else if (what == 'define')
+        return this.define(url, datax)
     else {
         const json = fetch(url, request(datax));
         return response(json);    

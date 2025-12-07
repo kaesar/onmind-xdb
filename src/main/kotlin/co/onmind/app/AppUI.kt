@@ -31,13 +31,13 @@ class AppUI {
     }
 
     fun routes() = routes(
-        "/_" bind Method.GET to { _: Request -> dashboard() },
-        "/_/" bind Method.GET to { _: Request -> dashboard() },
-        "/_/data" bind Method.GET to { req: Request -> dataList(req) },
-        "/_/data/{sheet}" bind Method.GET to { req: Request -> dataView(req) },
-        "/_/users" bind Method.GET to { _: Request -> usersList() },
-        "/_/settings" bind Method.GET to { _: Request -> settingsList() },
-        "/_/sheets" bind Method.GET to { _: Request -> sheetsList() }
+        "/app" bind Method.GET to { _: Request -> dashboard() },
+        "/app/" bind Method.GET to { _: Request -> dashboard() },
+        "/app/data" bind Method.GET to { _: Request -> dataList() },
+        "/app/data/{sheet}" bind Method.GET to { req: Request -> dataView(req) },
+        "/app/users" bind Method.GET to { _: Request -> usersList() },
+        "/app/settings" bind Method.GET to { _: Request -> settingsList() },
+        "/app/sheets" bind Method.GET to { _: Request -> sheetsList() }
     )
 
     private fun dashboard(): Response {
@@ -48,7 +48,7 @@ class AppUI {
         return Response(Status.OK).body(output).header("Content-Type", "text/html; charset=utf-8")
     }
 
-    private fun dataList(req: Request): Response {
+    private fun dataList(): Response {
         if (!onmindxdb.uiEnabled) {
             return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
         }

@@ -5,7 +5,7 @@
 @template.layout(title = sheet.get("kit02").toString(), content = @`
     <div class="p-8">
         <div class="mb-6 ml-12">
-            <a href="/_/data" class="inline-flex items-center text-blue-600 hover:text-blue-800 p-2 rounded hover:bg-blue-50 no-underline cursor-pointer" title="Back to Collections">
+            <a href="/app/data" class="inline-flex items-center text-blue-600 hover:text-blue-800 p-2 rounded hover:bg-blue-50 no-underline cursor-pointer" title="Back to Collections">
                 <i data-lucide="chevron-left" class="w-5 h-5"></i>
             </a>
         </div>
@@ -74,6 +74,31 @@
         </div>
     </div>
     
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteConfirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <div class="flex items-center mb-4">
+                <div class="flex-shrink-0 w-10 h-10 mx-auto bg-red-100 rounded-full flex items-center justify-center">
+                    <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <h3 class="text-lg font-medium text-slate-800 mb-2">Delete Record</h3>
+                <p class="text-sm text-slate-500 mb-6" id="deleteMessage">Are you sure you want to delete this record? This action cannot be undone.</p>
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="closeDeleteModal()" class="flex-1 px-4 py-2 border border-slate-300 rounded hover:bg-slate-50 cursor-pointer">
+                    Cancel
+                </button>
+                <button onclick="confirmDelete()" class="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 border-0 cursor-pointer">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+    
     <script type="module">
         import * as abc from '/static/js/abcapi.js';
         
@@ -90,21 +115,36 @@
             sessionStorage.setItem('onmind-xdb-request', JSON.stringify(query, null, 2));
             sessionStorage.removeItem('onmind-xdb-response');
             sessionStorage.removeItem('onmind-xdb-response-time');
-            window.location.href = '/_/';
+            window.location.href = '/app/';
         }
         
-        window.deleteRecord = async function(recordId) {
-            if (!confirm('Are you sure you want to delete this record?')) return;
+        let deleteRecordData = null;
+        
+        window.deleteRecord = function(recordId) {
+            deleteRecordData = { recordId };
+            document.getElementById('deleteMessage').textContent = 'Are you sure you want to delete this record? This action cannot be undone.';
+            document.getElementById('deleteConfirmModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+        
+        window.closeDeleteModal = function() {
+            document.getElementById('deleteConfirmModal').classList.add('hidden');
+            deleteRecordData = null;
+        }
+        
+        window.confirmDelete = async function() {
+            if (!deleteRecordData) return;
             
             const data = {
                 from: 'xyany',
                 some: '${code}',
-                with: recordId
+                with: deleteRecordData.recordId
             };
             
             const result = await abc.remove('/abc', data);
             if (result.ok || result.success) {
                 showToast('Record deleted successfully');
+                closeDeleteModal();
                 setTimeout(() => location.reload(), 800);
             } else {
                 showToast(result.message || 'Error deleting record');

@@ -72,7 +72,7 @@
         </div>
     </div>
     
-    <!-- Modal -->
+    <!-- New User Modal -->
     <div id="newUserModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
             <div class="flex justify-between items-center mb-4">
@@ -106,6 +106,31 @@
                 </button>
                 <button onclick="createUser()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 border-0 cursor-pointer">
                     Create
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteConfirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+            <div class="flex items-center mb-4">
+                <div class="flex-shrink-0 w-10 h-10 mx-auto bg-red-100 rounded-full flex items-center justify-center">
+                    <i data-lucide="alert-triangle" class="w-6 h-6 text-red-600"></i>
+                </div>
+            </div>
+            
+            <div class="text-center">
+                <h3 class="text-lg font-medium text-slate-800 mb-2">Delete User</h3>
+                <p class="text-sm text-slate-500 mb-6" id="deleteMessage">Are you sure you want to delete this user? This action cannot be undone.</p>
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="closeDeleteModal()" class="flex-1 px-4 py-2 border border-slate-300 rounded hover:bg-slate-50 cursor-pointer">
+                    Cancel
+                </button>
+                <button onclick="confirmDelete()" class="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 border-0 cursor-pointer">
+                    Delete
                 </button>
             </div>
         </div>
@@ -157,19 +182,34 @@
             }
         }
         
-        window.deleteUser = async function(id, name) {
-            if (!confirm('Delete user "' + name + '"?')) return;
+        let deleteUserData = null;
+        
+        window.deleteUser = function(id, name) {
+            deleteUserData = { id, name };
+            document.getElementById('deleteMessage').textContent = 'Are you sure you want to delete user "' + name + '"? This action cannot be undone.';
+            document.getElementById('deleteConfirmModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+        
+        window.closeDeleteModal = function() {
+            document.getElementById('deleteConfirmModal').classList.add('hidden');
+            deleteUserData = null;
+        }
+        
+        window.confirmDelete = async function() {
+            if (!deleteUserData) return;
             
             const data = {
                 from: 'xykey',
                 some: 'USER',
-                with: id
+                with: deleteUserData.id
             };
             
             const result = await abc.remove('/abc', data);
             
             if (result.ok || result.success) {
                 showToast('User deleted successfully');
+                closeDeleteModal();
                 setTimeout(() => window.location.reload(true), 800);
             } else {
                 showToast(result.message || 'Error deleting user');

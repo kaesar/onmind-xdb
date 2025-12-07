@@ -59,7 +59,7 @@ object onmindxdb {
         print("Exposing api/db service ... ")
         val routesList = mutableListOf(
             "/" bind Method.GET to { _: Request -> 
-                if (uiEnabled) Response(OK).status(Status.FOUND).header("Location", "/_/")
+                if (uiEnabled) Response(OK).status(Status.FOUND).header("Location", "/app/")
                 else Response(OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
             },
             "/abc" bind Method.POST to abc.useControl(),

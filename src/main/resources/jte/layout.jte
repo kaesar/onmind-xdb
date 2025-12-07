@@ -70,23 +70,23 @@
             </button>
         </div>
         <div class="py-4">
-            <a href="/_/">
+            <a href="/app/">
                 <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
                 <span>Dashboard</span>
             </a>
-            <a href="/_/data">
+            <a href="/app/data">
                 <i data-lucide="database" class="w-5 h-5"></i>
                 <span>Data</span>
             </a>
-            <a href="/_/users">
+            <a href="/app/users">
                 <i data-lucide="users" class="w-5 h-5"></i>
                 <span>Users</span>
             </a>
-            <a href="/_/settings">
+            <a href="/app/settings">
                 <i data-lucide="settings" class="w-5 h-5"></i>
                 <span>Settings</span>
             </a>
-            <a href="/_/sheets">
+            <a href="/app/sheets">
                 <i data-lucide="table" class="w-5 h-5"></i>
                 <span>Sheets</span>
             </a>
