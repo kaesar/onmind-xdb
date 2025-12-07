@@ -1,4 +1,4 @@
-@param java.util.List<java.util.Map<String, Object>> sheets
+@param sheets: List<Map<String, Any?>>
 
 @template.layout(title = "Sheets", content = @`
     <div class="p-8">
@@ -9,7 +9,7 @@
             </button>
         </div>
         
-        @if(!sheets.isEmpty())
+        @if(sheets.isNotEmpty())
         <div class="mb-4">
             <div class="relative">
                 <i data-lucide="search" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
@@ -38,23 +38,23 @@
                             </tr>
                         </thead>
                         <tbody id="sheetsTable" class="divide-y divide-slate-200">
-                            @for(var sheet : sheets)
+                            @for(sheet in sheets)
                                 <tr class="hover:bg-slate-50">
-                                    <td class="px-6 py-4 text-sm font-mono text-slate-800">${sheet.get("kit01").toString()}</td>
-                                    <td class="px-6 py-4 text-sm text-slate-800">${sheet.get("kit02").toString()}</td>
-                                    <td class="px-6 py-4 text-sm text-slate-600">${sheet.get("kit03").toString()}</td>
-                                    <td class="px-6 py-4 text-sm text-slate-600">${sheet.get("kit05").toString()}</td>
+                                    <td class="px-6 py-4 text-sm font-mono text-slate-800">${sheet["kit01"].toString()}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-800">${sheet["kit02"].toString()}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-600">${sheet["kit03"].toString()}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-600">${sheet["kit05"].toString()}</td>
                                     <td class="px-6 py-4 text-sm">
-                                        <span class="px-2 py-1 text-xs rounded ${sheet.get("kitxy").toString().equals("SETUP") ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800"}">
-                                            ${sheet.get("kitxy").toString()}
+                                        <span class="px-2 py-1 text-xs rounded ${if (sheet["kitxy"].toString() == "SETUP") "bg-purple-100 text-purple-800" else "bg-blue-100 text-blue-800"}">
+                                            ${sheet["kitxy"].toString()}
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-sm text-right">
                                         <div class="flex justify-end gap-2">
-                                            <button onclick="editSheet('${sheet.get("kit01").toString()}', '${sheet.get("kit02").toString()}', '${sheet.get("kit03").toString()}', '${sheet.get("kitxy").toString()}', '${sheet.get("kit05").toString()}')" class="text-blue-600 hover:text-blue-800 p-1 border-0 bg-transparent cursor-pointer" title="Edit">
+                                            <button onclick="editSheet('${sheet["kit01"].toString()}', '${sheet["kit02"].toString()}', '${sheet["kit03"].toString()}', '${sheet["kitxy"].toString()}', '${sheet["kit05"].toString()}')" class="text-blue-600 hover:text-blue-800 p-1 border-0 bg-transparent cursor-pointer" title="Edit">
                                                 <i data-lucide="pencil" class="w-4 h-4"></i>
                                             </button>
-                                            <button onclick="deleteSheet('${sheet.get("kit01").toString()}')" class="text-red-600 hover:text-red-800 p-1 border-0 bg-transparent cursor-pointer" title="Delete">
+                                            <button onclick="deleteSheet('${sheet["kit01"].toString()}')" class="text-red-600 hover:text-red-800 p-1 border-0 bg-transparent cursor-pointer" title="Delete">
                                                 <i data-lucide="trash-2" class="w-4 h-4"></i>
                                             </button>
                                         </div>
@@ -68,7 +68,6 @@
         </div>
     </div>
     
-    <!-- Modal -->
     <div id="newSheetModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
             <div class="flex justify-between items-center mb-4">
@@ -107,7 +106,6 @@
         </div>
     </div>
     
-    <!-- Delete Confirmation Modal -->
     <div id="deleteConfirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
             <div class="flex items-center mb-4">
@@ -132,7 +130,6 @@
         </div>
     </div>
     
-    <!-- Edit Sheet Modal -->
     <div id="editSheetModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
             <div class="flex justify-between items-center mb-4">

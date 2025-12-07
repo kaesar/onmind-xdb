@@ -1,4 +1,4 @@
-@param String title
+@param title: String
 
 @template.layout(title = title, content = @`
     <div class="p-8">

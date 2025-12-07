@@ -22,7 +22,7 @@ class AppUI {
     private val templateEngine: TemplateEngine = createTemplateEngine()
 
     private fun createTemplateEngine(): TemplateEngine {
-        val devPath = Path.of("src/main/resources/jte")
+        val devPath = Path.of("src/main/resources/kte")
         return if (Files.exists(devPath)) {
             TemplateEngine.create(DirectoryCodeResolver(devPath), ContentType.Html)
         } else {
@@ -116,7 +116,7 @@ class AppUI {
     private fun renderTemplate(name: String, model: Map<String, Any>): String {
         return try {
             val output = StringOutput()
-            templateEngine.render("$name.jte", model, output)
+            templateEngine.render("$name.kte", model, output)
             output.toString()
         } catch (e: Exception) {
             "<html><body><h1>Template Error</h1><pre>${e.message}</pre></body></html>"

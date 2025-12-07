@@ -66,7 +66,7 @@ compileTestKotlin.kotlinOptions {
 
 jte {
     generate()
-    sourceDirectory.set(Path.of("src", "main", "resources", "jte"))
+    sourceDirectory.set(Path.of("src", "main", "resources", "kte"))
     contentType.set(gg.jte.ContentType.Html)
 }
 

@@ -1,4 +1,4 @@
-@param java.util.List<java.util.Map<String, Object>> sheets
+@param sheets: List<Map<String, Any?>>
 
 @template.layout(title = "Data", content = @`
     <div class="p-8">
@@ -9,7 +9,7 @@
             </button>
         </div>
         
-        @if(!sheets.isEmpty())
+        @if(sheets.isNotEmpty())
         <div class="mb-4">
             <div class="relative">
                 <i data-lucide="search" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
@@ -36,14 +36,14 @@
                             </tr>
                         </thead>
                         <tbody id="dataTable" class="divide-y divide-slate-200">
-                            @for(var sheet : sheets)
+                            @for(sheet in sheets)
                                 <tr class="hover:bg-slate-50">
-                                    <td class="px-6 py-4 text-sm font-mono text-slate-800">${sheet.get("code").toString()}</td>
-                                    <td class="px-6 py-4 text-sm text-slate-800">${sheet.get("name").toString()}</td>
-                                    <td class="px-6 py-4 text-sm text-slate-600">${sheet.get("title").toString()}</td>
+                                    <td class="px-6 py-4 text-sm font-mono text-slate-800">${sheet["code"].toString()}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-800">${sheet["name"].toString()}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-600">${sheet["title"].toString()}</td>
                                     <td class="px-6 py-4 text-sm text-right">
                                         <div class="flex justify-end gap-2">
-                                            <button onclick="window.location.href='/app/data/${sheet.get("name").toString()}'" class="text-blue-600 hover:text-blue-800 p-1 border-0 bg-transparent cursor-pointer" title="View">
+                                            <button onclick="window.location.href='/app/data/${sheet["name"].toString()}'" class="text-blue-600 hover:text-blue-800 p-1 border-0 bg-transparent cursor-pointer" title="View">
                                                 <i data-lucide="eye" class="w-4 h-4"></i>
                                             </button>
                                         </div>
