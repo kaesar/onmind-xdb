@@ -20,53 +20,36 @@
             </button>
         </div>
         
-        @if(records.isNotEmpty())
-        <div class="mb-4">
-            <div class="relative">
-                <i data-lucide="search" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
-                <input type="text" id="filterInput" onkeyup="filterTable(this, 'recordsTable')" placeholder="Filter records..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        @if(records.isEmpty())
+            <div class="bg-white rounded-lg shadow p-8 text-center text-slate-500">
+                <p class="text-lg">No records found</p>
+                <p class="text-sm mt-2">Add your first record to this collection</p>
             </div>
-        </div>
+        @else
+            <div class="mb-4 flex gap-2">
+                <as-button label="Delete" id="deleteBtn" style="display:none"></as-button>
+            </div>
+            <as-datagrid title="Records" selectable filterable pageable row-key="id" id="recordsGrid" theme="light"></as-datagrid>
         @endif
-        
-        <div class="bg-white rounded-lg shadow">
-            @if(records.isEmpty())
-                <div class="p-8 text-center text-slate-500">
-                    <p class="text-lg">No records found</p>
-                    <p class="text-sm mt-2">Add your first record to this collection</p>
-                </div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-slate-50 border-b">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">ID</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Code</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Data</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-slate-600 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="recordsTable" class="divide-y divide-slate-200">
-                            @for(record in records)
-                                <tr class="hover:bg-slate-50">
-                                    <td class="px-6 py-4 text-sm font-mono text-slate-600">${record["id"].toString()}</td>
-                                    <td class="px-6 py-4 text-sm font-mono text-slate-800">${record["any01"].toString()}</td>
-                                    <td class="px-6 py-4 text-sm text-slate-600">${record["any02"].toString()}</td>
-                                    <td class="px-6 py-4 text-sm text-right">
-                                        <div class="flex justify-end gap-2">
-                                            <button onclick="deleteRecord('${record["id"].toString()}')" class="text-red-600 hover:text-red-800 p-1 border-0 bg-transparent cursor-pointer" title="Delete">
-                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endfor
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </div>
     </div>
+    
+    @if(!records.isEmpty())
+        <script type="module">
+        const recordsGrid = document.getElementById("recordsGrid");
+        const deleteBtn = document.getElementById("deleteBtn");
+        recordsGrid.data = $unsafe{"[" + records.joinToString(",") { "{id:\"${it.get("id")}\",code:\"${it.get("any01")}\",data:\"${it.get("any02")}\"}"}+ "]"};
+        recordsGrid.columns = $unsafe{"[{key:\"id\",header:\"ID\"},{key:\"code\",header:\"Code\"},{key:\"data\",header:\"Data\"}]"};
+        recordsGrid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
+        recordsGrid.addEventListener("row-select", (e) => {
+            if (e.detail.row) {
+                deleteBtn.style.display = "block";
+                deleteBtn.onclick = () => deleteRecord(e.detail.row.id);
+            } else {
+                deleteBtn.style.display = "none";
+            }
+        });
+        </script>
+    @endif
     
     <div id="deleteConfirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">

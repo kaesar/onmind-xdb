@@ -4,58 +4,42 @@
     <div class="p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-slate-800 ml-12">Settings</h1>
-            <button onclick="goToNewSetting()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 border-0 cursor-pointer">
-                + New Setting
-            </button>
+            <as-button label="+ New Setting"></as-button>
         </div>
+        <script>
+            document.querySelector('as-button').addEventListener('button-tap', () => goToNewSetting());
+        </script>
         
-        @if(settings.isNotEmpty())
-        <div class="mb-4">
-            <div class="relative">
-                <i data-lucide="search" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400"></i>
-                <input type="text" id="filterInput" onkeyup="filterTable(this, 'settingsTable')" placeholder="Filter settings..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+        @if(settings.isEmpty())
+            <div class="bg-white rounded-lg shadow p-8 text-center text-slate-500">
+                <p class="text-lg">No settings found</p>
+                <p class="text-sm mt-2">Create your first setting to get started</p>
             </div>
-        </div>
+        @else
+            <div class="mb-4 flex gap-2">
+                <as-button label="Delete" id="deleteBtn" style="display:none"></as-button>
+            </div>
+            <as-datagrid title="Settings" selectable filterable pageable row-key="id" id="settingsGrid" theme="light"></as-datagrid>
         @endif
-        
-        <div class="bg-white rounded-lg shadow">
-            @if(settings.isEmpty())
-                <div class="p-8 text-center text-slate-500">
-                    <p class="text-lg">No settings found</p>
-                    <p class="text-sm mt-2">Create your first setting to get started</p>
-                </div>
-            @else
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-slate-50 border-b">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Code</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Name</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Value</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-slate-600 uppercase">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="settingsTable" class="divide-y divide-slate-200">
-                            @for(setting in settings)
-                                <tr class="hover:bg-slate-50">
-                                    <td class="px-6 py-4 text-sm font-mono text-slate-800">${setting["set01"].toString()}</td>
-                                    <td class="px-6 py-4 text-sm text-slate-800">${setting["set02"].toString()}</td>
-                                    <td class="px-6 py-4 text-sm text-slate-600 max-w-md truncate">${setting["set03"].toString()}</td>
-                                    <td class="px-6 py-4 text-sm text-right">
-                                        <div class="flex justify-end gap-2">
-                                            <button onclick="deleteSetting('${setting["id"].toString()}', '${setting["set02"].toString()}')" class="text-red-600 hover:text-red-800 p-1 border-0 bg-transparent cursor-pointer" title="Delete">
-                                                <i data-lucide="trash-2" class="w-4 h-4"></i>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endfor
-                        </tbody>
-                    </table>
-                </div>
-            @endif
-        </div>
     </div>
+    
+    @if(!settings.isEmpty())
+        <script type="module">
+        const settingsGrid = document.getElementById("settingsGrid");
+        const deleteBtn = document.getElementById("deleteBtn");
+        settingsGrid.data = $unsafe{"[" + settings.joinToString(",") { "{id:\"${it.get("id")}\",code:\"${it.get("set01")}\",name:\"${it.get("set02")}\",value:\"${it.get("set03")}\"}"}+ "]"};
+        settingsGrid.columns = $unsafe{"[{key:\"code\",header:\"Code\"},{key:\"name\",header:\"Name\"},{key:\"value\",header:\"Value\"}]"};
+        settingsGrid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
+        settingsGrid.addEventListener("row-select", (e) => {
+            if (e.detail.row) {
+                deleteBtn.style.display = "block";
+                deleteBtn.onclick = () => deleteSetting(e.detail.row.id, e.detail.row.name);
+            } else {
+                deleteBtn.style.display = "none";
+            }
+        });
+        </script>
+    @endif
     
     <div id="deleteConfirmModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
@@ -71,13 +55,13 @@
             </div>
             
             <div class="flex gap-3">
-                <button onclick="closeDeleteModal()" class="flex-1 px-4 py-2 border border-slate-300 rounded hover:bg-slate-50 cursor-pointer">
-                    Cancel
-                </button>
-                <button onclick="confirmDelete()" class="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 border-0 cursor-pointer">
-                    Delete
-                </button>
+                <as-button label="Cancel" id="cancelDeleteBtn"></as-button>
+                <as-confirm label="Delete" message="" id="confirmDeleteBtn"></as-confirm>
             </div>
+            <script>
+                document.getElementById('cancelDeleteBtn').addEventListener('button-tap', () => closeDeleteModal());
+                document.getElementById('confirmDeleteBtn').addEventListener('confirm', () => confirmDelete());
+            </script>
         </div>
     </div>
     

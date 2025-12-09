@@ -7,6 +7,7 @@ import org.http4k.filter.AllowAll
 import org.http4k.filter.CorsPolicy
 import org.http4k.filter.OriginPolicy
 import org.http4k.filter.ServerFilters.Cors
+import org.http4k.filter.ServerFilters.GZip
 import org.http4k.routing.bind
 import org.http4k.routing.routes
 import org.http4k.routing.static
@@ -25,6 +26,7 @@ import co.onmind.api.AbcAPI
 import co.onmind.app.AppUI
 import co.onmind.db.RDB
 import org.http4k.core.Status
+import org.http4k.core.then
 
 object onmindxdb {
     val os = System.getProperty("os.name")
@@ -67,7 +69,7 @@ object onmindxdb {
                 Response(OK).body("""{"ok":true,"status":"200","service":"OnMind-XDB","version":"${version}","driver":"${driver}","embedded":${Rote.embedded}}""")
                     .header("Content-Type", "application/json")
             },
-            "/static" bind static(Classpath("/static")),
+            "/static" bind GZip().then(static(Classpath("/static"))),
             appUI.routes()
         )
         

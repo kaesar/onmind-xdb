@@ -16,6 +16,7 @@
         }
     </script>
     <script src="/static/js/lucide.min.js"></script>
+    <script type="module" src="/static/js/onmind-cui-v2.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: system-ui, -apple-system, sans-serif; overflow-x: hidden; transition: background-color 0.3s, color 0.3s; }

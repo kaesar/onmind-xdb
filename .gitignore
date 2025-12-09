@@ -3,6 +3,7 @@
 .gradle
 .idea
 .vscode
+.kotlin
 /app/
 bin/
 build/
@@ -16,4 +17,5 @@ make-native*
 onmindxdb*
 onmind-xdb-*
 SWAGGER.md
-OnMind-XDB.md
+OnMind-*.md
+onmind-*.md
