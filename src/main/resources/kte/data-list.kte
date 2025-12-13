@@ -1,4 +1,6 @@
 @param sheets: List<Map<String, Any?>>
+@param sheetsJson: String
+@param columnsJson: String
 
 @template.layout(title = "Data", content = @`
     <div class="p-8">
@@ -24,8 +26,8 @@
         <script type="module">
         const dataGrid = document.getElementById("dataGrid");
         const viewBtn = document.getElementById("viewBtn");
-        dataGrid.data = $unsafe{"[" + sheets.joinToString(",") { "{code:\"${it.get("code")}\",name:\"${it.get("name")}\",title:\"${it.get("title")}\"}"}+ "]"};
-        dataGrid.columns = $unsafe{"[{key:\"code\",header:\"Code\"},{key:\"name\",header:\"Name\"},{key:\"title\",header:\"Title\"}]"};
+        dataGrid.data = $unsafe{sheetsJson};
+        dataGrid.columns = $unsafe{columnsJson};
         dataGrid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
         dataGrid.addEventListener("row-select", (e) => {
             if (e.detail.row) {

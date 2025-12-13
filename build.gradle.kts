@@ -39,6 +39,7 @@ dependencies {
     implementation("commons-dbutils:commons-dbutils:1.8.1")
     implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
+    implementation("io.agroal:agroal-pool:2.5")
 }
 
 group = "co.onmind"

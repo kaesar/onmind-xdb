@@ -11,7 +11,7 @@
 4. [Estructura del Proyecto](#estructura-del-proyecto)
 5. [Interfaz de Usuario](#interfaz-de-usuario)
 6. [API y Operaciones](#api-y-operaciones)
-7[Desarrollo](#desarrollo)
+7. [Desarrollo](#desarrollo)
 
 ---
 
@@ -52,7 +52,7 @@ La primera vez que inicies el software, se requiere dar permisos y se crea una c
 
 #### Prerrequisitos
 - JDK 17 o superior
-- Gradle 7.x o superior
+- Gradle 8.x o superior
 
 #### Compilar desde Código Fuente
 
@@ -126,27 +126,25 @@ xdb/
 │   │       ├── api/
 │   │       │   └── AbcAPI.kt               # API REST principal
 │   │       ├── app/                        # Módulo UI
-│   │       │   ├── AppUI.kt                # Controlador de UI
-│   │       │   ├── README.md               # Documentación del módulo
-│   │       │   └── HTMX_EXAMPLES.md        # Ejemplos de HTMX
+│   │       │   └── AppUI.kt                # Controlador de UI
+│   │       ├── auth/                       # Módulo Authenticacion
 │   │       ├── db/                         # Operaciones de base de datos
-│   │       ├── io/                         # Modelos I/O
+│   │       ├── io/                         # Modelos I/O (DTO's)
 │   │       ├── kv/                         # Almacén clave-valor
 │   │       ├── trait/                      # Clases base
 │   │       ├── util/                       # Utilidades
-│   │       └── xy/                         # Modelos de dominio
+│   │       └── xy/                         # Modelos de entidades
 │   └── resources/
-│       ├── jte/                            # Templates JTE
-│       │   ├── layout.jte                  # Layout base
-│       │   ├── dashboard.jte               # Vista dashboard
-│       │   ├── data-list.jte               # Lista de colecciones
-│       │   ├── data-view.jte               # Vista de registros
-│       │   ├── users-list.jte              # Lista de usuarios
-│       │   ├── settings-list.jte           # Lista de configuraciones
-│       │   └── sheets-list.jte             # Lista de sheets
-│       └── application.conf                # Configuración de app
-├── build.gradle.kts                        # Configuración de build
-└── test-api.sh                             # Script de prueba API
+│       ├── kte/                            # Templates (JTE con Kotlin)
+│       │   ├── layout.kte                  # Layout base
+│       │   ├── dashboard.kte               # Vista dashboard
+│       │   ├── data-list.kte               # Lista de colecciones
+│       │   ├── data-view.kte               # Vista de registros
+│       │   ├── users-list.kte              # Lista de usuarios
+│       │   ├── settings-list.kte           # Lista de configuraciones
+│       │   └── sheets-list.kte             # Lista de sheets
+│       └── static/                         # Recursos estaticos (js/abcapi.js)
+└── build.gradle.kts                        # Configuración de build
 ```
 
 ### 🏗️ Arquitectura
@@ -186,11 +184,11 @@ xdb/
            │                             │
            │                             ▼
            │                  ┌──────────────────────────────┐
-           │                  │    JTE Template Engine       │
-           │                  │   - layout.jte               │
-           │                  │   - dashboard.jte            │
-           │                  │   - data-*.jte               │
-           │                  │   - users-list.jte           │
+           │                  │   KTE - Java Template Engine │
+           │                  │   - layout.kte               │
+           │                  │   - dashboard.kte            │
+           │                  │   - data-*.kte               │
+           │                  │   - users-list.kte           │
            │                  └──────────────────────────────┘
            │
            ▼
@@ -216,7 +214,7 @@ xdb/
 
 ### Stack Tecnológico
 
-- **JTE** (Java Template Engine) - Templates del lado del servidor
+- **JTE** (Java Template Engine) - Templates del lado del servidor (con Kotlin)
 - **Tailwind CSS** - Estilos utilitarios (archivo local)
 - **Lucide Icons** - Iconografía
 - **JavaScript vanilla** - Funcionalidad básica (tema, sidebar, filtros)
@@ -266,13 +264,14 @@ xdb/
 
 | Operación | Descripción | Ejemplo |
 |-----------|-------------|---------|
-| `find` | Buscar registros | Encontrar productos |
+| `find`   | Buscar registros | Encontrar productos |
 | `insert` | Crear registro | Agregar nuevo producto |
 | `update` | Actualizar registro | Modificar producto |
 | `delete` | Eliminar registro | Remover producto |
 | `create` | Crear sheet | Definir nueva colección |
-| `drop` | Eliminar sheet | Remover colección |
-| `list` | Listar sheets | Mostrar todas las colecciones |
+| `drop`   | Eliminar sheet | Remover colección |
+| `define` | Definir sheet | Definir mapeo de atributos |
+| `list`   | Listar sheets | Mostrar todas las colecciones |
 | `signup` | Crear usuario | Registrar nuevo usuario |
 | `signin` | Autenticar | Login de usuario |
 | `whoami` | Info del sistema | Obtener info del servidor |
@@ -299,7 +298,7 @@ GET  /_/sheets            # Lista de sheets
 
 ---
 
-## Funcionalidades JavaScript
+## Funcionalidades JavaScript Claves
 
 ### 1. Sistema de Temas
 
@@ -312,49 +311,7 @@ function toggleTheme() {
 }
 ```
 
-### 2. Filtrado de Tablas
-
-```javascript
-function filterTable(input, tableId) {
-    const filter = input.value.toLowerCase();
-    const table = document.getElementById(tableId);
-    const rows = table.getElementsByTagName('tr');
-    
-    for (let i = 0; i < rows.length; i++) {
-        const cells = rows[i].getElementsByTagName('td');
-        let found = false;
-        
-        for (let j = 0; j < cells.length; j++) {
-            const cell = cells[j];
-            if (cell && cell.textContent.toLowerCase().indexOf(filter) > -1) {
-                found = true;
-                break;
-            }
-        }
-        
-        rows[i].style.display = found || cells.length === 0 ? '' : 'none';
-    }
-}
-```
-
-### 3. Notificaciones Toast
-
-```javascript
-function showToast(message) {
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.innerHTML = '<i data-lucide="info" class="w-5 h-5"></i><span>' + message + '</span>';
-    document.body.appendChild(toast);
-    lucide.createIcons();
-    
-    setTimeout(function() {
-        toast.classList.add('hide');
-        setTimeout(function() { toast.remove(); }, 300);
-    }, 3000);
-}
-```
-
-### 4. Sidebar Responsivo
+### 2. Sidebar Responsivo
 
 ```javascript
 function toggleSidebar() {
@@ -364,7 +321,7 @@ function toggleSidebar() {
 }
 ```
 
-### 5. Modales para Crear Entidades
+### 3. Modales para Crear Entidades
 
 ```javascript
 // Ejemplo: Modal "New User"
@@ -400,6 +357,127 @@ window.createUser = async function() {
     }
 }
 ```
+---
+
+## Autenticación y Autorización
+
+### Resumen
+
+OnMind-XDB usa **autenticación básica HTTP por defecto** configurada desde `onmind.ini`.
+
+- **Usuario por defecto**: `admin`
+- **Contraseña por defecto**: `admin`
+- **Tipo**: HTTP Basic Authentication
+
+### Proveedores Soportados
+
+1. **Basic** (Default) - Autenticación HTTP Basic
+2. **Authelia** - Autenticación corporativa con headers
+3. **AWS Cognito** - Autenticación cloud con JWT
+
+### Configuración en onmind.ini
+
+#### Autenticación Básica (Default)
+```ini
+# Habilitada por defecto
+auth.enabled = true
+auth.type = BASIC
+auth.basic.user = admin
+auth.basic.pass = admin
+```
+
+#### Sin Autenticación
+```ini
+auth.enabled = false
+```
+
+#### Con Authelia
+```ini
+auth.enabled = true
+auth.type = AUTHELIA
+auth.authelia.url = https://auth.example.com
+```
+
+#### Con AWS Cognito
+```ini
+auth.enabled = true
+auth.type = COGNITO
+auth.cognito.region = us-east-1
+auth.cognito.user_pool_id = us-east-1_XXXXXXXXX
+auth.cognito.client_id = xxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+### Uso
+
+#### Acceder a la UI
+Al acceder a `http://localhost:9990/_/`, el navegador pedirá usuario y contraseña.
+
+#### Cambiar Credenciales
+Editar `~/onmind/onmind.ini`:
+```ini
+auth.basic.user = miusuario
+auth.basic.pass = mipassword
+```
+
+### Arquitectura de Autenticación
+
+```
+Request → BasicAuthProvider.filter()
+    ↓
+Valida Authorization: Basic header
+    ↓
+Decodifica Base64 (user:pass)
+    ↓
+Compara con auth.basic.user y auth.basic.pass
+    ↓
+Si válido: Agrega X-Auth-User header → Routes
+Si inválido: 401 Unauthorized + WWW-Authenticate header
+```
+
+**Proveedores disponibles:**
+- `BasicAuthProvider`: Valida usuario/contraseña con HTTP Basic Auth
+- `NoAuthProvider`: Sin autenticación (cuando auth.enabled=false)
+- `AutheliaProvider`: Lee headers Remote-User, Remote-Email, Remote-Groups
+- `CognitoProvider`: Valida JWT token de AWS Cognito
+
+### Uso en el Código
+
+```kotlin
+// En cualquier handler
+val authUser = request.header("X-Auth-User") ?: "anonymous"
+
+// Extension function en AppUI
+val user = req.authUser()
+```
+
+---
+
+## Connection Pool con Agroal
+
+### Beneficios
+
+OnMind-XDB usa **Agroal** como connection pool para mejorar el rendimiento:
+
+**Ventajas:**
+- **Múltiples conexiones concurrentes**: 10 usuarios simultáneos sin bloqueos
+- **Respuestas más eficientes**: 5-10x más rápido que conexiones directas
+- **Reutilización de conexiones**: ~1-5ms vs ~50-100ms crear nueva
+- **Gestión automática**: `.use {}` cierra conexiones automáticamente
+- **Ligero**: Solo 120KB, ideal para uso embebido con OnMind-XDB
+
+### Configuración
+
+```properties
+# onmind.ini
+db.max_pool_size = 10    # Máximo de conexiones concurrentes
+db.query_limit = 1200    # Límite de registros por query
+```
+
+**Recomendaciones:**
+- Desarrollo: `max_pool_size = 5`
+- Producción: `max_pool_size = 20`
+- Cloud/Serverless: `max_pool_size = 2`
+
 ---
 
 ## Desarrollo
@@ -444,25 +522,6 @@ db.driver = 0  # 0=H2, 6=DuckDB
 kv.store = mvstore
 ```
 
-### Dependencias Principales
-
-```kotlin
-// HTTP & Routing
-implementation("org.http4k:http4k-core:5.47.0.0")
-implementation("org.http4k:http4k-format-jackson:5.47.0.0")
-
-// Database
-implementation("com.h2database:h2:2.3.232")
-
-// Template Engine
-implementation("gg.jte:jte:3.1.9")
-implementation("gg.jte:jte-kotlin:3.1.9")
-
-// JSON
-implementation("com.fasterxml.jackson.core:jackson-databind:2.18.3")
-implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.18.3")
-```
-
 ### Testing
 
 #### Para Probar la UI
@@ -479,4 +538,4 @@ Este proyecto está bajo la Licencia Apache 2.0 - ver el archivo [LICENSE.md](LI
 ---
 
 **Última actualización**: 2025  
-**Versión**: 0.7.0
+**Versión**: 0.9.0

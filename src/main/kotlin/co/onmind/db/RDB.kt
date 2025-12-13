@@ -46,15 +46,17 @@ class RDB() {
     @Throws(SQLException::class)
     fun forQuery(sql: String): List<MutableMap<String, Any?>>? {
         val qr = QueryRunner()
-        val conn: Connection? = onmindxdb.dbc  // ?.getConnection()
-        return qr.query(conn, sql, MapListHandler())
+        onmindxdb.dataSource?.connection.use { conn ->
+            return qr.query(conn, sql, MapListHandler())
+        }
     }
 
     @Throws(SQLException::class)
     fun forUpdate(sql: String): Int {
         val qr = QueryRunner()
-        val conn = onmindxdb.dbc  // ?.getConnection()
-        return qr.update(conn, sql)
+        onmindxdb.dataSource?.connection.use { conn ->
+            return qr.update(conn, sql)
+        }
     }
 
     fun loadPoint(startTime: Long) {

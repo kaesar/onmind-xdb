@@ -2,6 +2,7 @@ package co.onmind.app
 
 import co.onmind.db.RDB
 import co.onmind.util.Rote
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import gg.jte.ContentType
 import gg.jte.TemplateEngine
 import gg.jte.output.StringOutput
@@ -17,9 +18,12 @@ import org.http4k.routing.routes
 import java.nio.file.Path
 import java.nio.file.Files
 
+fun Request.authUser(): String = this.header("X-Auth-User") ?: "anonymous"
+
 class AppUI {
     private val xdb = RDB()
     private val templateEngine: TemplateEngine = createTemplateEngine()
+    private val json = jacksonObjectMapper()
 
     private fun createTemplateEngine(): TemplateEngine {
         val devPath = Path.of("src/main/resources/kte")
@@ -52,9 +56,19 @@ class AppUI {
         if (!onmindxdb.uiEnabled) {
             return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
         }
-        val query = "SELECT id, kit01 as code, kit02 as name, kit03 as title FROM xykit WHERE kitxy = 'SHEET' AND kit01 LIKE '%.SHEET'"
+        val limit = onmindxdb.queryLimit
+        val query = "SELECT id, kit01 as code, kit02 as name, kit03 as title FROM xykit WHERE kitxy = 'SHEET' AND kit01 LIKE '%.SHEET' LIMIT $limit"
         val sheets = xdb.forQuery(query) ?: emptyList()
-        val output = renderTemplate("data-list", mapOf("sheets" to sheets))
+        val columns = listOf(
+            mapOf("key" to "code", "header" to "Code"),
+            mapOf("key" to "name", "header" to "Name"),
+            mapOf("key" to "title", "header" to "Title")
+        )
+        val output = renderTemplate("data-list", mapOf(
+            "sheets" to sheets,
+            "sheetsJson" to json.writeValueAsString(sheets),
+            "columnsJson" to json.writeValueAsString(columns)
+        ))
         return Response(Status.OK).body(output).header("Content-Type", "text/html; charset=utf-8")
     }
 
@@ -72,12 +86,20 @@ class AppUI {
             return Response(Status.NOT_FOUND).body("Sheet not found")
         }
         
-        val dataQuery = "SELECT * FROM xyany WHERE anyxy='$code'"
+        val limit = onmindxdb.queryLimit
+        val dataQuery = "SELECT * FROM xyany WHERE anyxy='$code' LIMIT $limit"
         val records = xdb.forQuery(dataQuery) ?: emptyList()
+        val columns = listOf(
+            mapOf("key" to "id", "header" to "ID"),
+            mapOf("key" to "any01", "header" to "Code"),
+            mapOf("key" to "any02", "header" to "Data")
+        )
         
         val output = renderTemplate("data-view", mapOf(
             "sheet" to kitRows[0],
             "records" to records,
+            "recordsJson" to json.writeValueAsString(records),
+            "columnsJson" to json.writeValueAsString(columns),
             "code" to code
         ))
         return Response(Status.OK).body(output).header("Content-Type", "text/html; charset=utf-8")
@@ -87,9 +109,20 @@ class AppUI {
         if (!onmindxdb.uiEnabled) {
             return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
         }
-        val query = "SELECT * FROM xykey WHERE keyxy IN ('USER', 'ROLE')"
+        val limit = onmindxdb.queryLimit
+        val query = "SELECT * FROM xykey WHERE keyxy IN ('USER', 'ROLE') LIMIT $limit"
         val users = xdb.forQuery(query) ?: emptyList()
-        val output = renderTemplate("users-list", mapOf("users" to users))
+        val columns = listOf(
+            mapOf("key" to "key01", "header" to "Code"),
+            mapOf("key" to "key02", "header" to "Name"),
+            mapOf("key" to "keyxy", "header" to "Type"),
+            mapOf("key" to "key20", "header" to "Status")
+        )
+        val output = renderTemplate("users-list", mapOf(
+            "users" to users,
+            "usersJson" to json.writeValueAsString(users),
+            "columnsJson" to json.writeValueAsString(columns)
+        ))
         return Response(Status.OK).body(output).header("Content-Type", "text/html; charset=utf-8")
     }
 
@@ -97,9 +130,19 @@ class AppUI {
         if (!onmindxdb.uiEnabled) {
             return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
         }
-        val query = "SELECT * FROM xyset"
+        val limit = onmindxdb.queryLimit
+        val query = "SELECT * FROM xyset LIMIT $limit"
         val settings = xdb.forQuery(query) ?: emptyList()
-        val output = renderTemplate("settings-list", mapOf("settings" to settings))
+        val columns = listOf(
+            mapOf("key" to "set01", "header" to "Code"),
+            mapOf("key" to "set02", "header" to "Name"),
+            mapOf("key" to "set03", "header" to "Value")
+        )
+        val output = renderTemplate("settings-list", mapOf(
+            "settings" to settings,
+            "settingsJson" to json.writeValueAsString(settings),
+            "columnsJson" to json.writeValueAsString(columns)
+        ))
         return Response(Status.OK).body(output).header("Content-Type", "text/html; charset=utf-8")
     }
 
@@ -107,9 +150,21 @@ class AppUI {
         if (!onmindxdb.uiEnabled) {
             return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
         }
-        val query = "SELECT * FROM xykit WHERE kitxy IN ('SHEET','SETUP')"
+        val limit = onmindxdb.queryLimit
+        val query = "SELECT * FROM xykit WHERE kitxy IN ('SHEET','SETUP') LIMIT $limit"
         val sheets = xdb.forQuery(query) ?: emptyList()
-        val output = renderTemplate("sheets-list", mapOf("sheets" to sheets))
+        val columns = listOf(
+            mapOf("key" to "kit01", "header" to "Code"),
+            mapOf("key" to "kit02", "header" to "Name"),
+            mapOf("key" to "kit03", "header" to "Title"),
+            mapOf("key" to "kit05", "header" to "Model"),
+            mapOf("key" to "kitxy", "header" to "Scheme")
+        )
+        val output = renderTemplate("sheets-list", mapOf(
+            "sheets" to sheets,
+            "sheetsJson" to json.writeValueAsString(sheets),
+            "columnsJson" to json.writeValueAsString(columns)
+        ))
         return Response(Status.OK).body(output).header("Content-Type", "text/html; charset=utf-8")
     }
 
@@ -119,7 +174,19 @@ class AppUI {
             templateEngine.render("$name.kte", model, output)
             output.toString()
         } catch (e: Exception) {
-            "<html><body><h1>Template Error</h1><pre>${e.message}</pre></body></html>"
+            try {
+                val errorOutput = StringOutput()
+                templateEngine.render("error.kte", mapOf(
+                    "templateName" to name,
+                    "errorMessage" to (e.message ?: "Unknown error"),
+                    "stackTrace" to e.stackTraceToString(),
+                    "version" to onmindxdb.version
+                ), errorOutput)
+                errorOutput.toString()
+            } catch (errorTemplateException: Exception) {
+                // Fallback si el template de error también falla
+                "<html><body><h1>Critical Error</h1><p>Template: $name</p><pre>${e.message}</pre></body></html>"
+            }
         }
     }
 }

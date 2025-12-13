@@ -39,6 +39,7 @@ class AbcAPI(): AbstractAPI() {
     fun useControl(): HttpHandler = { request: Request ->  mainControl(request) }
 
     fun mainControl(req: Request): Response {
+        val authUser = req.header("X-Auth-User") ?: "anonymous"
         return try {
             val body = parseRequestBody(req)
             val context = RequestContext(body)
@@ -54,7 +55,7 @@ class AbcAPI(): AbstractAPI() {
                 "drop" -> drop(body)
                 "define" -> define(body)
                 "list" -> list(body)
-                "whoami" -> whoami()
+                "whoami" -> whoami(req)
                 "signup" -> signup(body)
                 "signin" -> signin(req)
                 else -> sendError("Wrong Request, please check it!")
@@ -394,26 +395,14 @@ class AbcAPI(): AbstractAPI() {
     }
 
     fun drop(body: AbcBody): Response {  // POST => name, scheme, kind, user
-        val from = body.from
+        val from = body.from ?: "xyany"
         val name = body.some
         var scheme = body.with ?: "SHEET"
         val user = body.user
-        val pin = body.pin
-        val kind = if (from != "xyany") from.substring(2..4) else "ANY"
-        val repo = if (from.substring(0..1) == "co/onmind/xy") "BOX" else "DUO"
-
-        if (!pin.isNullOrEmpty()) scheme = "SHEET"
-        //if (pin.isNullOrEmpty()) {
-        //    return sendError("Falta nomenclatura de identificacion privada")
-        //}
+        val kind = if (from != "xyany") from.substring(2..4) else "any"
+        
         if (onmindxdb.os.contains("inux")) {  // Linux
             return sendError("This system is for production and you dont have this priviledge")
-        }
-        if (scheme.isEmpty()) {
-            return sendError("The scheme is required")
-        }
-        else if (listOf("SETUP","SYSTEM","GLOBAL","COMMON","CARE","CUSTOM","SHEET").indexOf(scheme) < 0) {
-            return sendError("The scheme is not recognized: $scheme")
         }
         if (name.isNullOrEmpty()) {
             return sendError("The internal code or name is required")
@@ -421,27 +410,26 @@ class AbcAPI(): AbstractAPI() {
         if (user.isNullOrEmpty()) {
             return sendError("The user is required")
         }
-        else if (listOf("ONE","KEY","YOU","GET","SET","TOP","ASK","PUT","SUM","ADD","LAY","ANY","DOC").indexOf(kind) < 0) {
-            return sendError("The archetype or object class is not recognized: $kind")
-        }
-        else if (repo != "BOX" && listOf("ONE","KEY","YOU").indexOf(kind) > -1) {
-            return sendError("The archetype or object class does not correspond to the repository: $kind ~> $repo")
-        }
 
         val code = "${name.uppercase()}.${scheme.uppercase()}"
         try {
             val prefix = kind.lowercase()
-            // val kit12 = "${code.lowercase()}.0"
-
             var query = "SELECT * FROM $from WHERE ${prefix}xy='$code' LIMIT 1"
             val res2 = xdb.forQuery(query)
             if (!res2.isNullOrEmpty()) {
                 return sendError("This action is not allowed if there is data")
             }
 
+            val selectQuery = "SELECT id FROM xykit WHERE kit01='$code'"
+            val rows = xdb.forQuery(selectQuery)
+            if (rows.isNullOrEmpty()) {
+                return sendError("Sheet not found")
+            }
+            val id = rows[0]["id"] as String
+            
             query = "DELETE FROM xykit WHERE kit01='$code'"
             val rowCount = xdb.forUpdate(query)
-            xdb.movePoint(code, "kit")
+            xdb.movePoint(id, "kit")
             return sendSuccess(rowCount.toString())
         }
         catch (sqle: SQLException) {
@@ -547,11 +535,13 @@ class AbcAPI(): AbstractAPI() {
         return result
     }
 
-    private fun whoami(): Response {
+    private fun whoami(req: Request): Response {
+        val authUser = req.header("X-Auth-User") ?: "anonymous"
         val appMode = onmindxdb.config?.getProperty("app.mode", "production") ?: "production"
         val result = mapOf(
             "ok" to true,
-            "user" to System.getProperty("user.name"),
+            "user" to authUser,
+            "systemUser" to System.getProperty("user.name"),
             "home" to System.getProperty("user.home"),
             "os" to System.getProperty("os.name"),
             "mode" to appMode,

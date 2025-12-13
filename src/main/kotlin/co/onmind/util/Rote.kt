@@ -5,6 +5,10 @@
 package co.onmind.util
 
 import onmindxdb
+import io.agroal.api.AgroalDataSource
+import io.agroal.api.configuration.supplier.AgroalDataSourceConfigurationSupplier
+import io.agroal.api.security.NamePrincipal
+import io.agroal.api.security.SimplePassword
 import java.io.File
 import java.io.FileInputStream
 import java.sql.Connection
@@ -12,6 +16,7 @@ import java.sql.DriverManager
 import java.sql.SQLException
 import java.sql.Timestamp
 import java.util.*
+import java.time.Duration
 
 
 object Rote {
@@ -71,6 +76,12 @@ object Rote {
                             db.query_limit = 1200
                             db.charset = UTF-8
 
+                            # Parametros de autenticacion
+                            auth.enabled = true
+                            auth.type = BASIC
+                            auth.basic.user = admin
+                            auth.basic.pass = admin
+
                             # Parametros de persistencia
                             kv.store = mvstore
                             kv.mvstore.name = xybox
@@ -108,6 +119,68 @@ object Rote {
         }
     }
     
+    fun getDataSource(config: Properties): AgroalDataSource {
+        port = (config.getProperty("dai.port") ?: "9000").toInt()
+        val maxPoolSize = (config.getProperty("db.max_pool_size") ?: "10").toInt()
+        path = config.getProperty("app.local")
+        var driver = config.getProperty("db.driver")
+        var boxUrl: String
+        var user = ""
+        var password = ""
+
+        if (path == "C:/Users/home/" || path == "/home/user/" || path == "/Users/home/") {
+            path = "$home/onmind/"
+            println("\nPreparing 'onmind' folder.. [  OK!  ] => $path")
+            if (!File(path).exists()) {
+                File(path).mkdir()
+                File(path + "xy").mkdir()
+            } else if (!File(path + "xy").exists())
+                File(path + "xy").mkdir()
+        } else
+            println("\nGetting 'onmind' folder ... [  OK!  ] => $path")
+
+        path += "xy/"
+        if (os.contains("Windows"))
+            path = path.replace("/", "\\")
+
+        if (driver == "6") {
+            embedded = true
+            driver = "org.duckdb.DuckDBDriver"
+            boxUrl = "jdbc:duckdb:"
+        } else {
+            embedded = true
+            driver = "org.h2.Driver"
+            boxUrl = "jdbc:h2:mem:xybox;DATABASE_TO_LOWER=TRUE;IGNORECASE=TRUE"
+        }
+
+        print("Opening file/connection ... ")
+        onmindxdb.driver = driver
+
+        try {
+            val dataSourceConfig = AgroalDataSourceConfigurationSupplier()
+                .connectionPoolConfiguration { cp ->
+                    cp.maxSize(maxPoolSize)
+                        .minSize(2)
+                        .initialSize(2)
+                        .acquisitionTimeout(Duration.ofSeconds(5))
+                        .connectionFactoryConfiguration { cf ->
+                            cf.jdbcUrl(boxUrl)
+                                .connectionProviderClass(Class.forName(driver))
+                                .principal(NamePrincipal(user))
+                                .credential(SimplePassword(password))
+                        }
+                }
+
+            val dataSource = AgroalDataSource.from(dataSourceConfig)
+            println("[  OK!  ] => ${Timestamp(System.currentTimeMillis())}")
+            return dataSource
+        } catch (e: SQLException) {
+            println("[ ERROR ] ${e.message}")
+            throw e
+        }
+    }
+
+    @Deprecated("Use getDataSource instead")
     fun getDB(config: Properties): Connection {
         port = (config.getProperty("dai.port") ?: "9000").toInt()
         val host = config.getProperty("dai.host")
@@ -175,6 +248,8 @@ object Rote {
 
         return box
     }
+    
+    fun getConnection(dataSource: AgroalDataSource): Connection = dataSource.connection
     
     fun isUIEnabled(config: Properties): Boolean {
         return config.getProperty("app.ui", "+") == "+"

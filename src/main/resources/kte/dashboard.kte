@@ -150,8 +150,10 @@
         }
         
         function showJsonView(data) {
-            document.getElementById('response').classList.remove('hidden');
-            document.getElementById('responseTable').classList.add('hidden');
+            const responseDiv = document.getElementById('response');
+            const responseGrid = document.getElementById('responseGrid');
+            if (responseDiv) responseDiv.classList.remove('hidden');
+            if (responseGrid) responseGrid.classList.add('hidden');
             responseEditor.setValue(JSON.stringify(data, null, 2), -1);
         }
         
