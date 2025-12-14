@@ -28,6 +28,7 @@ dependencies {
     implementation("org.http4k:http4k-core:$http4kVersion")
     implementation("org.http4k:http4k-format-jackson:$http4kVersion")
     implementation("org.http4k:http4k-contract:$http4kVersion")
+    implementation("org.http4k:http4k-metrics-micrometer:$http4kVersion")
     implementation("gg.jte:jte:3.1.15")
     implementation("gg.jte:jte-kotlin:3.1.15")
     implementation("com.h2database:h2:2.3.232")

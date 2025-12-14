@@ -21,15 +21,70 @@
 
 Utiliza una base de datos embebida (H2) que ejecuta SQL internamente en memoria para consultas, pero las sentencias finalmente usan almacén clave-valor. Esto es posible gracias a su meta-modelo (arquetipos), según el [**Método OnMind**](https://onmind.co/web/blog/es/fundamentals.md).
 
-### Nueva Interfaz de Administración
+### Caracteristicas Técnicas
 
-OnMind-XDB ahora incluye un panel de administración web para gestionar tu base de datos:
+**Filosofía**: Simplicidad, portabilidad, rendimiento, zero configuración
 
-- **Dashboard**: Vista general de tu base de datos
-- **Colecciones de Datos**: Gestiona tus datos (any)
-- **Usuarios y Roles**: Gestión de usuarios (key)
-- **Configuraciones**: Parámetros de configuración (set)
-- **Sheets**: Define estructuras de datos (kit)
+**Arquitectura Core**
+- Stack: Kotlin + http4k + H2 (in-memory) + MVStore/EhCache + JTE templates
+- Patrón: In-memory SQL + Key-value persistence (dual storage)
+- Meta-modelo: OnMind Method con arquetipos (kit, key, set, any, doc)
+
+**Estructura de Datos**
+- xykit: Definiciones de sheets (tipo: SHEET/SETUP)
+- xykey: Usuarios y roles
+- xyset: Configuraciones
+- xyany: Datos dinámicos
+- xydoc: Documentos
+
+**Componentes Principales Backend**
+- AbcAPI.kt: Controlador principal (find, insert, update, delete, create, drop, define, list, signup, signin, whoami)
+- RDB.kt: Gestión dual storage (H2 + KVStore), savePoint/movePoint
+- AppUI.kt: Rutas UI (/app/*, /app/data, /app/users, /app/settings, /app/sheets)
+- trait/AuthProvider.kt: Interfaz de autenticación (Strategy pattern)
+- auth/*Plug.kt: BasicAuthPlug (default), AutheliaPlug, CognitoPlug, NoAuthPlug
+- Agroal: Connection pool (max_pool_size=10, query_limit=1200)
+
+**Componentes Principales Frontend**
+- JTE templates (.kte): layout, dashboard, data-list, data-view, users-list, settings-list, sheets-list, error
+- Tailwind CSS: Utilidades + tema dark/light
+- onmind-cui-v2: Web Components (as-datagrid, as-confirm, as-button, as-input, as-select)
+- Lucide Icons: Iconografía
+- ACE Editor: Editor JSON en dashboard
+
+**Configuración (onmind.ini)**
+```ini
+app.mode=production
+app.ui=+
+app.logger=-  # +: log to file, -: log to console
+dai.port=9990
+db.driver=0 (H2)
+db.max_pool_size=10
+db.query_limit=1200
+auth.enabled=true
+auth.type=BASIC
+kv.store=mvstore
+```
+
+**Flujo de Datos**
+```
+Request → AuthProvider.filter() → Routes
+AbcAPI → RDB.forQuery/forUpdate (H2)
+RDB.savePoint → KVStore (MVStore/EhCache)
+```
+
+**Operaciones API**
+- find: SELECT con filtros
+- insert/update/delete: CRUD en tablas
+- create: Crear sheet (genera kit01=CODE.SCHEME)
+- drop: Eliminar sheet (valida sin datos, elimina de H2 y KVStore por id)
+- define: Actualizar spec de sheet (mapeo de datos)
+- list: Listar sheets por esquema
+
+**Rendimiento mínimo estimado**
+- Startup: ~2s (JVM), ~10ms (GraalVM Native)
+- Memory: ~150MB (JVM), ~20MB (Native)
+- Queries: 1000 ops/s (con Agroal pool)
 
 ---
 
@@ -127,12 +182,26 @@ xdb/
 │   │       │   └── AbcAPI.kt               # API REST principal
 │   │       ├── app/                        # Módulo UI
 │   │       │   └── AppUI.kt                # Controlador de UI
-│   │       ├── auth/                       # Módulo Authenticacion
+│   │       ├── auth/                       # Módulo Autenticación
+│   │       │   ├── AuthConfig.kt           # Configuración de auth
+│   │       │   ├── BasicAuthPlug.kt        # HTTP Basic Auth
+│   │       │   ├── NoAuthPlug.kt           # Sin autenticación
+│   │       │   ├── AutheliaPlug.kt         # Authelia provider
+│   │       │   └── CognitoPlug.kt          # AWS Cognito provider
 │   │       ├── db/                         # Operaciones de base de datos
 │   │       ├── io/                         # Modelos I/O (DTO's)
 │   │       ├── kv/                         # Almacén clave-valor
-│   │       ├── trait/                      # Clases base
+│   │       │   ├── KVStoreFactory.kt       # Factory para KV stores
+│   │       │   ├── MVStorePlug.kt          # H2 MVStore (default)
+│   │       │   ├── EhCachePlug.kt          # EhCache provider
+│   │       │   └── DynamoPlug.kt           # AWS DynamoDB provider
+│   │       ├── trait/                      # Interfaces (Strategy pattern)
+│   │       │   ├── AuthProvider.kt         # Interfaz de autenticación
+│   │       │   └── KVStore.kt              # Interfaz de almacenamiento
 │   │       ├── util/                       # Utilidades
+│   │       │   ├── Rote.kt                 # Configuración y rutas
+│   │       │   ├── Trace.kt                # Logging
+│   │       │   └── Swagger.kt              # Swagger UI
 │   │       └── xy/                         # Modelos de entidades
 │   └── resources/
 │       ├── kte/                            # Templates (JTE con Kotlin)
@@ -379,11 +448,11 @@ OnMind-XDB usa **autenticación básica HTTP por defecto** configurada desde `on
 
 #### Autenticación Básica (Default)
 ```ini
-# Habilitada por defecto
+# Habilitada por defecto (credenciales en Base64)
 auth.enabled = true
 auth.type = BASIC
-auth.basic.user = admin
-auth.basic.pass = admin
+auth.basic.user = YWRtaW4=  # admin en Base64
+auth.basic.pass = YWRtaW4=  # admin en Base64
 ```
 
 #### Sin Autenticación
@@ -434,11 +503,11 @@ Si válido: Agrega X-Auth-User header → Routes
 Si inválido: 401 Unauthorized + WWW-Authenticate header
 ```
 
-**Proveedores disponibles:**
-- `BasicAuthProvider`: Valida usuario/contraseña con HTTP Basic Auth
-- `NoAuthProvider`: Sin autenticación (cuando auth.enabled=false)
-- `AutheliaProvider`: Lee headers Remote-User, Remote-Email, Remote-Groups
-- `CognitoProvider`: Valida JWT token de AWS Cognito
+**Proveedores disponibles (Strategy pattern):**
+- `BasicAuthPlug`: Valida usuario/contraseña con HTTP Basic Auth
+- `NoAuthPlug`: Sin autenticación (cuando auth.enabled=false)
+- `AutheliaPlug`: Lee headers Remote-User, Remote-Email, Remote-Groups
+- `CognitoPlug`: Valida JWT token de AWS Cognito
 
 ### Uso en el Código
 
@@ -477,6 +546,74 @@ db.query_limit = 1200    # Límite de registros por query
 - Desarrollo: `max_pool_size = 5`
 - Producción: `max_pool_size = 20`
 - Cloud/Serverless: `max_pool_size = 2`
+
+---
+
+## Telemetría y Logging
+
+### Request Logging
+
+OnMind-XDB puede registrar todas las peticiones HTTP en consola o en archivo.
+
+#### Configuración
+
+```ini
+# onmind.ini
+app.logger = -  # Por defecto: consola (vacío o - es false)
+app.logger = +  # Habilitar: archivo (+ es true)
+```
+
+#### Ubicación del Log
+
+Cuando `app.logger=+`, el archivo se crea en:
+```
+~/onmind/onmind-xdb.log
+```
+
+#### Formato del Log
+
+```
+2025-01-15 10:23:45 [POST] /abc -> 200
+2025-01-15 10:23:46 [GET] /app/ -> 200
+2025-01-15 10:23:47 [GET] /static/js/abcapi.js -> 200
+```
+
+**Campos:**
+- Timestamp: `yyyy-MM-dd HH:mm:ss`
+- Método HTTP: `GET`, `POST`
+- URI: Ruta solicitada
+- Status Code: Código de respuesta HTTP
+
+#### Características Técnicas
+
+**Implementación Híbrida con Buffer:**
+- Buffer en memoria: 100 mensajes o 5 segundos
+- Escritura por lotes (batch): Reduce I/O 100x
+- Thread-safe: Sincronización en buffer
+- Shutdown hook: Flush automático al cerrar
+- Fallback: Si falla escritura, imprime en consola
+
+**Performance:**
+- Overhead: ~0.1-0.2ms por request
+- Throughput impact: <2% (similar a SLF4J)
+- Memory: ~10KB buffer típico
+
+#### Ventajas por Modo
+
+| Modo | Ventaja | Uso |
+|------|---------|-----|
+| **Consola** (`-` o vacío) | Feedback inmediato | Desarrollo, debugging |
+| **Archivo** (`+`) | No contamina consola, persistente, buffered | Producción, análisis |
+
+#### Rotación de Logs
+
+El archivo crece indefinidamente. Para rotación manual:
+
+```bash
+# Backup y limpiar
+mv ~/onmind/onmind-xdb.log ~/onmind/onmind-xdb.log.bak
+touch ~/onmind/onmind-xdb.log
+```
 
 ---
 
@@ -527,7 +664,7 @@ kv.store = mvstore
 #### Para Probar la UI
 1. Compilar: `./gradlew build`
 2. Ejecutar: `./gradlew run`
-3. Abrir: `http://localhost:9990/_/`
+3. Abrir: `http://localhost:9990/app/`
 
 ---
 

@@ -103,9 +103,41 @@ export function drop(url, datax) {
 }
 
 export function define(url, datax) {
+    if (datax.puts && datax.puts !== '[]') {
+        const spec = checkSpec(datax.puts);
+        if (!spec.ok) {
+            return Promise.resolve({ ok: false, status: 400, message: spec.message });
+        }
+    }
+    
     datax.what = 'define';
     const json = fetch(url, request(datax));
     return response(json);
+}
+
+function checkSpec(spec) {
+    if (!spec || spec === '[]') return { ok: true };
+    
+    const pattern = /^[a-z0-9]+=\w+(?:,[a-z0-9]+=\w+)*$/;
+    if (!pattern.test(spec)) {
+        return { ok: false, message: 'Invalid format. Use: column=alias,column2=alias2' };
+    }
+    
+    const pairs = spec.split(',');
+    const seen = new Set();
+    for (const pair of pairs) {
+        const [col, alias] = pair.split('=');
+        if (seen.has(col)) {
+            return { ok: false, message: `Duplicate column: ${col}` };
+        }
+        if (seen.has(alias)) {
+            return { ok: false, message: `Duplicate alias: ${alias}` };
+        }
+        seen.add(col);
+        seen.add(alias);
+    }
+    
+    return { ok: true };
 }
 
 export function ask(url, datax) {

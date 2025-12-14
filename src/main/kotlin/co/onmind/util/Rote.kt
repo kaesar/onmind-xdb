@@ -55,6 +55,7 @@ object Rote {
                             app.local = ${file.replace(fileName,"")}
                             app.base = /app
                             app.language = en
+                            app.logger = -
                             app.modality = 5
                             app.deploy = 0
                             app.ui = +
@@ -79,8 +80,8 @@ object Rote {
                             # Parametros de autenticacion
                             auth.enabled = true
                             auth.type = BASIC
-                            auth.basic.user = admin
-                            auth.basic.pass = admin
+                            auth.basic.user = YWRtaW4=
+                            auth.basic.pass = YWRtaW4=
 
                             # Parametros de persistencia
                             kv.store = mvstore

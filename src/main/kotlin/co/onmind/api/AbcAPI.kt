@@ -316,6 +316,37 @@ class AbcAPI(): AbstractAPI() {
             else -> xdb.savePointAny(row)
         }
     }
+    
+    private fun validateSpec(spec: String): String? {
+        if (spec.isEmpty() || spec == "[]") return null
+        
+        val pattern = Regex("^[a-z0-9]+=\\w+(?:,[a-z0-9]+=\\w+)*$")
+        if (!pattern.matches(spec)) {
+            return "Invalid spec format. Use: column=alias,column2=alias2"
+        }
+        
+        val pairs = spec.split(",")
+        val seenColumns = mutableSetOf<String>()
+        val seenAliases = mutableSetOf<String>()
+        
+        for (pair in pairs) {
+            val parts = pair.split("=")
+            if (parts.size != 2) {
+                return "Invalid spec format. Each pair must have format: column=alias"
+            }
+            val (column, alias) = parts
+            if (column in seenColumns) {
+                return "Duplicate column: $column"
+            }
+            if (alias in seenAliases) {
+                return "Duplicate alias: $alias"
+            }
+            seenColumns.add(column)
+            seenAliases.add(alias)
+        }
+        
+        return null
+    }
 
     fun create(body: AbcBody): Response {
         val from = body.from
@@ -336,9 +367,6 @@ class AbcAPI(): AbstractAPI() {
         //if (pin.isNullOrEmpty()) {
         //    return sendError("Falta nomenclatura de identificacion privada")
         //}
-        if (onmindxdb.os.contains("inux")) {  // Linux
-            return sendError("This system is for production and you dont have this priviledge")
-        }
         if (scheme.isEmpty()) {
             return sendError("The scheme is required")
         }
@@ -401,9 +429,6 @@ class AbcAPI(): AbstractAPI() {
         val user = body.user
         val kind = if (from != "xyany") from.substring(2..4) else "any"
         
-        if (onmindxdb.os.contains("inux")) {  // Linux
-            return sendError("This system is for production and you dont have this priviledge")
-        }
         if (name.isNullOrEmpty()) {
             return sendError("The internal code or name is required")
         }
@@ -451,6 +476,11 @@ class AbcAPI(): AbstractAPI() {
         }
         if (name.isNullOrEmpty()) {
             return sendError("The internal code or name is required")
+        }
+        
+        val validationError = validateSpec(spec)
+        if (validationError != null) {
+            return sendError(validationError)
         }
 
         val code = "${name.uppercase()}.${scheme.uppercase()}"

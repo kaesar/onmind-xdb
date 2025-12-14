@@ -2,12 +2,13 @@ import org.http4k.core.Method
 import org.http4k.core.Request
 import org.http4k.core.Response
 import org.http4k.core.Status.Companion.OK
-import org.http4k.core.Status.Companion.FOUND
 import org.http4k.filter.AllowAll
 import org.http4k.filter.CorsPolicy
 import org.http4k.filter.OriginPolicy
 import org.http4k.filter.ServerFilters.Cors
 import org.http4k.filter.ServerFilters.GZip
+import org.http4k.filter.ServerFilters.RequestTracing
+import org.http4k.filter.ResponseFilters
 import org.http4k.routing.bind
 import org.http4k.routing.routes
 import org.http4k.routing.static
@@ -18,6 +19,8 @@ import io.agroal.api.AgroalDataSource
 import java.sql.Connection
 import java.util.Properties
 import co.onmind.util.Rote
+import co.onmind.util.Trace
+import co.onmind.util.Swagger
 import co.onmind.api.AbcAPI
 import co.onmind.app.AppUI
 import co.onmind.db.RDB
@@ -59,6 +62,12 @@ object onmindxdb {
         
         val authConfig = AuthConfig.fromConfig(cfg)
         val authProvider = authConfig.createProvider()
+        val appLanguage = cfg.getProperty("app.language", "en")
+        val enableLogger = cfg.getProperty("app.logger", "-") == "+"
+        
+        if (enableLogger) {
+            Trace.init(cfg.getProperty("app.local") + "onmind-xdb.log")
+        }
         
         print("Exposing api/db service ... ")
         val routesList = mutableListOf(
@@ -76,56 +85,33 @@ object onmindxdb {
         )
         
         if (enableSwagger) {
-            routesList.add("/swagger" bind Method.GET to { _: Request -> Response(OK).body(swaggerUI()).header("Content-Type", "text/html") })
+            routesList.add("/swagger" bind Method.GET to { _: Request -> Response(OK).body(Swagger.ui()).header("Content-Type", "text/html") })
         }
         
-        val app = authProvider.filter()
+        val app = RequestTracing()
+            .then(ResponseFilters.ReportHttpTransaction { tx ->
+                val logMsg = "[${tx.request.method}] ${tx.request.uri} -> ${tx.response.status.code}"
+                if (enableLogger) {
+                    Trace.log(logMsg)
+                } else {
+                    println(logMsg)
+                }
+            })
+            .then(authProvider.filter())
             .then(Cors(CorsPolicy(
                 OriginPolicy.AllowAll(),
-                listOf("Content-Type", "Cache-Control"),
+                listOf("Content-Type", "Cache-Control", "X-Request-Id"),
                 listOf(Method.POST, Method.GET)
             )))
             .then(routes(*routesList.toTypedArray()))
 
         println("[  OK!  ] => http://127.0.0.1:${port}")
         val serve = app.asServer(SunHttp(port)).start()  // Netty is an alternative
+        
+        Runtime.getRuntime().addShutdownHook(Thread {
+            Trace.shutdown()
+        })
+        
         serve.block()
     }
-}
-
-fun swaggerUI(): String {
-    val yamlContent = onmindxdb::class.java.getResourceAsStream("/swagger.yml")?.bufferedReader()?.readText() ?: ""
-    return """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <title>OnMind-XDB API Documentation</title>
-        <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
-    </head>
-    <body>
-        <div id="swagger-ui"></div>
-        <script src="https://unpkg.com/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
-        <script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js"></script>
-        <script>
-            window.onload = function() {
-                const yamlText = document.getElementById('swagger-spec').textContent;
-                const spec = jsyaml.load(yamlText);
-                SwaggerUIBundle({
-                    spec: spec,
-                    dom_id: '#swagger-ui',
-                    deepLinking: true,
-                    presets: [
-                        SwaggerUIBundle.presets.apis,
-                        SwaggerUIBundle.SwaggerUIStandalonePreset
-                    ]
-                });
-            };
-        </script>
-        <script id="swagger-spec" type="text/yaml">
-$yamlContent
-        </script>
-    </body>
-    </html>
-    """.trimIndent()
 }
