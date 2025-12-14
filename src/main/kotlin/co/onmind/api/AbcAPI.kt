@@ -364,9 +364,7 @@ class AbcAPI(): AbstractAPI() {
         val icon = body.icon ?: "table"
 
         if (!pin.isNullOrEmpty()) scheme = "SHEET"
-        //if (pin.isNullOrEmpty()) {
-        //    return sendError("Falta nomenclatura de identificacion privada")
-        //}
+
         if (scheme.isEmpty()) {
             return sendError("The scheme is required")
         }
@@ -385,9 +383,7 @@ class AbcAPI(): AbstractAPI() {
         else if (listOf("ONE","KEY","YOU","GET","SET","TOP","ASK","PUT","SUM","ADD","LAY","ANY","DOC").indexOf(kind) < 0) {
             return sendError("The archetype or object class is not recognized: $kind")
         }
-        //if (listOf("BOX","DUO").indexOf(repo) < 0) {
-        //    return sendError("The repository is not recognized: $repo")
-        //}
+
         else if (repo != "BOX" && listOf("ONE","KEY","YOU").indexOf(kind) > -1) {
             return sendError("The archetype or object class does not correspond to the repository: $kind ~> $repo")
         }
@@ -411,7 +407,6 @@ class AbcAPI(): AbstractAPI() {
             val rows = xdb.forQuery(query)
             val row = rows?.get(0) ?: mutableMapOf()
             xdb.savePointKit(row)
-            //return sendSuccess(row)
             return sendSuccess(rowCount.toString())
         }
         catch (sqle: SQLException) {
@@ -499,7 +494,6 @@ class AbcAPI(): AbstractAPI() {
             query = dbKit.getUpdate(row, id)
             val rowCount = xdb.forUpdate(query)
 
-            //return sendSuccess(row)
             return sendSuccess(rowCount.toString())
         }
         catch (sqle: SQLException) {

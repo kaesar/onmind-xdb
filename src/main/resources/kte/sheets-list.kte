@@ -79,23 +79,23 @@
     </div>
     
     @if(!sheets.isEmpty())
+        <as-popup id="sheetsPopup" options="label=Edit,value=edit;label=Delete,value=delete"></as-popup>
         <script type="module">
         const sheetsGrid = document.getElementById("sheetsGrid");
+        const popup = document.getElementById("sheetsPopup");
         sheetsGrid.data = $unsafe{sheetsJson};
         sheetsGrid.columns = $unsafe{columnsJson};
         sheetsGrid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
         sheetsGrid.addEventListener("row-action", (e) => {
-            showActionMenu(e, [
-                {
-                    label: 'Edit',
-                    handler: () => editSheet(e.detail.row.kit01, e.detail.row.kit02, e.detail.row.kit03, e.detail.row.kitxy, e.detail.row.kit05)
-                },
-                {
-                    label: 'Delete',
-                    danger: true,
-                    handler: () => showConfirmModal('Delete this sheet? This action cannot be undone.', () => window.deleteSheet(e.detail.row.kit01))
-                }
-            ]);
+            popup.show(e.detail.event.clientX, e.detail.event.clientY);
+            popup._currentRow = e.detail.row;
+        });
+        popup.addEventListener("option-select", (e) => {
+            if (e.detail.value === 'edit') {
+                editSheet(popup._currentRow.kit01, popup._currentRow.kit02, popup._currentRow.kit03, popup._currentRow.kitxy, popup._currentRow.kit05);
+            } else if (e.detail.value === 'delete') {
+                window.deleteSheet(popup._currentRow.kit01);
+            }
         });
         </script>
     @endif

@@ -15,7 +15,7 @@
                 <p class="text-sm mt-2">Create your first collection to get started</p>
             </div>
         @else
-            <as-datagrid title="Collections" filterable pageable actionable row-key="name" id="dataGrid" theme="light"></as-datagrid>
+            <as-datagrid title="Collections" filterable pageable selectable row-key="name" id="dataGrid" theme="light"></as-datagrid>
         @endif
     </div>
     
@@ -25,7 +25,7 @@
         dataGrid.data = $unsafe{sheetsJson};
         dataGrid.columns = $unsafe{columnsJson};
         dataGrid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
-        dataGrid.addEventListener("row-action", (e) => {
+        dataGrid.addEventListener("row-select", (e) => {
             window.location.href = "/app/data/" + e.detail.row.name;
         });
         </script>

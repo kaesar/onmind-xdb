@@ -20,19 +20,21 @@
     </div>
     
     @if(!users.isEmpty())
+        <as-popup id="usersPopup" options="label=Delete,value=delete"></as-popup>
         <script type="module">
         const grid = document.getElementById("usersGrid");
+        const popup = document.getElementById("usersPopup");
         grid.data = $unsafe{usersJson};
         grid.columns = $unsafe{columnsJson};
         grid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
         grid.addEventListener("row-action", (e) => {
-            showActionMenu(e, [
-                {
-                    label: 'Delete',
-                    danger: true,
-                    handler: () => showConfirmModal('Delete this user? This action cannot be undone.', () => window.deleteUser(e.detail.row.id, e.detail.row.name))
-                }
-            ]);
+            popup.show(e.detail.event.clientX, e.detail.event.clientY);
+            popup._currentRow = e.detail.row;
+        });
+        popup.addEventListener("option-select", (e) => {
+            if (e.detail.value === 'delete') {
+                window.deleteUser(popup._currentRow.id, popup._currentRow.name);
+            }
         });
         </script>
     @endif

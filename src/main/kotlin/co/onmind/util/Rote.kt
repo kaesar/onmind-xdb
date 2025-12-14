@@ -214,12 +214,7 @@ object Rote {
         if (os.contains("Windows"))
             path = path.replace("/", "\\")
 
-        if /*(driver == "5") {  // HerdDB (local)
-            dbPort = "7000"
-            driver = "herddb.jdbc.Driver"
-            boxUrl = "jdbc:herddb:server:localhost:$dbPort"
-        }
-        else if*/ (driver == "6") {  // DuckDB (in-memory-embedded)
+        if (driver == "6") {  // DuckDB (in-memory-embedded)
             embedded = true
             driver = "org.duckdb.DuckDBDriver"
             boxUrl = "jdbc:duckdb:"
@@ -270,7 +265,7 @@ object Rote {
         </style></head>
         <body>
             <div class="container">
-                <!-- <div class="icon">🗄️</div> -->
+
                 <h1>OnMind-XDB</h1>
                 <p>eXpress DataBase WebApp</p>
                 <p style="margin-top: 2rem;">Admin UI is disabled for this environment</p>

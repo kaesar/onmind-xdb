@@ -23,19 +23,21 @@
     </div>
     
     @if(!settings.isEmpty())
+        <as-popup id="settingsPopup" options="label=Delete,value=delete"></as-popup>
         <script type="module">
         const settingsGrid = document.getElementById("settingsGrid");
+        const popup = document.getElementById("settingsPopup");
         settingsGrid.data = $unsafe{settingsJson};
         settingsGrid.columns = $unsafe{columnsJson};
         settingsGrid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
         settingsGrid.addEventListener("row-action", (e) => {
-            showActionMenu(e, [
-                {
-                    label: 'Delete',
-                    danger: true,
-                    handler: () => showConfirmModal('Delete this setting? This action cannot be undone.', () => window.deleteSetting(e.detail.row.id, e.detail.row.name))
-                }
-            ]);
+            popup.show(e.detail.event.clientX, e.detail.event.clientY);
+            popup._currentRow = e.detail.row;
+        });
+        popup.addEventListener("option-select", (e) => {
+            if (e.detail.value === 'delete') {
+                window.deleteSetting(popup._currentRow.id, popup._currentRow.name);
+            }
         });
         </script>
     @endif
