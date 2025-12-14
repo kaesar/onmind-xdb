@@ -15,30 +15,25 @@
                 <p class="text-sm mt-2">Create your first user to get started</p>
             </div>
         @else
-            <div class="mb-4 flex gap-2">
-                <as-confirm label="Delete" message="This action cannot be undone" id="deleteBtn" style="display:none"></as-confirm>
-            </div>
-            <as-datagrid title="Users" selectable filterable pageable row-key="id" id="usersGrid" theme="light"></as-datagrid>
+            <as-datagrid title="Users" filterable pageable actionable row-key="id" id="usersGrid" theme="light"></as-datagrid>
         @endif
     </div>
     
     @if(!users.isEmpty())
         <script type="module">
         const grid = document.getElementById("usersGrid");
-        const deleteBtn = document.getElementById("deleteBtn");
         grid.data = $unsafe{usersJson};
         grid.columns = $unsafe{columnsJson};
         grid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
-        grid.addEventListener("row-select", (e) => {
-            if (e.detail.row) {
-                deleteBtn.style.display = "block";
-                deleteBtn.onclick = () => window.deleteUser(e.detail.row.id, e.detail.row.name);
-            } else {
-                deleteBtn.style.display = "none";
-            }
+        grid.addEventListener("row-action", (e) => {
+            showActionMenu(e, [
+                {
+                    label: 'Delete',
+                    danger: true,
+                    handler: () => showConfirmModal('Delete this user? This action cannot be undone.', () => window.deleteUser(e.detail.row.id, e.detail.row.name))
+                }
+            ]);
         });
-        
-        document.getElementById('deleteBtn').addEventListener('confirm', () => window.confirmDelete());
         </script>
     @endif
     
@@ -106,21 +101,11 @@
             }
         }
         
-        let deleteUserData = null;
-        
-        window.deleteUser = function(id, name) {
-            deleteUserData = { id, name };
-            document.getElementById('deleteBtn').click();
-        }
-        
-        window.confirmDelete = async function() {
-            if (!deleteUserData) return;
-            
-            const result = await abc.remove('/abc', { from: 'xykey', some: 'USER', with: deleteUserData.id });
+        window.deleteUser = async function(id, name) {
+            const result = await abc.remove('/abc', { from: 'xykey', some: 'USER', with: id });
             
             if (result.ok || result.success) {
                 showToast('User deleted successfully');
-                deleteUserData = null;
                 setTimeout(() => window.location.reload(true), 800);
             } else {
                 showToast(result.message || 'Error deleting user');

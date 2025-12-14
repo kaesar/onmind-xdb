@@ -28,30 +28,25 @@
                 <p class="text-sm mt-2">Add your first record to this collection</p>
             </div>
         @else
-            <div class="mb-4 flex gap-2">
-                <as-confirm label="Delete" message="This action cannot be undone" id="deleteBtn" style="display:none"></as-confirm>
-            </div>
-            <as-datagrid title="Records" selectable filterable pageable row-key="id" id="recordsGrid" theme="light"></as-datagrid>
+            <as-datagrid title="Records" filterable pageable actionable row-key="id" id="recordsGrid" theme="light"></as-datagrid>
         @endif
     </div>
     
     @if(!records.isEmpty())
         <script type="module">
         const recordsGrid = document.getElementById("recordsGrid");
-        const deleteBtn = document.getElementById("deleteBtn");
         recordsGrid.data = $unsafe{recordsJson};
         recordsGrid.columns = $unsafe{columnsJson};
         recordsGrid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
-        recordsGrid.addEventListener("row-select", (e) => {
-            if (e.detail.row) {
-                deleteBtn.style.display = "block";
-                deleteBtn.onclick = () => window.deleteRecord(e.detail.row.id);
-            } else {
-                deleteBtn.style.display = "none";
-            }
+        recordsGrid.addEventListener("row-action", (e) => {
+            showActionMenu(e, [
+                {
+                    label: 'Delete',
+                    danger: true,
+                    handler: () => showConfirmModal('Delete this record? This action cannot be undone.', () => window.deleteRecord(e.detail.row.id))
+                }
+            ]);
         });
-        
-        document.getElementById('deleteBtn').addEventListener('confirm', () => window.confirmDelete());
         </script>
     @endif
     
@@ -74,26 +69,17 @@
             window.location.href = '/app/';
         }
         
-        let deleteRecordId = null;
-        
-        window.deleteRecord = function(recordId) {
-            deleteRecordId = recordId;
-            document.getElementById('deleteBtn').click();
-        }
-        
-        window.confirmDelete = async function() {
-            if (!deleteRecordId) return;
+        window.deleteRecord = async function(recordId) {
             
             const data = {
                 from: 'xyany',
                 some: '${code}',
-                with: deleteRecordId
+                with: recordId
             };
             
             const result = await abc.remove('/abc', data);
             if (result.ok || result.success) {
                 showToast('Record deleted successfully');
-                deleteRecordId = null;
                 setTimeout(() => location.reload(), 800);
             } else {
                 showToast(result.message || 'Error deleting record');

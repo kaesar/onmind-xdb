@@ -15,27 +15,18 @@
                 <p class="text-sm mt-2">Create your first collection to get started</p>
             </div>
         @else
-            <div class="mb-4 flex gap-2">
-                <as-button label="View" id="viewBtn" style="display:none"></as-button>
-            </div>
-            <as-datagrid title="Collections" selectable filterable pageable row-key="name" id="dataGrid" theme="light"></as-datagrid>
+            <as-datagrid title="Collections" filterable pageable actionable row-key="name" id="dataGrid" theme="light"></as-datagrid>
         @endif
     </div>
     
     @if(!sheets.isEmpty())
         <script type="module">
         const dataGrid = document.getElementById("dataGrid");
-        const viewBtn = document.getElementById("viewBtn");
         dataGrid.data = $unsafe{sheetsJson};
         dataGrid.columns = $unsafe{columnsJson};
         dataGrid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
-        dataGrid.addEventListener("row-select", (e) => {
-            if (e.detail.row) {
-                viewBtn.style.display = "block";
-                viewBtn.onclick = () => window.location.href = "/app/data/" + e.detail.row.name;
-            } else {
-                viewBtn.style.display = "none";
-            }
+        dataGrid.addEventListener("row-action", (e) => {
+            window.location.href = "/app/data/" + e.detail.row.name;
         });
         </script>
     @endif

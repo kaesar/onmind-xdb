@@ -18,11 +18,7 @@
                 <p class="text-sm mt-2">Create your first sheet definition to get started</p>
             </div>
         @else
-            <div class="mb-4 flex gap-2">
-                <as-button label="Edit" id="editBtn" style="display:none"></as-button>
-                <as-confirm label="Delete" message="This action cannot be undone" id="deleteBtn" style="display:none"></as-confirm>
-            </div>
-            <as-datagrid title="Sheets" selectable filterable pageable row-key="code" id="sheetsGrid" theme="light"></as-datagrid>
+            <as-datagrid title="Sheets" filterable pageable actionable row-key="code" id="sheetsGrid" theme="light"></as-datagrid>
         @endif
     </div>
     
@@ -85,44 +81,34 @@
     @if(!sheets.isEmpty())
         <script type="module">
         const sheetsGrid = document.getElementById("sheetsGrid");
-        const editBtn = document.getElementById("editBtn");
-        const deleteBtn = document.getElementById("deleteBtn");
         sheetsGrid.data = $unsafe{sheetsJson};
         sheetsGrid.columns = $unsafe{columnsJson};
         sheetsGrid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
-        sheetsGrid.addEventListener("row-select", (e) => {
-            if (e.detail.row) {
-                editBtn.style.display = "block";
-                deleteBtn.style.display = "block";
-                editBtn.onclick = () => editSheet(e.detail.row.kit01, e.detail.row.kit02, e.detail.row.kit03, e.detail.row.kitxy, e.detail.row.kit05);
-                deleteBtn.onclick = () => window.deleteSheet(e.detail.row.kit01);
-            } else {
-                editBtn.style.display = "none";
-                deleteBtn.style.display = "none";
-            }
+        sheetsGrid.addEventListener("row-action", (e) => {
+            showActionMenu(e, [
+                {
+                    label: 'Edit',
+                    handler: () => editSheet(e.detail.row.kit01, e.detail.row.kit02, e.detail.row.kit03, e.detail.row.kitxy, e.detail.row.kit05)
+                },
+                {
+                    label: 'Delete',
+                    danger: true,
+                    handler: () => showConfirmModal('Delete this sheet? This action cannot be undone.', () => window.deleteSheet(e.detail.row.kit01))
+                }
+            ]);
         });
-        
-        document.getElementById('deleteBtn').addEventListener('confirm', () => window.confirmDelete());
         </script>
     @endif
     
     <script type="module">
         import * as abc from '/static/js/abcapi.js';
         
-        let deleteSheetCode = null;
-        
-        window.deleteSheet = function(code) {
-            deleteSheetCode = code;
-            document.getElementById('deleteBtn').click();
-        }
-        
-        window.confirmDelete = async function() {
-            if (!deleteSheetCode) return;
+        window.deleteSheet = async function(code) {
             
             const whoamiResult = await abc.whoami('/abc');
             const user = whoamiResult.data?.user || 'admin';
             
-            const parts = deleteSheetCode.split('.');
+            const parts = code.split('.');
             const name = parts[0];
             const scheme = parts[1] || 'SHEET';
             const from = scheme === 'SETUP' ? 'xyset' : 'xyany';
@@ -139,7 +125,6 @@
             
             if (result.ok || result.success) {
                 showToast('Sheet deleted successfully');
-                deleteSheetCode = null;
                 setTimeout(() => window.location.reload(true), 800);
             } else {
                 showToast(result.message || 'Error deleting sheet');
