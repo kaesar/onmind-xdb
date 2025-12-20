@@ -14,8 +14,13 @@ gradle*
 make-native*
 *build_artifacts.txt
 *.dll
-onmindxdb*
-onmind-xdb-*
-SWAGGER.md
-OnMind-*.md
-onmind-*.md
+onmind*.log
+
+# Documentation (except official ones)
+*.md
+!README.md
+!HELP.md
+!DEBUG.md
+!DEPLOY.md
+!TESTS.md
+!CODE_OF_CONDUCT.md

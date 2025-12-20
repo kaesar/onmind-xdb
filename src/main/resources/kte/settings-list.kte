@@ -18,7 +18,7 @@
                 <p class="text-sm mt-2">Create your first setting to get started</p>
             </div>
         @else
-            <as-datagrid title="Settings" filterable pageable actionable row-key="id" id="settingsGrid" theme="light"></as-datagrid>
+            <as-datagrid title="Settings" filterable pageable actionable row-key="id" id="settingsGrid"></as-datagrid>
         @endif
     </div>
     
@@ -29,7 +29,18 @@
         const popup = document.getElementById("settingsPopup");
         settingsGrid.data = $unsafe{settingsJson};
         settingsGrid.columns = $unsafe{columnsJson};
-        settingsGrid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
+        
+        // Forzar atributo theme
+        const isDark = document.body.classList.contains('dark');
+        settingsGrid.setAttribute('theme', isDark ? 'dark' : 'light');
+        
+        // Observer para cambios de tema
+        const observer = new MutationObserver(() => {
+            const isDark = document.body.classList.contains('dark');
+            settingsGrid.setAttribute('theme', isDark ? 'dark' : 'light');
+        });
+        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        
         settingsGrid.addEventListener("row-action", (e) => {
             popup.show(e.detail.event.clientX, e.detail.event.clientY);
             popup._currentRow = e.detail.row;

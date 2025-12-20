@@ -34,6 +34,9 @@ class RDB() {
             }
             return storeInstance!!
         }
+        
+        // Método público para acceder al store desde CoherenceStore
+        fun getStoreInstance(): KVStore? = storeInstance
     }
 
     private fun lapsed(startTime: Long) {
@@ -174,6 +177,9 @@ class RDB() {
                 store.delete(key)
             store.put(key, jsonValue)
             store.commit()
+            
+            // Verificación de coherencia (cero overhead si está desactivado)
+            co.onmind.util.CoherenceStore.verifyCoherenceQuick("kit")
         }
         catch (e: Exception) {
             e.printStackTrace()
@@ -224,6 +230,9 @@ class RDB() {
                 store.delete(key)
             store.put(key, jsonValue)
             store.commit()
+            
+            // Verificación de coherencia (cero overhead si está desactivado)
+            co.onmind.util.CoherenceStore.verifyCoherenceQuick("key")
         }
         catch (e: Exception) {
             e.printStackTrace()
@@ -277,6 +286,9 @@ class RDB() {
                 store.delete(key)
             store.put(key, jsonValue)
             store.commit()
+            
+            // Verificación de coherencia (cero overhead si está desactivado)
+            co.onmind.util.CoherenceStore.verifyCoherenceQuick("set")
         }
         catch (e: Exception) {
             e.printStackTrace()
@@ -368,6 +380,9 @@ class RDB() {
                 store.delete(key)
             store.put(key, jsonValue)
             store.commit()
+            
+            // Verificación de coherencia (cero overhead si está desactivado)
+            co.onmind.util.CoherenceStore.verifyCoherenceQuick("any")
         }
         catch (e: Exception) {
             e.printStackTrace()
@@ -407,6 +422,9 @@ class RDB() {
                 store.delete(key)
             store.put(key, jsonValue)
             store.commit()
+            
+            // Verificación de coherencia (cero overhead si está desactivado)
+            co.onmind.util.CoherenceStore.verifyCoherenceQuick("doc")
         }
         catch (e: Exception) {
             e.printStackTrace()

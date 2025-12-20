@@ -15,7 +15,7 @@
                 <p class="text-sm mt-2">Create your first collection to get started</p>
             </div>
         @else
-            <as-datagrid title="Collections" filterable pageable selectable row-key="name" id="dataGrid" theme="light"></as-datagrid>
+            <as-datagrid title="Collections" filterable pageable selectable row-key="name" id="dataGrid"></as-datagrid>
         @endif
     </div>
     
@@ -24,7 +24,18 @@
         const dataGrid = document.getElementById("dataGrid");
         dataGrid.data = $unsafe{sheetsJson};
         dataGrid.columns = $unsafe{columnsJson};
-        dataGrid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
+        
+        // Forzar atributo theme en el elemento
+        const isDark = document.body.classList.contains('dark');
+        dataGrid.setAttribute('theme', isDark ? 'dark' : 'light');
+        
+        // Observer para cambios en body class
+        const observer = new MutationObserver(() => {
+            const isDark = document.body.classList.contains('dark');
+            dataGrid.setAttribute('theme', isDark ? 'dark' : 'light');
+        });
+        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        
         dataGrid.addEventListener("row-select", (e) => {
             window.location.href = "/app/data/" + e.detail.row.name;
         });

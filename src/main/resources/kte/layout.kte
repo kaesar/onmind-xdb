@@ -114,6 +114,9 @@
             const icon = document.getElementById('themeIcon');
             icon.setAttribute('data-lucide', theme === 'dark' ? 'sun' : 'moon');
             lucide.createIcons();
+            
+            // Notificar a los grids sobre el cambio de tema
+            document.dispatchEvent(new CustomEvent('theme-changed', { detail: { theme } }));
         }
         
         function toggleTheme() {
@@ -121,6 +124,11 @@
             const newTheme = isDark ? 'light' : 'dark';
             localStorage.setItem('onmind-xdb-theme', newTheme);
             applyTheme(newTheme);
+            
+            // Actualizar todos los grids existentes
+            document.querySelectorAll('as-datagrid').forEach(grid => {
+                grid.theme = newTheme;
+            });
         }
         
         function toggleSidebar() {

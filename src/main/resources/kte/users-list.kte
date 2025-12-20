@@ -15,7 +15,7 @@
                 <p class="text-sm mt-2">Create your first user to get started</p>
             </div>
         @else
-            <as-datagrid title="Users" filterable pageable actionable row-key="id" id="usersGrid" theme="light"></as-datagrid>
+            <as-datagrid title="Users" filterable pageable actionable row-key="id" id="usersGrid"></as-datagrid>
         @endif
     </div>
     
@@ -26,7 +26,18 @@
         const popup = document.getElementById("usersPopup");
         grid.data = $unsafe{usersJson};
         grid.columns = $unsafe{columnsJson};
-        grid.theme = document.body.classList.contains('dark') ? 'dark' : 'light';
+        
+        // Forzar atributo theme
+        const isDark = document.body.classList.contains('dark');
+        grid.setAttribute('theme', isDark ? 'dark' : 'light');
+        
+        // Observer para cambios de tema
+        const observer = new MutationObserver(() => {
+            const isDark = document.body.classList.contains('dark');
+            grid.setAttribute('theme', isDark ? 'dark' : 'light');
+        });
+        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+        
         grid.addEventListener("row-action", (e) => {
             popup.show(e.detail.event.clientX, e.detail.event.clientY);
             popup._currentRow = e.detail.row;

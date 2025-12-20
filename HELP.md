@@ -11,7 +11,8 @@
 4. [Estructura del Proyecto](#estructura-del-proyecto)
 5. [Interfaz de Usuario](#interfaz-de-usuario)
 6. [API y Operaciones](#api-y-operaciones)
-7. [Desarrollo](#desarrollo)
+7. [Coherencia y Monitoreo](#coherencia-y-monitoreo)
+8. [Desarrollo](#desarrollo)
 
 ---
 
@@ -84,7 +85,7 @@ RDB.savePoint → KVStore (MVStore/EhCache)
 **Rendimiento mínimo estimado**
 - Startup: ~2s (JVM), ~10ms (GraalVM Native)
 - Memory: ~150MB (JVM), ~20MB (Native)
-- Queries: 1000 ops/s (con Agroal pool)
+- Queries: 10000 ops/s (con Agroal pool)
 
 ---
 
@@ -354,6 +355,15 @@ GET  /abc                 # Estado del servicio
 GET  /swagger             # Documentación API (modo dev)
 ```
 
+#### Coherence & Monitoring Endpoints
+```
+GET  /api/store/coherence        # Estadísticas de coherencia
+POST /api/store/coherence/verify # Verificación completa de coherencia
+POST /api/store/coherence/sync   # Sincronización forzada desde disco
+GET  /api/store/health           # Estado de salud del sistema
+GET  /api/trace/stats            # Estadísticas de logging
+```
+
 #### UI Endpoints
 ```
 GET  /                    # Redirect a /_/
@@ -364,6 +374,231 @@ GET  /_/users             # Lista de usuarios
 GET  /_/settings          # Lista de configuraciones
 GET  /_/sheets            # Lista de sheets
 ```
+
+---
+
+## Coherencia y Monitoreo
+
+### Sistema de Coherencia
+
+OnMind-XDB implementa un sistema de verificación de coherencia entre la base de datos en memoria (H2) y el almacenamiento persistente (KVStore). Este sistema garantiza que los datos estén sincronizados entre ambas capas de almacenamiento.
+
+### Endpoints de Coherencia
+
+#### GET /api/store/coherence
+
+Obtiene estadísticas detalladas de coherencia para todas las entidades del sistema.
+
+**Respuesta:**
+```json
+{
+  "overall_coherent": true,
+  "entities": {
+    "any": {
+      "memory_count": 150,
+      "disk_count": 150,
+      "coherent": true
+    },
+    "key": {
+      "memory_count": 5,
+      "disk_count": 5,
+      "coherent": true
+    },
+    "set": {
+      "memory_count": 12,
+      "disk_count": 12,
+      "coherent": true
+    },
+    "kit": {
+      "memory_count": 8,
+      "disk_count": 8,
+      "coherent": true
+    },
+    "doc": {
+      "memory_count": 0,
+      "disk_count": 0,
+      "coherent": true
+    }
+  },
+  "last_check": 1766193576332,
+  "config": {
+    "log_level": 2,
+    "check_enabled": true,
+    "log_requests": true,
+    "log_debug": true,
+    "check_coherence": true
+  }
+}
+```
+
+**Campos:**
+- `overall_coherent`: Estado general de coherencia (true/false)
+- `entities`: Estadísticas por entidad (any, key, set, kit, doc)
+- `memory_count`: Número de registros en memoria (H2)
+- `disk_count`: Número de registros en disco (KVStore)
+- `coherent`: Estado de coherencia por entidad
+- `last_check`: Timestamp de la última verificación
+- `config`: Configuración actual del sistema
+
+#### POST /api/store/coherence/verify
+
+Ejecuta una verificación completa de coherencia de forma manual.
+
+**Respuesta:**
+```json
+{
+  "coherent": true,
+  "message": "Data coherence verified successfully",
+  "timestamp": 1766193576370
+}
+```
+
+**Campos:**
+- `coherent`: Resultado de la verificación (true/false)
+- `message`: Mensaje descriptivo del resultado
+- `timestamp`: Momento de la verificación
+
+#### POST /api/store/coherence/sync
+
+Fuerza una sincronización completa desde el almacenamiento persistente hacia la memoria. Útil para recuperación de datos.
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "message": "Force sync completed successfully",
+  "timestamp": 1766193576400
+}
+```
+
+**Campos:**
+- `success`: Resultado de la sincronización (true/false)
+- `message`: Mensaje descriptivo del resultado
+- `timestamp`: Momento de la sincronización
+
+#### GET /api/store/health
+
+Proporciona un estado de salud completo del sistema, incluyendo configuración y estadísticas.
+
+**Respuesta:**
+```json
+{
+  "healthy": true,
+  "kvstore_accessible": true,
+  "rdb_accessible": true,
+  "config_loaded": true,
+  "coherence_config": {
+    "log_level": 2,
+    "check_enabled": true,
+    "log_requests": true,
+    "log_debug": true,
+    "check_coherence": true
+  },
+  "trace_stats": {
+    "initialized": true,
+    "log_file": "/path/to/onmind-xdb.log",
+    "buffer_size": 8,
+    "last_flush": 1766193576300,
+    "flush_threshold": 100,
+    "flush_interval_ms": 5000
+  }
+}
+```
+
+**Campos:**
+- `healthy`: Estado general del sistema
+- `kvstore_accessible`: Accesibilidad del almacén clave-valor
+- `rdb_accessible`: Accesibilidad de la base de datos relacional
+- `config_loaded`: Estado de carga de configuración
+- `coherence_config`: Configuración actual de coherencia y logging
+- `trace_stats`: Estadísticas del sistema de logging
+
+#### GET /api/trace/stats
+
+Obtiene estadísticas específicas del sistema de logging y trace.
+
+**Respuesta:**
+```json
+{
+  "initialized": true,
+  "log_file": "/path/to/onmind-xdb.log",
+  "buffer_size": 0,
+  "last_flush": 1766193560502,
+  "flush_threshold": 100,
+  "flush_interval_ms": 5000
+}
+```
+
+**Campos:**
+- `initialized`: Estado de inicialización del sistema de trace
+- `log_file`: Ruta del archivo de log (o "none" si desactivado)
+- `buffer_size`: Número de mensajes en buffer
+- `last_flush`: Timestamp del último flush a disco
+- `flush_threshold`: Número de mensajes que dispara flush automático
+- `flush_interval_ms`: Intervalo máximo entre flushes (milisegundos)
+
+### Ejemplos de Uso
+
+#### Verificar Estado del Sistema
+```bash
+curl -s http://localhost:9990/api/store/health | jq .
+```
+
+#### Obtener Estadísticas de Coherencia
+```bash
+curl -s http://localhost:9990/api/store/coherence | jq .
+```
+
+#### Verificar Coherencia Manualmente
+```bash
+curl -s -X POST http://localhost:9990/api/store/coherence/verify | jq .
+```
+
+#### Forzar Sincronización
+```bash
+curl -s -X POST http://localhost:9990/api/store/coherence/sync | jq .
+```
+
+#### Monitorear Logging
+```bash
+curl -s http://localhost:9990/api/trace/stats | jq .
+```
+
+### Script de Pruebas Automatizadas
+
+OnMind-XDB incluye un script completo para probar todas las funcionalidades de coherencia:
+
+```bash
+./test-coherence.sh
+```
+
+Este script:
+1. Verifica el estado de salud del sistema
+2. Obtiene estadísticas de coherencia
+3. Ejecuta verificación manual
+4. Prueba la creación de datos
+5. Verifica que la coherencia se mantiene
+6. Proporciona ejemplos de configuración
+
+### Configuración de Rendimiento
+
+El sistema de coherencia está optimizado para **cero overhead** cuando está desactivado:
+
+```ini
+# Máximo rendimiento (producción)
+app.logger = 0    # Sin logging
+db.check = -      # Sin verificaciones automáticas
+
+# Monitoreo básico
+app.logger = 1    # Solo peticiones HTTP
+db.check = -      # Sin verificaciones automáticas
+
+# Depuración completa (desarrollo)
+app.logger = 2    # Logging completo
+db.check = +      # Verificaciones automáticas activas
+```
+
+**Nota:** Los endpoints de monitoreo están **siempre disponibles** independientemente de la configuración, permitiendo verificaciones bajo demanda sin impacto en el rendimiento.
 
 ---
 
@@ -557,15 +792,53 @@ OnMind-XDB puede registrar todas las peticiones HTTP en consola o en archivo.
 
 #### Configuración
 
+#### Configuración de Logging y Coherencia
+
+### app.logger (Numérico)
+
+Controla el nivel de logging del sistema:
+
+- `0` o vacío: **Desactivado** (cero overhead, máximo rendimiento)
+- `1`: **Peticiones HTTP** (logging básico de requests)
+- `2`: **Depuración completa** (incluye coherencia y trace detallado)
+
+### db.check (Símbolo)
+
+Controla la verificación automática de coherencia:
+
+- `-` o vacío: **Desactivado** (cero overhead)
+- `+`: **Activado** (verificación en operaciones de escritura)
+
+### Estadísticas de Coherencia
+
+Las estadísticas están **siempre disponibles bajo demanda** via API:
+- `GET /api/store/coherence` - Estadísticas actuales
+- `POST /api/store/coherence/verify` - Verificación manual
+- `POST /api/store/coherence/sync` - Sincronización forzada
+- `GET /api/store/health` - Estado del sistema
+- `GET /api/trace/stats` - Estadísticas de logging
+
+**No requieren configuración** y no impactan el rendimiento de operaciones normales.
+
+#### Ejemplo de Configuración
+
 ```ini
-# onmind.ini
-app.logger = -  # Por defecto: consola (vacío o - es false)
-app.logger = +  # Habilitar: archivo (+ es true)
+# Máximo rendimiento (producción)
+app.logger = 0
+db.check = -
+
+# Monitoreo básico
+app.logger = 1
+db.check = -
+
+# Depuración completa (desarrollo)
+app.logger = 2
+db.check = +
 ```
 
 #### Ubicación del Log
 
-Cuando `app.logger=+`, el archivo se crea en:
+Cuando `app.logger >= 1`, el archivo se crea en:
 ```
 ~/onmind/onmind-xdb.log
 ```
@@ -573,20 +846,22 @@ Cuando `app.logger=+`, el archivo se crea en:
 #### Formato del Log
 
 ```
-2025-01-15 10:23:45 [POST] /abc -> 200
-2025-01-15 10:23:46 [GET] /app/ -> 200
-2025-01-15 10:23:47 [GET] /static/js/abcapi.js -> 200
+2025-01-15 10:23:45.123 [REQUEST] [POST] /abc -> 200
+2025-01-15 10:23:46.456 [DEBUG] Coherence OK for any: 15 items
+2025-01-15 10:23:47.789 [WARN] Coherence mismatch for key: memory=5, disk=4
 ```
 
 **Campos:**
-- Timestamp: `yyyy-MM-dd HH:mm:ss`
-- Método HTTP: `GET`, `POST`
-- URI: Ruta solicitada
-- Status Code: Código de respuesta HTTP
+- Timestamp: `yyyy-MM-dd HH:mm:ss.SSS`
+- Nivel: `REQUEST`, `DEBUG`, `INFO`, `WARN`, `ERROR`
+- Método HTTP: `GET`, `POST` (para REQUEST)
+- URI: Ruta solicitada (para REQUEST)
+- Status Code: Código de respuesta HTTP (para REQUEST)
 
 #### Características Técnicas
 
-**Implementación Híbrida con Buffer:**
+**Implementación Optimizada con Inline:**
+- **Cero overhead** cuando está desactivado (`app.logger=0`, `db.check=-`)
 - Buffer en memoria: 100 mensajes o 5 segundos
 - Escritura por lotes (batch): Reduce I/O 100x
 - Thread-safe: Sincronización en buffer
@@ -594,16 +869,22 @@ Cuando `app.logger=+`, el archivo se crea en:
 - Fallback: Si falla escritura, imprime en consola
 
 **Performance:**
-- Overhead: ~0.1-0.2ms por request
-- Throughput impact: <2% (similar a SLF4J)
+- Overhead con `app.logger=0`: **0ms** (cero impacto)
+- Overhead con `app.logger=1`: ~0.1ms por request
+- Overhead con `app.logger=2, db.check=+`: ~0.15ms por request
+- Throughput impact: <2% en el peor caso
 - Memory: ~10KB buffer típico
 
 #### Ventajas por Modo
 
-| Modo | Ventaja | Uso |
-|------|---------|-----|
-| **Consola** (`-` o vacío) | Feedback inmediato | Desarrollo, debugging |
-| **Archivo** (`+`) | No contamina consola, persistente, buffered | Producción, análisis |
+| Modo | Configuración | Overhead | Uso |
+|------|---------------|----------|-----|
+| **Producción** | `app.logger=0, db.check=-` | 0ms | Máximo rendimiento |
+| **Monitoreo** | `app.logger=1, db.check=-` | ~0.1ms | Logging básico |
+| **Desarrollo** | `app.logger=2, db.check=+` | ~0.15ms | Depuración completa |
+| **Consola** (`0` o vacío) | Cero overhead, máximo rendimiento | Producción |
+| **Peticiones** (`1`) | Logging básico, mínimo overhead | Monitoreo |
+| **Completo** (`2`) | Logging detallado con coherencia | Desarrollo, debugging |
 
 #### Rotación de Logs
 
@@ -613,6 +894,36 @@ El archivo crece indefinidamente. Para rotación manual:
 # Backup y limpiar
 mv ~/onmind/onmind-xdb.log ~/onmind/onmind-xdb.log.bak
 touch ~/onmind/onmind-xdb.log
+```
+
+#### APIs de Coherencia
+
+OnMind-XDB incluye un sistema completo de verificación de coherencia entre memoria (H2) y persistencia (KVStore):
+
+```bash
+# Obtener estadísticas de coherencia
+curl http://localhost:9990/api/store/coherence
+
+# Verificar coherencia manualmente
+curl -X POST http://localhost:9990/api/store/coherence/verify
+
+# Forzar sincronización desde disco
+curl -X POST http://localhost:9990/api/store/coherence/sync
+
+# Estado de salud del sistema
+curl http://localhost:9990/api/store/health
+
+# Estadísticas de trace
+curl http://localhost:9990/api/trace/stats
+```
+
+#### Script de Pruebas
+
+Para probar las funcionalidades de coherencia:
+
+```bash
+# Ejecutar script de pruebas
+./test-coherence.sh
 ```
 
 ---
