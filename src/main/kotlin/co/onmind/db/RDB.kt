@@ -7,10 +7,9 @@ import co.onmind.xy.XYKit
 import co.onmind.xy.XYSet
 import co.onmind.kv.KVStoreFactory
 import co.onmind.trait.KVStore
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import co.onmind.util.JsonMapper
 import org.apache.commons.dbutils.QueryRunner
 import org.apache.commons.dbutils.handlers.MapListHandler
-import java.sql.Connection
 import java.sql.SQLException
 import java.text.DecimalFormat
 
@@ -22,7 +21,7 @@ import java.text.DecimalFormat
 class RDB() {
 
     val XYBOX = "xybox"
-    val mapper = jacksonObjectMapper()
+    val mapper = JsonMapper.instance
     
     companion object {
         private var storeInstance: KVStore? = null

@@ -1,17 +1,17 @@
 package co.onmind.trait
 
 import co.onmind.io.AbcBack
+import co.onmind.util.JsonMapper
 import org.http4k.core.*
 import org.http4k.lens.BiDiBodyLens
 import org.http4k.format.Jackson.auto
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.time.LocalDateTime
 import java.util.Random
 import java.util.UUID
 
 open class AbstractAPI() {
 
-    val mapper = jacksonObjectMapper()
+    val mapper = JsonMapper.instance
     val apiSend: BiDiBodyLens<AbcBack> = Body.auto<AbcBack>().toLens()
 
     fun sendSuccess(result: Map<String, Any?>) =

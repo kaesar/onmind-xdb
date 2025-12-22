@@ -7,8 +7,9 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * Sistema de Trace optimizado para OnMind-XDB
+ * Sistema de Trace optimizado para OnMind-XDB con logging estructurado
  * Garantiza cero overhead cuando está desactivado
+ * Incluye capacidades de logging estructurado manteniendo compatibilidad total
  */
 object Trace {
     private val buffer = mutableListOf<String>()
@@ -18,6 +19,7 @@ object Trace {
     private val flushThreshold = 100
     private val flushInterval = 5000L // 5 seconds
     private var initialized = false
+    private var structuredFormat = true // Habilitar formato estructurado por defecto
     
     fun init(filePath: String, level: Int) {
         if (level == 0) {
@@ -95,6 +97,188 @@ object Trace {
         logInternal("ERROR", msg)
     }
     
+    // ========== STRUCTURED LOGGING METHODS ==========
+    
+    /**
+     * Logging estructurado con Map - Cero overhead cuando está desactivado
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun traceStructured(msg: String, fields: Map<String, Any>) {
+        if (!CoherenceConfig.shouldLogDebug()) return
+        logInternal("TRACE", formatStructured(msg, fields))
+    }
+    
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun debugStructured(msg: String, fields: Map<String, Any>) {
+        if (!CoherenceConfig.shouldLogDebug()) return
+        logInternal("DEBUG", formatStructured(msg, fields))
+    }
+    
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun infoStructured(msg: String, fields: Map<String, Any>) {
+        if (!CoherenceConfig.shouldLogRequests()) return
+        logInternal("INFO", formatStructured(msg, fields))
+    }
+    
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun warnStructured(msg: String, fields: Map<String, Any>) {
+        if (!CoherenceConfig.shouldLogRequests()) return
+        logInternal("WARN", formatStructured(msg, fields))
+    }
+    
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun errorStructured(msg: String, fields: Map<String, Any>) {
+        if (!CoherenceConfig.shouldLogRequests()) return
+        logInternal("ERROR", formatStructured(msg, fields))
+    }
+    
+    /**
+     * Logging estructurado con varargs - API simplificada
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun traceWith(msg: String, vararg pairs: Pair<String, Any>) {
+        if (!CoherenceConfig.shouldLogDebug()) return
+        traceStructured(msg, mapOf(*pairs))
+    }
+    
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun debugWith(msg: String, vararg pairs: Pair<String, Any>) {
+        if (!CoherenceConfig.shouldLogDebug()) return
+        debugStructured(msg, mapOf(*pairs))
+    }
+    
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun infoWith(msg: String, vararg pairs: Pair<String, Any>) {
+        if (!CoherenceConfig.shouldLogRequests()) return
+        infoStructured(msg, mapOf(*pairs))
+    }
+    
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun warnWith(msg: String, vararg pairs: Pair<String, Any>) {
+        if (!CoherenceConfig.shouldLogRequests()) return
+        warnStructured(msg, mapOf(*pairs))
+    }
+    
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun errorWith(msg: String, vararg pairs: Pair<String, Any>) {
+        if (!CoherenceConfig.shouldLogRequests()) return
+        errorStructured(msg, mapOf(*pairs))
+    }
+    
+    /**
+     * Logging de errores con excepciones y contexto estructurado
+     */
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun logError(msg: String, throwable: Throwable) {
+        if (!CoherenceConfig.shouldLogRequests()) return
+        
+        logInternal("ERROR", "$msg: ${throwable.message}")
+        if (CoherenceConfig.shouldLogDebug()) {
+            logInternal("DEBUG", "Stack trace: ${throwable.stackTraceToString()}")
+        }
+    }
+    
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun logError(msg: String, throwable: Throwable, fields: Map<String, Any>) {
+        if (!CoherenceConfig.shouldLogRequests()) return
+        
+        val errorFields = fields + mapOf(
+            "exception" to throwable.javaClass.simpleName,
+            "error_message" to (throwable.message ?: "No message")
+        )
+        errorStructured(msg, errorFields)
+        if (CoherenceConfig.shouldLogDebug()) {
+            logInternal("DEBUG", "Stack trace: ${throwable.stackTraceToString()}")
+        }
+    }
+    
+    /**
+     * Métodos de conveniencia para patrones comunes de OnMind-XDB
+     */
+    
+    // HTTP request logging optimizado para XDB
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun logHttpRequest(method: String, path: String, status: Int, duration: Long? = null) {
+        if (!CoherenceConfig.shouldLogRequests()) return
+        
+        val fields = mutableMapOf<String, Any>(
+            "method" to method,
+            "path" to path,
+            "status" to status
+        )
+        duration?.let { fields["duration_ms"] = it }
+        
+        infoStructured("HTTP request", fields)
+    }
+    
+    // Database operations logging
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun logDatabaseOperation(operation: String, entity: String, success: Boolean, details: Map<String, Any> = emptyMap()) {
+        if (!CoherenceConfig.shouldLogDebug()) return
+        
+        val fields = mutableMapOf<String, Any>(
+            "operation" to operation,
+            "entity" to entity,
+            "success" to success
+        ) + details
+        
+        if (success) {
+            debugStructured("Database operation completed", fields)
+        } else {
+            warnStructured("Database operation failed", fields)
+        }
+    }
+    
+    // Coherence operations logging
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun logCoherenceCheck(entity: String, memoryCount: Int, diskCount: Int, coherent: Boolean) {
+        if (!CoherenceConfig.shouldLogDebug()) return
+        
+        val fields = mapOf(
+            "entity" to entity,
+            "memory_count" to memoryCount,
+            "disk_count" to diskCount,
+            "coherent" to coherent
+        )
+        
+        if (coherent) {
+            debugStructured("Coherence check OK", fields)
+        } else {
+            warnStructured("Coherence mismatch detected", fields)
+        }
+    }
+    
+    // Performance timing
+    @Suppress("NOTHING_TO_INLINE")
+    internal inline fun logTiming(operation: String, duration: Long, details: Map<String, Any> = emptyMap()) {
+        if (!CoherenceConfig.shouldLogDebug()) return
+        
+        val fields = mutableMapOf<String, Any>(
+            "operation" to operation,
+            "duration_ms" to duration
+        ) + details
+        
+        debugStructured("Operation timing", fields)
+    }
+    
+    /**
+     * Formatear mensaje estructurado - Cero overhead cuando está desactivado
+     */
+    private fun formatStructured(msg: String, fields: Map<String, Any>): String {
+        if (fields.isEmpty() || !structuredFormat) return msg
+        
+        val fieldsStr = fields.entries.joinToString(" ") { (key, value) ->
+            when (value) {
+                is String -> "$key=\"$value\""
+                is Number -> "$key=$value"
+                is Boolean -> "$key=$value"
+                null -> "$key=null"
+                else -> "$key=\"$value\""
+            }
+        }
+        return "$msg | $fieldsStr"
+    }
+    
     internal fun logInternal(level: String, msg: String) {
         if (!initialized) return
         
@@ -140,7 +324,8 @@ object Trace {
             "buffer_size" to buffer.size,
             "last_flush" to lastFlush,
             "flush_threshold" to flushThreshold,
-            "flush_interval_ms" to flushInterval
+            "flush_interval_ms" to flushInterval,
+            "structured_format" to structuredFormat
         )
     }
 }

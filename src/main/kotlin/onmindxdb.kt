@@ -15,14 +15,14 @@ import org.http4k.routing.bind
 import org.http4k.routing.routes
 import org.http4k.routing.static
 import org.http4k.routing.ResourceLoader.Companion.Classpath
-import org.http4k.server.SunHttp
+import org.http4k.server.Jetty
 import org.http4k.server.asServer
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.agroal.api.AgroalDataSource
 import java.sql.Connection
 import java.util.Properties
 import co.onmind.util.CoherenceConfig
 import co.onmind.util.CoherenceStore
+import co.onmind.util.JsonMapper
 import co.onmind.util.Rote
 import co.onmind.util.Trace
 import co.onmind.util.Swagger
@@ -41,7 +41,7 @@ object onmindxdb {
     var config: Properties? = null
     val version = "0.9.0"
     var uiEnabled = true
-    private val json = jacksonObjectMapper()
+    private val json = JsonMapper.instance
 
     @JvmStatic
     fun main(args: Array<String>) {
@@ -113,8 +113,8 @@ object onmindxdb {
             )))
             .then(routes(*routesList.toTypedArray()))
 
-        println("[  OK!  ] => http://127.0.0.1:${port}")
-        val serve = app.asServer(SunHttp(port)).start()
+        println("[  OK!  ] => http://127.0.0.1:${port}\n")
+        val serve = app.asServer(Jetty(port)).start()
         
         Runtime.getRuntime().addShutdownHook(Thread {
             Trace.shutdown()

@@ -60,10 +60,10 @@
             </div>
             
             <div class="space-y-4">
-                <as-input label="Code" id="editSheetCode"></as-input>
-                <as-input label="Name" id="editSheetName"></as-input>
+                <as-input label="Code" id="editSheetCode" style="opacity: 0.6; pointer-events: none;"></as-input>
+                <as-input label="Name" id="editSheetName" style="opacity: 0.6; pointer-events: none;"></as-input>
                 <as-input label="Title" id="editSheetTitle"></as-input>
-                <as-input label="Type" id="editSheetType"></as-input>
+                <as-select label="Type" options="label=SHEET,value=SHEET;label=SETUP,value=SETUP" id="editSheetType"></as-select>
                 <as-text label="Model/Spec" rows="3" placeholder="[]" id="editSheetSpec"></as-text>
             </div>
             
@@ -212,11 +212,6 @@
             const title = document.getElementById('editSheetTitle').value?.trim() || '';
             const type = document.getElementById('editSheetType').value || 'SHEET';
             const spec = document.getElementById('editSheetSpec').value?.trim() || '';
-            
-            if (!name) {
-                showToast('Name is required');
-                return;
-            }
             
             const whoamiResult = await abc.whoami('/abc');
             const user = whoamiResult.data?.user || 'admin';

@@ -18,7 +18,7 @@ object CoherenceStore {
     fun init(rdbInstance: RDB) {
         rdb = rdbInstance
         // No crear una nueva instancia de KVStore, usar la del RDB
-        Trace.logDebug("CoherenceStore initialized")
+        Trace.debugWith("CoherenceStore initialized", "rdb_instance" to "available")
     }
     
     /**
@@ -34,12 +34,15 @@ object CoherenceStore {
             val diskCount = getDiskCount(entityType)
             
             if (memoryCount != diskCount) {
-                Trace.logWarn("Coherence mismatch for $entityType: memory=$memoryCount, disk=$diskCount")
+                Trace.logCoherenceCheck(entityType, memoryCount, diskCount, false)
             } else {
-                Trace.logDebug("Coherence OK for $entityType: $memoryCount items")
+                Trace.logCoherenceCheck(entityType, memoryCount, diskCount, true)
             }
         } catch (e: Exception) {
-            Trace.logError("Coherence check failed for $entityType: ${e.message}")
+            Trace.errorWith("Coherence check failed", 
+                "entity" to entityType, 
+                "error" to (e.message ?: "Unknown error")
+            )
         }
     }
     
@@ -100,21 +103,31 @@ object CoherenceStore {
                     
                     if (!coherent) {
                         allCoherent = false
-                        Trace.logWarn("Coherence check failed for $entity: memory=$memoryCount, disk=$diskCount")
+                        Trace.logCoherenceCheck(entity, memoryCount, diskCount, false)
                     } else {
-                        Trace.logDebug("Coherence check passed for $entity: $memoryCount items")
+                        Trace.logCoherenceCheck(entity, memoryCount, diskCount, true)
                     }
                 }
                 
                 if (allCoherent) {
-                    Trace.logInfo("Data coherence check passed - Memory and disk are synchronized")
+                    Trace.infoWith("Data coherence verification completed", 
+                        "result" to "success", 
+                        "entities_checked" to entities.size
+                    )
                 } else {
-                    Trace.logWarn("Data coherence check failed - Memory/Disk mismatch detected")
+                    Trace.warnWith("Data coherence verification completed", 
+                        "result" to "failed", 
+                        "entities_checked" to entities.size,
+                        "issue" to "memory_disk_mismatch"
+                    )
                 }
                 
                 allCoherent
             } catch (e: Exception) {
-                Trace.logError("Coherence verification failed: ${e.message}")
+                Trace.errorWith("Coherence verification failed", 
+                    "error" to (e.message ?: "Unknown error"),
+                    "operation" to "verify_coherence"
+                )
                 false
             }
         }
@@ -126,20 +139,32 @@ object CoherenceStore {
     fun forceSyncFromDisk(): Boolean {
         return lock.write {
             try {
-                Trace.logWarn("Forcing synchronization from disk to memory")
+                Trace.warnWith("Force synchronization initiated", 
+                    "operation" to "sync_from_disk",
+                    "reason" to "manual_request"
+                )
                 
                 // Reinicializar RDB desde KVStore
                 rdb?.readPoint()
                 
                 val coherent = verifyCoherence()
                 if (coherent) {
-                    Trace.logInfo("Force sync completed successfully")
+                    Trace.infoWith("Force synchronization completed", 
+                        "result" to "success",
+                        "coherence_status" to "synchronized"
+                    )
                 } else {
-                    Trace.logError("Force sync completed but coherence issues remain")
+                    Trace.errorWith("Force synchronization completed", 
+                        "result" to "partial_success",
+                        "coherence_status" to "issues_remain"
+                    )
                 }
                 coherent
             } catch (e: Exception) {
-                Trace.logError("Force sync failed: ${e.message}")
+                Trace.errorWith("Force synchronization failed", 
+                    "error" to (e.message ?: "Unknown error"),
+                    "operation" to "sync_from_disk"
+                )
                 false
             }
         }
@@ -162,7 +187,11 @@ object CoherenceStore {
             val result = rdb?.forQuery(sql)
             (result?.firstOrNull()?.get("count") as? Number)?.toInt() ?: 0
         } catch (e: Exception) {
-            Trace.logError("Failed to get memory count for $entityType: ${e.message}")
+            Trace.errorWith("Failed to get memory count", 
+                "entity" to entityType, 
+                "error" to (e.message ?: "Unknown error"),
+                "operation" to "memory_count_query"
+            )
             0
         }
     }
@@ -182,7 +211,11 @@ object CoherenceStore {
             }
             count
         } catch (e: Exception) {
-            Trace.logError("Failed to get disk count for $entityType: ${e.message}")
+            Trace.errorWith("Failed to get disk count", 
+                "entity" to entityType, 
+                "error" to (e.message ?: "Unknown error"),
+                "operation" to "disk_count_query"
+            )
             0
         }
     }

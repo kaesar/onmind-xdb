@@ -1,8 +1,8 @@
 package co.onmind.app
 
 import co.onmind.db.RDB
+import co.onmind.util.JsonMapper
 import co.onmind.util.Rote
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import gg.jte.ContentType
 import gg.jte.TemplateEngine
 import gg.jte.output.StringOutput
@@ -23,7 +23,7 @@ fun Request.authUser(): String = this.header("X-Auth-User") ?: "anonymous"
 class AppUI {
     private val xdb = RDB()
     private val templateEngine: TemplateEngine = createTemplateEngine()
-    private val json = jacksonObjectMapper()
+    private val json = JsonMapper.instance
 
     private fun createTemplateEngine(): TemplateEngine {
         val devPath = Path.of("src/main/resources/kte")

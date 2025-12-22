@@ -10,6 +10,20 @@ class DynamoPlug: KVStore {
     private var tableName: String? = null
     private var dynamoDbClient: DynamoDbClient? = null
 
+    /**
+     * Convierte clave interna (~) a formato DynamoDB (#)
+     */
+    private fun toExternalKey(internalKey: String): String {
+        return internalKey.replace("~", "#")
+    }
+    
+    /**
+     * Convierte clave DynamoDB (#) a formato interno (~)
+     */
+    private fun toInternalKey(externalKey: String): String {
+        return externalKey.replace("#", "~")
+    }
+
     override fun init(vararg params: Any?) {
         tableName = params[1] as String?
         dynamoDbClient = DynamoDbClient.builder()
@@ -18,8 +32,9 @@ class DynamoPlug: KVStore {
     }
 
     override fun put(key: String, value: String) {
+        val dynamoKey = toExternalKey(key)  // "abc123~kit~box" -> "abc123#kit#box"
         val item = mapOf(
-            "Key" to AttributeValue.builder().s(key).build(),
+            "Key" to AttributeValue.builder().s(dynamoKey).build(),
             "Value" to AttributeValue.builder().s(value).build()
         )
 
@@ -32,8 +47,9 @@ class DynamoPlug: KVStore {
     }
 
     override fun get(key: String): String? {
+        val dynamoKey = toExternalKey(key)  // "abc123~kit~box" -> "abc123#kit#box"
         val keyToGet = mapOf(
-            "Key" to AttributeValue.builder().s(key).build()
+            "Key" to AttributeValue.builder().s(dynamoKey).build()
         )
 
         val request = GetItemRequest.builder()
@@ -47,8 +63,9 @@ class DynamoPlug: KVStore {
     }
 
     override fun delete(key: String) {
+        val dynamoKey = toExternalKey(key)  // "abc123~kit~box" -> "abc123#kit#box"
         val keyToDelete = mapOf(
-            "Key" to AttributeValue.builder().s(key).build()
+            "Key" to AttributeValue.builder().s(dynamoKey).build()
         )
 
         val request = DeleteItemRequest.builder()
@@ -74,10 +91,11 @@ class DynamoPlug: KVStore {
         
         val response = dynamoDbClient?.scan(request)
         response?.items()?.forEach { item ->
-            val key = item["Key"]?.s()
+            val dynamoKey = item["Key"]?.s()  // "abc123#kit#box"
             val value = item["Value"]?.s()
-            if (key != null && value != null) {
-                action(key, value)
+            if (dynamoKey != null && value != null) {
+                val internalKey = toInternalKey(dynamoKey)  // "abc123#kit#box" -> "abc123~kit~box"
+                action(internalKey, value)
             }
         }
     }
