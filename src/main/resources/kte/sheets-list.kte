@@ -18,65 +18,17 @@
                 <p class="text-sm mt-2">Create your first sheet definition to get started</p>
             </div>
         @else
-            <as-datagrid title="Sheets" filterable pageable actionable row-key="code" id="sheetsGrid"></as-datagrid>
+            <as-datagrid title="Sheets" filterable pageable actionable selectable row-key="code" id="sheetsGrid"></as-datagrid>
         @endif
     </div>
     
-    <div id="newSheetModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-slate-800">New Sheet</h2>
-                <button onclick="closeNewSheetModal()" class="text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            
-            <div class="space-y-4">
-                <as-input label="Name" placeholder="example" id="sheetName"></as-input>
-                <as-input label="Title" placeholder="Example Sheet" id="sheetTitle"></as-input>
-                <as-select label="Type" options="label=SHEET,value=SHEET;label=SETUP,value=SETUP" id="sheetType"></as-select>
-            </div>
-            
-            <div class="flex justify-end gap-2 mt-6">
-                <as-button label="Cancel" id="cancelNewBtn"></as-button>
-                <as-button label="Create" id="createSheetBtn"></as-button>
-            </div>
-            <script>
-                document.getElementById('cancelNewBtn').addEventListener('button-tap', () => closeNewSheetModal());
-                document.getElementById('createSheetBtn').addEventListener('button-tap', () => createSheet());
-            </script>
-        </div>
-    </div>
+    <as-modal id="newSheetModal" title="New Sheet">
+        <as-form id="newSheetForm"></as-form>
+    </as-modal>
     
-
-    
-    <div id="editSheetModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-slate-800">Edit Sheet</h2>
-                <button onclick="closeEditSheetModal()" class="text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            
-            <div class="space-y-4">
-                <as-input label="Code" id="editSheetCode" style="opacity: 0.6; pointer-events: none;"></as-input>
-                <as-input label="Name" id="editSheetName" style="opacity: 0.6; pointer-events: none;"></as-input>
-                <as-input label="Title" id="editSheetTitle"></as-input>
-                <as-select label="Type" options="label=SHEET,value=SHEET;label=SETUP,value=SETUP" id="editSheetType"></as-select>
-                <as-text label="Model/Spec" rows="3" placeholder="[]" id="editSheetSpec"></as-text>
-            </div>
-            
-            <div class="flex justify-end gap-2 mt-6">
-                <as-button label="Cancel" id="cancelEditBtn"></as-button>
-                <as-button label="Update" id="updateSheetBtn"></as-button>
-            </div>
-            <script>
-                document.getElementById('cancelEditBtn').addEventListener('button-tap', () => closeEditSheetModal());
-                document.getElementById('updateSheetBtn').addEventListener('button-tap', () => updateSheet());
-            </script>
-        </div>
-    </div>
+    <as-modal id="editSheetModal" title="Edit Sheet">
+        <as-form id="editSheetForm"></as-form>
+    </as-modal>
     
     @if(!sheets.isEmpty())
         <as-popup id="sheetsPopup" options="label=Edit,value=edit;label=Delete,value=delete"></as-popup>
@@ -90,10 +42,18 @@
         const isDark = document.body.classList.contains('dark');
         sheetsGrid.setAttribute('theme', isDark ? 'dark' : 'light');
         
+        // Configurar tema para modales
+        const newModal = document.getElementById('newSheetModal');
+        const editModal = document.getElementById('editSheetModal');
+        newModal.setAttribute('theme', isDark ? 'dark' : 'light');
+        editModal.setAttribute('theme', isDark ? 'dark' : 'light');
+        
         // Observer para cambios de tema
         const observer = new MutationObserver(() => {
             const isDark = document.body.classList.contains('dark');
             sheetsGrid.setAttribute('theme', isDark ? 'dark' : 'light');
+            newModal.setAttribute('theme', isDark ? 'dark' : 'light');
+            editModal.setAttribute('theme', isDark ? 'dark' : 'light');
         });
         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
         
@@ -142,37 +102,101 @@
             }
         }
         
+        // Schema base común para formularios de sheet
+        const createSheetFormSchema = (isEdit = false, data = {}) => ({
+            title: isEdit ? 'Edit Sheet' : 'New Sheet',
+            fields: [
+                ...(isEdit ? [
+                    {
+                        name: 'code',
+                        type: 'text',
+                        label: 'Code',
+                        value: data.code,
+                        readonly: true
+                    },
+                    {
+                        name: 'name',
+                        type: 'text',
+                        label: 'Name',
+                        value: data.name,
+                        readonly: true
+                    }
+                ] : []),
+                {
+                    name: isEdit ? 'title' : 'name',
+                    type: 'text',
+                    label: isEdit ? 'Title' : 'Name',
+                    placeholder: isEdit ? undefined : 'example',
+                    value: isEdit ? data.title : undefined,
+                    required: true,
+                    validation: isEdit ? ['required'] : ['required', 'min:2']
+                },
+                ...(isEdit ? [] : [{
+                    name: 'title',
+                    type: 'text',
+                    label: 'Title',
+                    placeholder: 'Example Sheet',
+                    required: true,
+                    validation: ['required']
+                }]),
+                {
+                    name: 'type',
+                    type: isEdit ? 'text' : 'select',
+                    label: 'Type',
+                    value: data.type || 'SHEET',
+                    readonly: isEdit,
+                    ...(isEdit ? {} : {
+                        options: [
+                            { label: 'SHEET', value: 'SHEET' },
+                            { label: 'SETUP', value: 'SETUP' }
+                        ]
+                    })
+                },
+                ...(isEdit ? [{
+                    name: 'spec',
+                    type: 'textarea',
+                    label: 'Model/Spec',
+                    value: data.spec || '[]',
+                    rows: 3,
+                    placeholder: '[]'
+                }] : [])
+            ],
+            actions: [
+                { label: 'Cancel', type: 'cancel' },
+                { label: isEdit ? 'Update' : 'Create', type: 'submit' }
+            ]
+        });
+        
         window.openNewSheetModal = function() {
-            document.getElementById('newSheetModal').classList.remove('hidden');
-            lucide.createIcons();
+            const form = document.getElementById('newSheetForm');
+            form.schema = createSheetFormSchema(false);
+            document.getElementById('newSheetModal').show();
         }
         
         window.closeNewSheetModal = function() {
-            document.getElementById('newSheetModal').classList.add('hidden');
-            document.getElementById('sheetName').value = '';
-            document.getElementById('sheetTitle').value = '';
-            document.getElementById('sheetType').value = 'SHEET';
+            document.getElementById('newSheetModal').hide();
         }
         
-        window.createSheet = async function() {
-            const name = document.getElementById('sheetName').value?.trim() || '';
-            const title = document.getElementById('sheetTitle').value?.trim() || '';
-            const type = document.getElementById('sheetType').value || 'SHEET';
-            
-            if (!name) {
-                showToast('Name is required');
-                return;
-            }
-            
+        // Configurar eventos del formulario de nuevo sheet
+        document.getElementById('newSheetForm').addEventListener('form-submit', async (e) => {
+            const formData = e.detail.formData;
+            await createSheetWithData(formData);
+        });
+        
+        document.getElementById('newSheetForm').addEventListener('form-cancel', () => {
+            closeNewSheetModal();
+        });
+        
+        async function createSheetWithData(formData) {
             const whoamiResult = await abc.whoami('/abc');
             const user = whoamiResult.data?.user || 'admin';
             
             const data = {
                 what: 'create',
                 from: 'xyany',
-                some: name,
-                with: type,
-                show: title || name,
+                some: formData.name,
+                with: formData.type,
+                show: formData.title || formData.name,
                 user: user
             };
             
@@ -191,37 +215,40 @@
         
         window.editSheet = function(code, name, title, type, spec) {
             editSheetData = { code, name, title, type, spec };
-            document.getElementById('editSheetCode').value = code;
-            document.getElementById('editSheetName').value = name;
-            document.getElementById('editSheetTitle').value = title;
-            document.getElementById('editSheetType').value = type;
-            document.getElementById('editSheetSpec').value = spec || '[]';
-            document.getElementById('editSheetModal').classList.remove('hidden');
-            lucide.createIcons();
+            
+            const form = document.getElementById('editSheetForm');
+            form.schema = createSheetFormSchema(true, { code, name, title, type, spec });
+            
+            document.getElementById('editSheetModal').show();
         }
         
         window.closeEditSheetModal = function() {
-            document.getElementById('editSheetModal').classList.add('hidden');
+            document.getElementById('editSheetModal').hide();
             editSheetData = null;
         }
         
-        window.updateSheet = async function() {
+        // Configurar eventos del formulario
+        document.getElementById('editSheetForm').addEventListener('form-submit', async (e) => {
+            const formData = e.detail.formData;
+            await updateSheetWithData(formData);
+        });
+        
+        document.getElementById('editSheetForm').addEventListener('form-cancel', () => {
+            closeEditSheetModal();
+        });
+        
+        async function updateSheetWithData(formData) {
             if (!editSheetData) return;
-            
-            const name = document.getElementById('editSheetName').value?.trim() || '';
-            const title = document.getElementById('editSheetTitle').value?.trim() || '';
-            const type = document.getElementById('editSheetType').value || 'SHEET';
-            const spec = document.getElementById('editSheetSpec').value?.trim() || '';
             
             const whoamiResult = await abc.whoami('/abc');
             const user = whoamiResult.data?.user || 'admin';
             
             const data = {
                 what: 'define',
-                some: name,
-                with: type,
-                puts: spec || '[]',
-                show: title,
+                some: editSheetData.name,
+                with: editSheetData.type,
+                puts: formData.spec || '[]',
+                show: formData.title,
                 user: user
             };
             

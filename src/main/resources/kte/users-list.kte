@@ -15,7 +15,7 @@
                 <p class="text-sm mt-2">Create your first user to get started</p>
             </div>
         @else
-            <as-datagrid title="Users" filterable pageable actionable row-key="id" id="usersGrid"></as-datagrid>
+            <as-datagrid title="Users" filterable pageable actionable selectable row-key="id" id="usersGrid"></as-datagrid>
         @endif
     </div>
     
@@ -31,10 +31,15 @@
         const isDark = document.body.classList.contains('dark');
         grid.setAttribute('theme', isDark ? 'dark' : 'light');
         
+        // Configurar tema para modal
+        const userModal = document.getElementById('newUserModal');
+        userModal.setAttribute('theme', isDark ? 'dark' : 'light');
+        
         // Observer para cambios de tema
         const observer = new MutationObserver(() => {
             const isDark = document.body.classList.contains('dark');
             grid.setAttribute('theme', isDark ? 'dark' : 'light');
+            userModal.setAttribute('theme', isDark ? 'dark' : 'light');
         });
         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
         
@@ -44,66 +49,86 @@
         });
         popup.addEventListener("option-select", (e) => {
             if (e.detail.value === 'delete') {
-                window.deleteUser(popup._currentRow.id, popup._currentRow.name);
+                window.deleteUser(popup._currentRow.id, popup._currentRow.key01);
             }
         });
         </script>
     @endif
     
-    <div id="newUserModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-bold text-slate-800">New User</h2>
-                <button onclick="closeNewUserModal()" class="text-slate-400 hover:text-slate-600 border-0 bg-transparent cursor-pointer">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-            
-            <div class="space-y-4">
-                <as-input label="Name" placeholder="john" id="userName"></as-input>
-                <as-input label="Email" kind="email" placeholder="john@example.com" id="userEmail"></as-input>
-                <as-select label="Type" options="label=USER,value=USER;label=ROLE,value=ROLE" id="userType"></as-select>
-            </div>
-            
-            <div class="flex justify-end gap-2 mt-6">
-                <as-button label="Cancel" id="cancelBtn"></as-button>
-                <as-button label="Create" id="createUserBtn"></as-button>
-            </div>
-        </div>
-    </div>
+    <as-modal id="newUserModal" title="New User">
+        <as-form id="newUserForm"></as-form>
+    </as-modal>
     
 
     
     <script type="module">
         import * as abc from '/static/js/abcapi.js';
         
+        // Schema para formulario de usuario
+        const createUserFormSchema = () => ({
+            title: 'New User',
+            fields: [
+                {
+                    name: 'name',
+                    type: 'text',
+                    label: 'Name',
+                    placeholder: 'john',
+                    required: true,
+                    validation: ['required', 'min:2']
+                },
+                {
+                    name: 'email',
+                    type: 'email',
+                    label: 'Email',
+                    placeholder: 'john@example.com',
+                    required: true,
+                    validation: ['required', 'email']
+                },
+                {
+                    name: 'type',
+                    type: 'select',
+                    label: 'Type',
+                    value: 'USER',
+                    options: [
+                        { label: 'USER', value: 'USER' },
+                        { label: 'ROLE', value: 'ROLE' }
+                    ]
+                }
+            ],
+            actions: [
+                { label: 'Cancel', type: 'cancel' },
+                { label: 'Create', type: 'submit' }
+            ]
+        });
+        
         document.getElementById('newUserBtn').addEventListener('button-tap', () => openNewUserModal());
-        document.getElementById('cancelBtn').addEventListener('button-tap', () => closeNewUserModal());
-        document.getElementById('createUserBtn').addEventListener('button-tap', () => createUser());
         
         window.openNewUserModal = function() {
-            document.getElementById('newUserModal').classList.remove('hidden');
-            lucide.createIcons();
+            const form = document.getElementById('newUserForm');
+            form.schema = createUserFormSchema();
+            document.getElementById('newUserModal').show();
         }
         
         window.closeNewUserModal = function() {
-            document.getElementById('newUserModal').classList.add('hidden');
-            document.getElementById('userName').value = '';
-            document.getElementById('userEmail').value = '';
-            document.getElementById('userType').value = 'USER';
+            document.getElementById('newUserModal').hide();
         }
         
-        window.createUser = async function() {
-            const name = document.getElementById('userName').value?.trim() || '';
-            const email = document.getElementById('userEmail').value?.trim() || '';
-            const scheme = document.getElementById('userType').value || 'USER';
-            
-            if (!name || !email) {
-                showToast('Name and email are required');
-                return;
-            }
-            
-            const result = await abc.signup('/abc', { some: name, user: email, with: scheme });
+        // Configurar eventos del formulario
+        document.getElementById('newUserForm').addEventListener('form-submit', async (e) => {
+            const formData = e.detail.formData;
+            await createUserWithData(formData);
+        });
+        
+        document.getElementById('newUserForm').addEventListener('form-cancel', () => {
+            closeNewUserModal();
+        });
+        
+        async function createUserWithData(formData) {
+            const result = await abc.signup('/abc', { 
+                some: formData.name, 
+                user: formData.email, 
+                with: formData.type 
+            });
             
             if (result.ok) {
                 showToast('User created successfully');
@@ -114,8 +139,8 @@
             }
         }
         
-        window.deleteUser = async function(id, name) {
-            const result = await abc.remove('/abc', { from: 'xykey', some: 'USER', with: id });
+        window.deleteUser = async function(id, code) {
+            const result = await abc.remove('/abc', { from: 'xykey', some: code, with: id });
             
             if (result.ok || result.success) {
                 showToast('User deleted successfully');
@@ -124,5 +149,6 @@
                 showToast(result.message || 'Error deleting user');
             }
         }
+
     </script>
 `)

@@ -127,7 +127,7 @@ class AbcAPI(): AbstractAPI() {
                     return sendError("'SOME' is missing. You must set it!")
                 }
 
-                if (listOf("find", "insert", "update", "delete", "drop").contains(body.what) && body.from.lowercase() != "xykit") {
+                if (listOf("find", "insert", "update", "delete", "drop").contains(body.what) && body.from.lowercase() == "xyany") {
                     val query = "SELECT * FROM xykit WHERE kit01='${context.some}'"
                     val exists = xdb.forQuery(query)
                     if (exists?.size == 0) {

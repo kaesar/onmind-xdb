@@ -28,12 +28,12 @@
                 <p class="text-sm mt-2">Add your first record to this collection</p>
             </div>
         @else
-            <as-datagrid title="Records" filterable pageable actionable row-key="id" id="recordsGrid"></as-datagrid>
+            <as-datagrid title="Records" filterable pageable actionable selectable row-key="id" id="recordsGrid"></as-datagrid>
         @endif
     </div>
     
     @if(!records.isEmpty())
-        <as-popup id="recordsPopup" options="label=Delete,value=delete"></as-popup>
+        <as-popup id="recordsPopup" options="label=Edit,value=edit;label=Delete,value=delete"></as-popup>
         <script type="module">
         const recordsGrid = document.getElementById("recordsGrid");
         const popup = document.getElementById("recordsPopup");
@@ -43,11 +43,14 @@
         // Forzar atributo theme
         const isDark = document.body.classList.contains('dark');
         recordsGrid.setAttribute('theme', isDark ? 'dark' : 'light');
+        const editModal = document.getElementById('editRecordModal');
+        editModal.setAttribute('theme', isDark ? 'dark' : 'light');
         
         // Observer para cambios de tema
         const observer = new MutationObserver(() => {
             const isDark = document.body.classList.contains('dark');
             recordsGrid.setAttribute('theme', isDark ? 'dark' : 'light');
+            editModal.setAttribute('theme', isDark ? 'dark' : 'light');
         });
         observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
         
@@ -56,12 +59,18 @@
             popup._currentRow = e.detail.row;
         });
         popup.addEventListener("option-select", (e) => {
-            if (e.detail.value === 'delete') {
+            if (e.detail.value === 'edit') {
+                window.editRecord(popup._currentRow);
+            } else if (e.detail.value === 'delete') {
                 window.deleteRecord(popup._currentRow.id);
             }
         });
         </script>
     @endif
+    
+    <as-modal id="editRecordModal" title="Edit Record">
+        <as-form id="editRecordForm"></as-form>
+    </as-modal>
     
     <script type="module">
         import * as abc from '/static/js/abcapi.js';
@@ -81,6 +90,72 @@
             sessionStorage.removeItem('onmind-xdb-response-time');
             window.location.href = '/app/';
         }
+        
+        window.editRecord = function(row) {
+            const readonlyFields = ['id', 'anyxy', 'anyis', 'any01', 'any02'];
+            const fields = Object.entries(row)
+                .filter(([key]) => key !== 'id')
+                .map(([key, value]) => {
+                    const isReadonly = readonlyFields.includes(key);
+                    return {
+                        name: key,
+                        type: 'text',
+                        label: key,
+                        value: value?.toString() || '',
+                        required: false,
+                        disabled: isReadonly
+                    };
+                });
+            
+            // Agregar id como campo readonly al inicio
+            fields.unshift({
+                name: 'id',
+                type: 'text',
+                label: 'ID',
+                value: row.id?.toString() || '',
+                required: false,
+                disabled: true
+            });
+            
+            const schema = {
+                title: 'Edit Record',
+                fields: fields,
+                actions: [
+                    { label: 'Cancel', type: 'cancel' },
+                    { label: 'Save', type: 'submit' }
+                ]
+            };
+            
+            const form = document.getElementById('editRecordForm');
+            form.schema = schema;
+            form._currentRow = row;
+            document.getElementById('editRecordModal').show();
+        }
+        
+        document.getElementById('editRecordForm').addEventListener('form-submit', async (e) => {
+            const form = document.getElementById('editRecordForm');
+            const formData = e.detail.formData;
+            const row = form._currentRow;
+            
+            const result = await abc.update('/abc', {
+                from: 'xyany',
+                some: '${code}',
+                with: row.id,
+                puts: formData
+            });
+            
+            if (result.ok || result.success) {
+                showToast('Record updated successfully');
+                document.getElementById('editRecordModal').hide();
+                setTimeout(() => location.reload(), 800);
+            } else {
+                showToast(result.message || 'Error updating record');
+            }
+        });
+        
+        document.getElementById('editRecordForm').addEventListener('form-cancel', () => {
+            document.getElementById('editRecordModal').hide();
+        });
         
         window.deleteRecord = async function(recordId) {
             

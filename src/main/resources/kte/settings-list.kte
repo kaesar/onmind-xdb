@@ -18,7 +18,7 @@
                 <p class="text-sm mt-2">Create your first setting to get started</p>
             </div>
         @else
-            <as-datagrid title="Settings" filterable pageable actionable row-key="id" id="settingsGrid"></as-datagrid>
+            <as-datagrid title="Settings" filterable pageable actionable selectable row-key="id" id="settingsGrid"></as-datagrid>
         @endif
     </div>
     

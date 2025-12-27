@@ -79,7 +79,7 @@
                     <span id="responseTime" class="text-sm text-slate-500"></span>
                 </div>
                 <div id="response" style="height: 350px; border: 1px solid #e2e8f0; border-radius: 0.375rem;"></div>
-                <as-datagrid id="responseGrid" class="hidden" theme="light" filterable pageable style="max-height: 350px;"></as-datagrid>
+                <as-datagrid id="responseGrid" class="hidden" theme="light" filterable pageable selectable style="max-height: 350px;"></as-datagrid>
             </div>
         </div>
     </div>

@@ -92,7 +92,8 @@ class AppUI {
         val columns = listOf(
             mapOf("key" to "id", "header" to "ID"),
             mapOf("key" to "any01", "header" to "Code"),
-            mapOf("key" to "any02", "header" to "Data")
+            mapOf("key" to "any02", "header" to "Data"),
+            mapOf("key" to "any03", "header" to "Hint")
         )
         
         val output = renderTemplate("data-view", mapOf(
@@ -110,9 +111,10 @@ class AppUI {
             return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
         }
         val limit = onmindxdb.queryLimit
-        val query = "SELECT * FROM xykey WHERE keyxy IN ('USER', 'ROLE') LIMIT $limit"
+        val query = "SELECT * FROM xykey LIMIT $limit"
         val users = xdb.forQuery(query) ?: emptyList()
         val columns = listOf(
+            mapOf("key" to "id", "header" to "ID"),
             mapOf("key" to "key01", "header" to "Code"),
             mapOf("key" to "key02", "header" to "Name"),
             mapOf("key" to "keyxy", "header" to "Type"),
