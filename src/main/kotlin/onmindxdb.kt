@@ -87,6 +87,11 @@ object onmindxdb {
             "/api/store/coherence/sync" bind Method.POST to handleCoherenceSync(),
             "/api/trace/stats" bind Method.GET to handleTraceStats(),
             "/health" bind Method.GET to handleHealth(),
+            "/favicon.ico" bind Method.GET to { _: Request -> 
+                val stream = onmindxdb::class.java.getResourceAsStream("/static/favicon.ico")
+                if (stream != null) Response(OK).body(stream).header("Content-Type", "image/x-icon")
+                else Response(Status.NOT_FOUND)
+            },
             "/static" bind GZip().then(static(Classpath("/static"))),
             appUI.routes()
         )

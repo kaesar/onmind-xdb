@@ -27,7 +27,7 @@ Utiliza una base de datos embebida (H2) que ejecuta SQL internamente en memoria 
 **Filosofía**: Simplicidad, portabilidad, rendimiento, zero configuración
 
 **Arquitectura Core**
-- Stack: Kotlin + http4k + H2 (in-memory) + MVStore/EhCache + JTE templates
+- Stack: Kotlin + http4k + H2 (in-memory) + MVStore/DynamoDB/CosmosDB + JTE templates
 - Patrón: In-memory SQL + Key-value persistence (dual storage)
 - Meta-modelo: OnMind Method con arquetipos (kit, key, set, any, doc)
 
@@ -40,11 +40,12 @@ Utiliza una base de datos embebida (H2) que ejecuta SQL internamente en memoria 
 
 **Componentes Principales Backend**
 - AbcAPI.kt: Controlador principal (find, insert, update, delete, create, drop, define, list, signup, signin, whoami)
-- RDB.kt: Gestión dual storage (H2 + KVStore), savePoint/movePoint
+- RDB.kt: Gestión dual storage (H2 + MVStore), savePoint/movePoint
 - AppUI.kt: Rutas UI (/app/*, /app/data, /app/users, /app/settings, /app/sheets)
 - trait/AuthProvider.kt: Interfaz de autenticación (Strategy pattern)
-- auth/*Plug.kt: BasicAuthPlug (default), AutheliaPlug, CognitoPlug, NoAuthPlug
+- auth/*Plug.kt: BasicAuthPlug (default), AutheliaPlug, CognitoPlug, OIDCPlug, NoAuthPlug
 - Agroal: Connection pool (max_pool_size=10, query_limit=1200)
+- kv/*Plug.kt: MVStorePlug (default), DynamoPlug, CosmosPlug
 
 **Componentes Principales Frontend**
 - JTE templates (.kte): layout, dashboard, data-list, data-view, users-list, settings-list, sheets-list, error
@@ -71,7 +72,7 @@ kv.store=mvstore
 ```
 Request → AuthProvider.filter() → Routes
 AbcAPI → RDB.forQuery/forUpdate (H2)
-RDB.savePoint → KVStore (MVStore/EhCache)
+RDB.savePoint → KVStore (MVStore/DynamoDB/CosmosDB)
 ```
 
 **Operaciones API**
@@ -194,7 +195,7 @@ xdb/
 │   │       ├── kv/                         # Almacén clave-valor
 │   │       │   ├── KVStoreFactory.kt       # Factory para KV stores
 │   │       │   ├── MVStorePlug.kt          # H2 MVStore (default)
-│   │       │   ├── EhCachePlug.kt          # EhCache provider
+│   │       │   ├── CosmosPlug.kt           # Azure CosmosDB provider
 │   │       │   └── DynamoPlug.kt           # AWS DynamoDB provider
 │   │       ├── trait/                      # Interfaces (Strategy pattern)
 │   │       │   ├── AuthProvider.kt         # Interfaz de autenticación
@@ -373,6 +374,43 @@ GET  /_/data/{sheet}      # Vista de registros de datos
 GET  /_/users             # Lista de usuarios
 GET  /_/settings          # Lista de configuraciones
 GET  /_/sheets            # Lista de sheets
+```
+
+---
+
+## Almacenamiento y Persistencia
+
+OnMind-XDB es agnóstico al almacenamiento de persistencia (KVStore). Soporta múltiples motores mediante un sistema de conectores.
+
+### Motores Soportados
+
+1. **MVStore (Default)**: Almacenamiento local en archivo (basado en H2).
+2. **DynamoDB**: Almacenamiento en la nube de AWS.
+3. **Cosmos DB**: Almacenamiento en la nube de Azure.
+4. **RocksDB**: Almacenamiento en disco solido (Por ahora inactivo).
+
+### Configuración en onmind.ini
+
+#### MVStore (Local)
+```ini
+kv.store = mvstore
+kv.mvstore.name = xybox
+```
+
+#### AWS DynamoDB
+```ini
+kv.store = dynamodb
+kv.dynamodb.table = onmind-xdb
+kv.dynamodb.region = us-east-1
+```
+
+#### Azure Cosmos DB
+```ini
+kv.store = cosmosdb
+kv.cosmosdb.endpoint = https://your-account.documents.azure.com:443/
+kv.cosmosdb.key = your-primary-key
+kv.cosmosdb.database = onmindxdb
+kv.cosmosdb.container = kvstore
 ```
 
 ---
@@ -678,6 +716,7 @@ OnMind-XDB usa **autenticación básica HTTP por defecto** configurada desde `on
 1. **Basic** (Default) - Autenticación HTTP Basic
 2. **Authelia** - Autenticación corporativa con headers
 3. **AWS Cognito** - Autenticación cloud con JWT
+4. **OIDC / Keycloak / Entra ID** - Autenticación estándar con JWT (OIDC)
 
 ### Configuración en onmind.ini
 
@@ -704,11 +743,18 @@ auth.authelia.url = https://auth.example.com
 
 #### Con AWS Cognito
 ```ini
-auth.enabled = true
-auth.type = COGNITO
-auth.cognito.region = us-east-1
-auth.cognito.user_pool_id = us-east-1_XXXXXXXXX
 auth.cognito.client_id = xxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+#### Con OIDC / Keycloak / Entra ID
+```ini
+auth.enabled = true
+auth.type = KEYCLOAK  # o ENTRAID, o OIDC
+auth.oidc.url = https://auth.example.com/realms/master
+auth.oidc.realm = master
+auth.oidc.client_id = onmind-xdb
+# auth.oidc.user_claim = sub      # opcional
+# auth.oidc.roles_claim = roles   # opcional
 ```
 
 ### Uso
@@ -743,6 +789,7 @@ Si inválido: 401 Unauthorized + WWW-Authenticate header
 - `NoAuthPlug`: Sin autenticación (cuando auth.enabled=false)
 - `AutheliaPlug`: Lee headers Remote-User, Remote-Email, Remote-Groups
 - `CognitoPlug`: Valida JWT token de AWS Cognito
+- `OIDCPlug`: Valida JWT de proveedores OIDC (Keycloak, Entra ID, etc.)
 
 ### Uso en el Código
 
@@ -985,5 +1032,5 @@ Este proyecto está bajo la Licencia Apache 2.0 - ver el archivo [LICENSE.md](LI
 
 ---
 
-**Última actualización**: 2025  
-**Versión**: 0.9.0
+**Última actualización**: 2026  
+**Versión**: 1.0.0-RC

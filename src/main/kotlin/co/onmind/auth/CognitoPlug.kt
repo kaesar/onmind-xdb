@@ -16,7 +16,7 @@ class CognitoPlug(
     override fun authenticate(request: Request): AuthResult {
         val token = request.header("Authorization")?.removePrefix("Bearer ")
             ?: return AuthResult.Failure("No Authorization header")
-        
+
         return try {
             val claims = validateCognitoToken(token)
             AuthResult.Success(
@@ -31,7 +31,7 @@ class CognitoPlug(
             AuthResult.Failure("Invalid token: ${e.message}")
         }
     }
-    
+
     override fun filter() = Filter { next ->
         { request ->
             when (val result = authenticate(request)) {
@@ -42,7 +42,7 @@ class CognitoPlug(
             }
         }
     }
-    
+
     private fun validateCognitoToken(token: String): Map<String, Any> {
         // TODO: Implementar validación con AWS Cognito SDK
         throw NotImplementedError("Cognito token validation not implemented")

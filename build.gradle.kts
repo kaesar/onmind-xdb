@@ -32,20 +32,19 @@ dependencies {
     implementation("org.http4k:http4k-metrics-micrometer:$http4kVersion")
     implementation("gg.jte:jte:3.1.15")
     implementation("gg.jte:jte-kotlin:3.1.15")
-    implementation("com.h2database:h2:2.3.232")
-    implementation("org.ehcache:ehcache:3.10.8")
-    implementation("software.amazon.awssdk:dynamodb:2.29.39")
-    //implementation("org.postgresql:postgresql:42.7.5")
-    //implementation("org.duckdb:duckdb_jdbc:1.2.1")  // ENABLE THIS JUST FOR JAR VERSION
-    //implementation("org.herddb:herddb-jdbc:0.29.0")  // ENABLE THIS JUST FOR JAR VERSION
+    implementation("com.h2database:h2:2.4.240")
+    implementation("software.amazon.awssdk:dynamodb:2.42.17")
+    implementation("com.azure:azure-cosmos:4.78.0")
+    //implementation("org.rocksdb:rocksdbjni:10.5.1")   // ENABLE THIS JUST FOR JAR VERSION
+    //implementation("org.duckdb:duckdb_jdbc:1.5.0.0")  // ENABLE THIS JUST FOR JAR VERSION
     implementation("commons-dbutils:commons-dbutils:1.8.1")
     implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
-    implementation("io.agroal:agroal-pool:2.5")
+    implementation("io.agroal:agroal-pool:3.0")
 }
 
 group = "co.onmind"
-version = "1.0.0-final2025"
+version = "1.0.0-early2026"
 
 application {
     mainClass.set("onmindxdb")

@@ -9,6 +9,7 @@ object Swagger {
         <head>
             <meta charset="UTF-8">
             <title>OnMind-XDB API Documentation</title>
+            <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
             <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
         </head>
         <body>

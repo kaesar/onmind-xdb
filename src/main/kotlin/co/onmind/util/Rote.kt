@@ -1,10 +1,6 @@
-/**
- * Created by Cesar Andres Arcila Buitrago from Colombia on 4/12/20.
- */
-
+/** Created by Cesar Andres Arcila Buitrago from Colombia on 4/12/20. */
 package co.onmind.util
 
-import onmindxdb
 import io.agroal.api.AgroalDataSource
 import io.agroal.api.configuration.supplier.AgroalDataSourceConfigurationSupplier
 import io.agroal.api.security.NamePrincipal
@@ -15,9 +11,9 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException
 import java.sql.Timestamp
-import java.util.*
 import java.time.Duration
-
+import java.util.*
+import onmindxdb
 
 object Rote {
     val os: String = System.getProperty("os.name")
@@ -33,13 +29,12 @@ object Rote {
         try {
             // 1. Verificar archivo de configuracion en directorio inmediatamente anterior
             if (!File(file).isFile()) {
-                // 2. Verificar archivo de configuracion en directorio del usuario y subdirectorio 'onmind'
+                // 2. Verificar archivo de configuracion en directorio del usuario y subdirectorio
+                // 'onmind'
                 if (os.contains("Windows", true)) {
                     home = home.replace("\\Users\\", "/Users/")
                     file = "$home/onmind/$fileName"
-                }
-                else
-                    file = "$home${separator}onmind${separator}$fileName"
+                } else file = "$home${separator}onmind${separator}$fileName"
 
                 if (!File(file).isFile()) {
                     // 7. Verificar archivo de configuracion en el mismo directorio
@@ -49,7 +44,8 @@ object Rote {
                         // 8. No encontrado
                         // println("Not found: $fileName")
                         // System.exit(1)
-                        val text = """
+                        val text =
+                                """
                             # Parametros del servicio frontal para aplicaciones web
                             app.mode = production
                             app.local = ${file.replace(fileName,"")}
@@ -82,6 +78,13 @@ object Rote {
                             auth.type = BASIC
                             auth.basic.user = YWRtaW4=
                             auth.basic.pass = YWRtaW4=
+                            
+                            # OIDC / Keycloak / EntraID configuration
+                            auth.oidc.url = http://localhost:8080
+                            auth.oidc.realm = master
+                            auth.oidc.client_id = onmind-xdb
+                            # auth.oidc.user_claim = sub
+                            # auth.oidc.roles_claim = roles
 
                             # Parametros de persistencia
                             kv.store = mvstore
@@ -92,11 +95,10 @@ object Rote {
                             kv.dynamodb.region = us-east-1
                         """.trimIndent()
                         try {
-                            File(file.replace(fileName,"")).mkdir()
+                            File(file.replace(fileName, "")).mkdir()
                             File(file).writeText(text)
-                            File(file.replace(fileName,"xy")).mkdir()
-                        }
-                        catch (io: Exception) {
+                            File(file.replace(fileName, "xy")).mkdir()
+                        } catch (io: Exception) {
                             println("Not resolved: $file => $fileName")
                             System.exit(1)
                         }
@@ -105,21 +107,17 @@ object Rote {
             }
 
             println("$os $file --> Checked OK!")
-        }
-        catch(e: Exception) {
+        } catch (e: Exception) {
             println("$os $file --> Check any malformed back-slash or change it by slash (/)")
             throw e
         }
-        
+
         return file
     }
 
-    fun getConfig(file: String) = Properties().apply {
-        FileInputStream(file).use { fis ->
-            load(fis)
-        }
-    }
-    
+    fun getConfig(file: String) =
+            Properties().apply { FileInputStream(file).use { fis -> load(fis) } }
+
     fun getDataSource(config: Properties): AgroalDataSource {
         port = (config.getProperty("dai.port") ?: "9000").toInt()
         val maxPoolSize = (config.getProperty("db.max_pool_size") ?: "10").toInt()
@@ -135,14 +133,11 @@ object Rote {
             if (!File(path).exists()) {
                 File(path).mkdir()
                 File(path + "xy").mkdir()
-            } else if (!File(path + "xy").exists())
-                File(path + "xy").mkdir()
-        } else
-            println("\nGetting 'onmind' folder ... [  OK!  ] => $path")
+            } else if (!File(path + "xy").exists()) File(path + "xy").mkdir()
+        } else println("\nGetting 'onmind' folder ... [  OK!  ] => $path")
 
         path += "xy/"
-        if (os.contains("Windows"))
-            path = path.replace("/", "\\")
+        if (os.contains("Windows")) path = path.replace("/", "\\")
 
         if (driver == "6") {
             embedded = true
@@ -158,19 +153,19 @@ object Rote {
         onmindxdb.driver = driver
 
         try {
-            val dataSourceConfig = AgroalDataSourceConfigurationSupplier()
-                .connectionPoolConfiguration { cp ->
-                    cp.maxSize(maxPoolSize)
-                        .minSize(2)
-                        .initialSize(2)
-                        .acquisitionTimeout(Duration.ofSeconds(5))
-                        .connectionFactoryConfiguration { cf ->
-                            cf.jdbcUrl(boxUrl)
-                                .connectionProviderClass(Class.forName(driver))
-                                .principal(NamePrincipal(user))
-                                .credential(SimplePassword(password))
-                        }
-                }
+            val dataSourceConfig =
+                    AgroalDataSourceConfigurationSupplier().connectionPoolConfiguration { cp ->
+                        cp.maxSize(maxPoolSize)
+                                .minSize(2)
+                                .initialSize(2)
+                                .acquisitionTimeout(Duration.ofSeconds(5))
+                                .connectionFactoryConfiguration { cf ->
+                                    cf.jdbcUrl(boxUrl)
+                                            .connectionProviderClass(Class.forName(driver))
+                                            .principal(NamePrincipal(user))
+                                            .credential(SimplePassword(password))
+                                }
+                    }
 
             val dataSource = AgroalDataSource.from(dataSourceConfig)
             println("[  OK!  ] => ${Timestamp(System.currentTimeMillis())}")
@@ -187,12 +182,12 @@ object Rote {
         val host = config.getProperty("dai.host")
         val dbHost = config.getProperty("db.host")
         var dbPort = config.getProperty("db.port")
-        //val dbName = config.getProperty("db.name")
+        // val dbName = config.getProperty("db.name")
         var boxUrl: String = ""
-        var user: String = ""                                                         //config.getProperty("db.user")
-        var password: String = ""                                                     //config.getProperty("db.password")
+        var user: String = "" // config.getProperty("db.user")
+        var password: String = "" // config.getProperty("db.password")
 
-        //val javaRun = config.getProperty("app.java")
+        // val javaRun = config.getProperty("app.java")
         val charset = config.getProperty("db.charset")
         var driver = config.getProperty("db.driver")
         path = config.getProperty("app.local")
@@ -203,23 +198,17 @@ object Rote {
             if (!File(path).exists()) {
                 File(path).mkdir()
                 File(path + "xy").mkdir()
-            }
-            else if (!File(path + "xy").exists())
-                File(path + "xy").mkdir()
-        }
-        else
-            println("\nGetting 'onmind' folder ... [  OK!  ] => $path")
+            } else if (!File(path + "xy").exists()) File(path + "xy").mkdir()
+        } else println("\nGetting 'onmind' folder ... [  OK!  ] => $path")
 
         path += "xy/"
-        if (os.contains("Windows"))
-            path = path.replace("/", "\\")
+        if (os.contains("Windows")) path = path.replace("/", "\\")
 
-        if (driver == "6") {  // DuckDB (in-memory-embedded)
+        if (driver == "6") { // DuckDB (in-memory-embedded)
             embedded = true
             driver = "org.duckdb.DuckDBDriver"
             boxUrl = "jdbc:duckdb:"
-        }
-        else {  // H2 (in-memory-embedded) | Driver => 0
+        } else { // H2 (in-memory-embedded) | Driver => 0
             embedded = true
             driver = "org.h2.Driver"
             boxUrl = "jdbc:h2:mem:xybox;DATABASE_TO_LOWER=TRUE;IGNORECASE=TRUE"
@@ -229,31 +218,31 @@ object Rote {
         onmindxdb.driver = driver
         val box: Connection?
         try {
-            if (driver.contains("h2"))
-                box = DriverManager.getConnection(boxUrl, user, password)
+            if (driver.contains("h2")) box = DriverManager.getConnection(boxUrl, user, password)
             else {
                 Class.forName(driver)
                 box = DriverManager.getConnection(boxUrl)
             }
             println("[  OK!  ] => ${Timestamp(System.currentTimeMillis())}")
-        }
-        catch (e: SQLException) {
+        } catch (e: SQLException) {
             println("[ ERROR ] ${e.message}")
             throw e
         }
 
         return box
     }
-    
+
     fun getConnection(dataSource: AgroalDataSource): Connection = dataSource.connection
-    
+
     fun isUIEnabled(config: Properties): Boolean {
         return config.getProperty("app.ui", "+") == "+"
     }
 
-    fun welcome() = """<!doctype html>
+    fun welcome() =
+            """<!doctype html>
         <html><head><title>OnMind-XDB</title>
         <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
         <style>
             body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
