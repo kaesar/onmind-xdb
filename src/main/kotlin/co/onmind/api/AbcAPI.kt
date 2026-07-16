@@ -13,6 +13,7 @@ import co.onmind.io.IOKey
 import co.onmind.io.IOSet
 import co.onmind.io.IODoc
 import co.onmind.trait.AbstractAPI
+import co.onmind.util.CoherenceStore
 import co.onmind.xy.XYKit
 import co.onmind.xy.XYKey
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
@@ -167,6 +168,8 @@ class AbcAPI(): AbstractAPI() {
         val query = buildInsertQuery(context, id, now)
         
         xdb.forUpdate(query)
+        // Increment memory counter after successful INSERT in H2
+        CoherenceStore.incrementMemoryCount(context.prefix)
         return getInsertedRecord(context, id)
     }
 
@@ -241,6 +244,7 @@ class AbcAPI(): AbstractAPI() {
 
         val query = buildUpdateQuery(context)
         xdb.forUpdate(query)
+        // UPDATE no cambia el conteo total, pero podemos verificar coherencia
         return getUpdatedRecord(context)
     }
 
@@ -303,6 +307,8 @@ class AbcAPI(): AbstractAPI() {
 
         val deleteQuery = "DELETE FROM ${body.from.lowercase()} WHERE id='${body.with}'"
         xdb.forUpdate(deleteQuery)
+        // Decrement memory counter after successful DELETE in H2
+        CoherenceStore.decrementMemoryCount(context.prefix)
         xdb.movePoint(body.with, context.prefix)
         
         return sendSuccess(listOf(row))
@@ -402,6 +408,8 @@ class AbcAPI(): AbstractAPI() {
             val map = dbKit.mapValues(xyKit)
             query = dbKit.getInsert(map as MutableMap<String, Any?>)
             val rowCount = xdb.forUpdate(query)
+            // Increment memory counter after successful CREATE kit in H2
+            CoherenceStore.incrementMemoryCount("kit")
 
             query = "SELECT * FROM xykit WHERE id='$id'"
             val rows = xdb.forQuery(query)
@@ -449,6 +457,8 @@ class AbcAPI(): AbstractAPI() {
             
             query = "DELETE FROM xykit WHERE kit01='$code'"
             val rowCount = xdb.forUpdate(query)
+            // Decrement memory counter after successful DROP kit in H2
+            CoherenceStore.decrementMemoryCount("kit")
             xdb.movePoint(id, "kit")
             return sendSuccess(rowCount.toString())
         }
@@ -618,6 +628,8 @@ class AbcAPI(): AbstractAPI() {
             )
             val query = dbKey.getInsert(map, scheme, user, id, now, pin)
             xdb.forUpdate(query)
+            // Increment memory counter after successful SIGNUP in H2
+            CoherenceStore.incrementMemoryCount("key")
 
             val selectQuery = "SELECT * FROM xykey WHERE id='$id'"
             val rows = xdb.forQuery(selectQuery)

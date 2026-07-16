@@ -7,6 +7,7 @@ import co.onmind.xy.XYKit
 import co.onmind.xy.XYSet
 import co.onmind.kv.KVStoreFactory
 import co.onmind.trait.KVStore
+import co.onmind.util.CoherenceStore
 import co.onmind.util.JsonMapper
 import org.apache.commons.dbutils.QueryRunner
 import org.apache.commons.dbutils.handlers.MapListHandler
@@ -34,7 +35,7 @@ class RDB() {
             return storeInstance!!
         }
         
-        // Método público para acceder al store desde CoherenceStore
+        // Public method to access store from CoherenceStore
         fun getStoreInstance(): KVStore? = storeInstance
     }
 
@@ -177,8 +178,9 @@ class RDB() {
             store.put(key, jsonValue)
             store.commit()
             
-            // Verificación de coherencia (cero overhead si está desactivado)
-            co.onmind.util.CoherenceStore.verifyCoherenceQuick("kit")
+            // Increment disk counter and verify coherence (zero overhead if disabled)
+            CoherenceStore.incrementDiskCount("kit")
+            CoherenceStore.verifyCoherenceQuick("kit")
         }
         catch (e: Exception) {
             e.printStackTrace()
@@ -230,8 +232,9 @@ class RDB() {
             store.put(key, jsonValue)
             store.commit()
             
-            // Verificación de coherencia (cero overhead si está desactivado)
-            co.onmind.util.CoherenceStore.verifyCoherenceQuick("key")
+            // Increment disk counter and verify coherence (zero overhead if disabled)
+            CoherenceStore.incrementDiskCount("key")
+            CoherenceStore.verifyCoherenceQuick("key")
         }
         catch (e: Exception) {
             e.printStackTrace()
@@ -286,8 +289,9 @@ class RDB() {
             store.put(key, jsonValue)
             store.commit()
             
-            // Verificación de coherencia (cero overhead si está desactivado)
-            co.onmind.util.CoherenceStore.verifyCoherenceQuick("set")
+            // Increment disk counter and verify coherence (zero overhead if disabled)
+            CoherenceStore.incrementDiskCount("set")
+            CoherenceStore.verifyCoherenceQuick("set")
         }
         catch (e: Exception) {
             e.printStackTrace()
@@ -380,8 +384,9 @@ class RDB() {
             store.put(key, jsonValue)
             store.commit()
             
-            // Verificación de coherencia (cero overhead si está desactivado)
-            co.onmind.util.CoherenceStore.verifyCoherenceQuick("any")
+            // Increment disk counter and verify coherence (zero overhead if disabled)
+            CoherenceStore.incrementDiskCount("any")
+            CoherenceStore.verifyCoherenceQuick("any")
         }
         catch (e: Exception) {
             e.printStackTrace()
@@ -422,8 +427,9 @@ class RDB() {
             store.put(key, jsonValue)
             store.commit()
             
-            // Verificación de coherencia (cero overhead si está desactivado)
-            co.onmind.util.CoherenceStore.verifyCoherenceQuick("doc")
+            // Increment disk counter and verify coherence (zero overhead if disabled)
+            CoherenceStore.incrementDiskCount("doc")
+            CoherenceStore.verifyCoherenceQuick("doc")
         }
         catch (e: Exception) {
             e.printStackTrace()
@@ -435,6 +441,9 @@ class RDB() {
         try {
             store.delete("${id}~${prefix}~box")
             store.commit()
+            // Decrement disk counter and verify coherence (zero overhead if disabled)
+            CoherenceStore.decrementDiskCount(prefix)
+            CoherenceStore.verifyCoherenceQuick(prefix)
         }
         catch (e: Exception) {
             e.printStackTrace()

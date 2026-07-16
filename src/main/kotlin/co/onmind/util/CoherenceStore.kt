@@ -3,51 +3,117 @@ package co.onmind.util
 import co.onmind.kv.KVStoreFactory
 import co.onmind.trait.KVStore
 import co.onmind.db.RDB
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 
 /**
- * Sistema de coherencia para OnMind-XDB
- * Verifica la coherencia entre H2 (memoria) y KVStore (disco)
+ * Coherence system for OnMind-XDB
+ * Verifies coherence between H2 (memory) and KVStore (disk)
+ * Includes incremental O(1) counters to avoid full-scan on disk
  */
 object CoherenceStore {
     private val lock = ReentrantReadWriteLock()
     private var rdb: RDB? = null
     
+    // Incremental counters in memory (O(1) for getDiskCount)
+    // Key: entityType (any, key, set, kit, doc)
+    private val memoryCounts = ConcurrentHashMap<String, AtomicInteger>()
+    private val diskCounts = ConcurrentHashMap<String, AtomicInteger>()
+    
     fun init(rdbInstance: RDB) {
         rdb = rdbInstance
-        // No crear una nueva instancia de KVStore, usar la del RDB
-        Trace.debugWith("CoherenceStore initialized", "rdb_instance" to "available")
+        // Initialize counters to zero for each entity
+        listOf("any", "key", "set", "kit", "doc").forEach { entity ->
+            memoryCounts.putIfAbsent(entity, AtomicInteger(0))
+            diskCounts.putIfAbsent(entity, AtomicInteger(0))
+        }
+        // Do not create a new KVStore instance, use the one from RDB
+        Trace.debugWith("CoherenceStore initialized", "rdb_instance" to "available", "counters_initialized" to true)
     }
     
     /**
-     * Verificación rápida de coherencia (solo contadores)
-     * Cero overhead si db.check está desactivado
+     * Increment memory counter (called after successful INSERT/UPDATE in H2)
+     */
+    fun incrementMemoryCount(entityType: String) {
+        memoryCounts[entityType]?.incrementAndGet()
+    }
+    
+    /**
+     * Decrement memory counter (called after successful DELETE in H2)
+     */
+    fun decrementMemoryCount(entityType: String) {
+        memoryCounts[entityType]?.decrementAndGet()
+    }
+    
+    /**
+     * Increment disk counter (called after successful PUT in KVStore)
+     */
+    fun incrementDiskCount(entityType: String) {
+        diskCounts[entityType]?.incrementAndGet()
+    }
+    
+    /**
+     * Decrement disk counter (called after successful DELETE in KVStore)
+     */
+    fun decrementDiskCount(entityType: String) {
+        diskCounts[entityType]?.decrementAndGet()
+    }
+    
+    /**
+     * Synchronize counters with actual state (called in forceSyncFromDisk and at startup)
+     */
+    fun resyncCounters() {
+        lock.write {
+            listOf("any", "key", "set", "kit", "doc").forEach { entity ->
+                val memCount = getMemoryCountSlow(entity) // Full scan SQL for memory
+                val diskCount = getDiskCountSlow(entity) // Full scan only here for disk
+                memoryCounts[entity]?.set(memCount)
+                diskCounts[entity]?.set(diskCount)
+            }
+            Trace.debugWith("Coherence counters resynced", "memory" to memoryCounts.mapValues { it.value.get() }, "disk" to diskCounts.mapValues { it.value.get() })
+        }
+    }
+    
+    /**
+     * Quick coherence check (counters only, O(1))
+     * Zero overhead if db.check is disabled
+     * Uses lock.read for atomicity between memoryCount and diskCount (shared lock, doesn't block other readers)
      */
     @Suppress("NOTHING_TO_INLINE")
     internal inline fun verifyCoherenceQuick(entityType: String) {
-        if (!CoherenceConfig.shouldCheckCoherence()) return  // Early return, cero overhead
+        if (!CoherenceConfig.shouldCheckCoherence()) return  // Early return, zero overhead
         
+        val startTime = System.currentTimeMillis()
         try {
-            val memoryCount = getMemoryCount(entityType)
-            val diskCount = getDiskCount(entityType)
-            
-            if (memoryCount != diskCount) {
-                Trace.logCoherenceCheck(entityType, memoryCount, diskCount, false)
-            } else {
-                Trace.logCoherenceCheck(entityType, memoryCount, diskCount, true)
+            // Use lock.read for atomicity between memoryCount and diskCount (shared lock, doesn't block other readers)
+            lock.read {
+                val memoryCount = getMemoryCount(entityType)
+                val diskCount = getDiskCount(entityType)  // O(1) with incremental counter
+                
+                if (memoryCount != diskCount) {
+                    Trace.logCoherenceCheck(entityType, memoryCount, diskCount, false)
+                } else {
+                    Trace.logCoherenceCheck(entityType, memoryCount, diskCount, true)
+                }
             }
         } catch (e: Exception) {
             Trace.errorWith("Coherence check failed", 
                 "entity" to entityType, 
                 "error" to (e.message ?: "Unknown error")
             )
+        } finally {
+            val duration = System.currentTimeMillis() - startTime
+            if (duration > 10) {  // Log only if takes >10ms
+                Trace.logTiming("verifyCoherenceQuick", duration, mapOf("entity" to entityType))
+            }
         }
     }
     
     /**
-     * Obtener estadísticas completas de coherencia (bajo demanda)
+     * Get complete coherence statistics (on demand)
      */
     fun getCoherenceStats(): Map<String, Any> {
         return lock.read {
@@ -88,9 +154,11 @@ object CoherenceStore {
     }
     
     /**
-     * Verificación completa de coherencia
+     * Verificación completa de coherencia (bajo demanda)
+     * Usa lock.read para consistencia, métrica de latencia incluida
      */
     fun verifyCoherence(): Boolean {
+        val startTime = System.currentTimeMillis()
         return lock.read {
             try {
                 val entities = listOf("any", "key", "set", "kit", "doc")
@@ -122,6 +190,9 @@ object CoherenceStore {
                     )
                 }
                 
+                val duration = System.currentTimeMillis() - startTime
+                Trace.logTiming("verifyCoherence", duration, mapOf("result" to allCoherent, "entities" to entities.size))
+                
                 allCoherent
             } catch (e: Exception) {
                 Trace.errorWith("Coherence verification failed", 
@@ -135,8 +206,10 @@ object CoherenceStore {
     
     /**
      * Forzar sincronización desde disco (recuperación)
+     * Resincroniza contadores incrementales tras reload completo
      */
     fun forceSyncFromDisk(): Boolean {
+        val startTime = System.currentTimeMillis()
         return lock.write {
             try {
                 Trace.warnWith("Force synchronization initiated", 
@@ -146,6 +219,9 @@ object CoherenceStore {
                 
                 // Reinicializar RDB desde KVStore
                 rdb?.readPoint()
+                
+                // Resincronizar contadores incrementales (full scan solo aquí)
+                resyncCounters()
                 
                 val coherent = verifyCoherence()
                 if (coherent) {
@@ -159,6 +235,10 @@ object CoherenceStore {
                         "coherence_status" to "issues_remain"
                     )
                 }
+                
+                val duration = System.currentTimeMillis() - startTime
+                Trace.logTiming("forceSyncFromDisk", duration, mapOf("result" to coherent))
+                
                 coherent
             } catch (e: Exception) {
                 Trace.errorWith("Force synchronization failed", 
@@ -171,9 +251,16 @@ object CoherenceStore {
     }
     
     /**
-     * Obtener conteo de elementos en memoria (H2)
+     * Obtener conteo de elementos en memoria (H2) - O(1) desde contador incremental
      */
     internal fun getMemoryCount(entityType: String): Int {
+        return memoryCounts[entityType]?.get() ?: 0
+    }
+    
+    /**
+     * Obtener conteo real en memoria via SQL (para resyncCounters)
+     */
+    private fun getMemoryCountSlow(entityType: String): Int {
         return try {
             val sql = when (entityType) {
                 "any" -> "SELECT COUNT(*) as count FROM xyany"
@@ -197,12 +284,19 @@ object CoherenceStore {
     }
     
     /**
-     * Obtener conteo de elementos en disco (KVStore)
+     * Obtener conteo de elementos en disco (KVStore) - O(1) desde contador incremental
+     * Evita full-scan del KVStore en cada verificación
      */
     internal fun getDiskCount(entityType: String): Int {
+        return diskCounts[entityType]?.get() ?: 0
+    }
+    
+    /**
+     * Obtener conteo real en disco via full-scan (para resyncCounters inicial)
+     */
+    private fun getDiskCountSlow(entityType: String): Int {
         return try {
             var count = 0
-            // Usar el store del RDB en lugar de crear uno nuevo
             val store = RDB.getStoreInstance()
             store?.forEach { key, _ ->
                 if (key.contains("~${entityType}~")) {

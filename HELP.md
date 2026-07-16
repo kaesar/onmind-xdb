@@ -419,44 +419,50 @@ kv.cosmosdb.container = kvstore
 
 ### Sistema de Coherencia
 
-OnMind-XDB implementa un sistema de verificación de coherencia entre la base de datos en memoria (H2) y el almacenamiento persistente (KVStore). Este sistema garantiza que los datos estén sincronizados entre ambas capas de almacenamiento.
+OnMind-XDB implementa un **sistema de coherencia optimizado** entre la base de datos en memoria (H2) y el almacenamiento persistente (KVStore: MVStore/DynamoDB/CosmosDB). Este sistema garantiza que los datos estén sincronizados entre ambas capas de almacenamiento **sin impacto en rendimiento** cuando está desactivado.
+
+#### Arquitectura del Sistema de Coherencia
+
+El sistema utiliza **contadores incrementales en memoria (O(1))** para evitar full-scans del KVStore en cada verificación:
+
+```
+┌─────────────────┐     Incremental Counters        ┌──────────────────┐
+│   H2 (Memory)   │ ◄─────────────────────────────► │   KVStore (Disk) │
+│  - SQL queries  │   memoryCounts[entity]          │  - MVStore       │
+│  - Fast reads   │   diskCounts[entity]            │  - DynamoDB      │
+│                 │                                 │  - CosmosDB      │
+└─────────────────┘                                 └──────────────────┘
+         │                                                   │
+         └────────── CoherenceStore (lock.read) ─────────────┘
+                    Atomic O(1) verification
+```
+
+**Optimizaciones clave:**
+- **Contadores incrementales**: `memoryCounts` y `diskCounts` actualizados en cada INSERT/UPDATE/DELETE/CREATE/DROP
+- **Verificación O(1)**: `verifyCoherenceQuick()` lee solo contadores atómicos, sin full-scan
+- **Zero-overhead**: Funciones `inline` con early-return cuando `db.check=-`
+- **Concurrencia segura**: `ReentrantReadWriteLock` - múltiples lectores concurrentes, escritor exclusivo solo en `forceSyncFromDisk()`
+
+#### Inicialización y Hidratación
+
+Al arrancar, `readPoint()` carga datos desde KVStore a H2, luego `resyncCounters()` hidrata los contadores incrementales con un full-scan **único** (solo al inicio o en `forceSyncFromDisk()`).
 
 ### Endpoints de Coherencia
 
 #### GET /api/store/coherence
 
-Obtiene estadísticas detalladas de coherencia para todas las entidades del sistema.
+Obtiene estadísticas detalladas de coherencia para todas las entidades del sistema (O(1) desde contadores).
 
 **Respuesta:**
 ```json
 {
   "overall_coherent": true,
   "entities": {
-    "any": {
-      "memory_count": 150,
-      "disk_count": 150,
-      "coherent": true
-    },
-    "key": {
-      "memory_count": 5,
-      "disk_count": 5,
-      "coherent": true
-    },
-    "set": {
-      "memory_count": 12,
-      "disk_count": 12,
-      "coherent": true
-    },
-    "kit": {
-      "memory_count": 8,
-      "disk_count": 8,
-      "coherent": true
-    },
-    "doc": {
-      "memory_count": 0,
-      "disk_count": 0,
-      "coherent": true
-    }
+    "any": { "memory_count": 150, "disk_count": 150, "coherent": true },
+    "key": { "memory_count": 5, "disk_count": 5, "coherent": true },
+    "set": { "memory_count": 12, "disk_count": 12, "coherent": true },
+    "kit": { "memory_count": 8, "disk_count": 8, "coherent": true },
+    "doc": { "memory_count": 0, "disk_count": 0, "coherent": true }
   },
   "last_check": 1766193576332,
   "config": {
@@ -472,15 +478,15 @@ Obtiene estadísticas detalladas de coherencia para todas las entidades del sist
 **Campos:**
 - `overall_coherent`: Estado general de coherencia (true/false)
 - `entities`: Estadísticas por entidad (any, key, set, kit, doc)
-- `memory_count`: Número de registros en memoria (H2)
-- `disk_count`: Número de registros en disco (KVStore)
+- `memory_count`: Número de registros en memoria (H2) - desde contador incremental
+- `disk_count`: Número de registros en disco (KVStore) - desde contador incremental
 - `coherent`: Estado de coherencia por entidad
 - `last_check`: Timestamp de la última verificación
 - `config`: Configuración actual del sistema
 
 #### POST /api/store/coherence/verify
 
-Ejecuta una verificación completa de coherencia de forma manual.
+Ejecuta una verificación completa de coherencia de forma manual (bajo lock.read, métrica de latencia incluida).
 
 **Respuesta:**
 ```json
@@ -491,14 +497,9 @@ Ejecuta una verificación completa de coherencia de forma manual.
 }
 ```
 
-**Campos:**
-- `coherent`: Resultado de la verificación (true/false)
-- `message`: Mensaje descriptivo del resultado
-- `timestamp`: Momento de la verificación
-
 #### POST /api/store/coherence/sync
 
-Fuerza una sincronización completa desde el almacenamiento persistente hacia la memoria. Útil para recuperación de datos.
+Fuerza una sincronización completa desde el almacenamiento persistente hacia la memoria. **Resincroniza contadores incrementales** tras reload completo. Útil para recuperación de datos.
 
 **Respuesta:**
 ```json
@@ -509,71 +510,18 @@ Fuerza una sincronización completa desde el almacenamiento persistente hacia la
 }
 ```
 
-**Campos:**
-- `success`: Resultado de la sincronización (true/false)
-- `message`: Mensaje descriptivo del resultado
-- `timestamp`: Momento de la sincronización
+**Operaciones internas:**
+1. `rdb.readPoint()` - Recarga H2 desde KVStore
+2. `resyncCounters()` - Full-scan único para hidratar contadores
+3. `verifyCoherence()` - Validación final
 
 #### GET /api/store/health
 
-Proporciona un estado de salud completo del sistema, incluyendo configuración y estadísticas.
-
-**Respuesta:**
-```json
-{
-  "healthy": true,
-  "kvstore_accessible": true,
-  "rdb_accessible": true,
-  "config_loaded": true,
-  "coherence_config": {
-    "log_level": 2,
-    "check_enabled": true,
-    "log_requests": true,
-    "log_debug": true,
-    "check_coherence": true
-  },
-  "trace_stats": {
-    "initialized": true,
-    "log_file": "/path/to/onmind-xdb.log",
-    "buffer_size": 8,
-    "last_flush": 1766193576300,
-    "flush_threshold": 100,
-    "flush_interval_ms": 5000
-  }
-}
-```
-
-**Campos:**
-- `healthy`: Estado general del sistema
-- `kvstore_accessible`: Accesibilidad del almacén clave-valor
-- `rdb_accessible`: Accesibilidad de la base de datos relacional
-- `config_loaded`: Estado de carga de configuración
-- `coherence_config`: Configuración actual de coherencia y logging
-- `trace_stats`: Estadísticas del sistema de logging
+Proporciona un estado de salud completo del sistema.
 
 #### GET /api/trace/stats
 
 Obtiene estadísticas específicas del sistema de logging y trace.
-
-**Respuesta:**
-```json
-{
-  "initialized": true,
-  "log_file": "/path/to/onmind-xdb.log",
-  "buffer_size": 0,
-  "last_flush": 1766193560502,
-  "flush_threshold": 100,
-  "flush_interval_ms": 5000
-}
-```
-
-**Campos:**
-- `initialized`: Estado de inicialización del sistema de trace
-- `log_file`: Ruta del archivo de log (o "none" si desactivado)
-- `buffer_size`: Número de mensajes en buffer
-- `last_flush`: Timestamp del último flush a disco
-- `flush_threshold`: Número de mensajes que dispara flush automático
-- `flush_interval_ms`: Intervalo máximo entre flushes (milisegundos)
 
 ### Ejemplos de Uso
 
@@ -592,7 +540,7 @@ curl -s http://localhost:9990/api/store/coherence | jq .
 curl -s -X POST http://localhost:9990/api/store/coherence/verify | jq .
 ```
 
-#### Forzar Sincronización
+#### Forzar Sincronización (Recovery)
 ```bash
 curl -s -X POST http://localhost:9990/api/store/coherence/sync | jq .
 ```
@@ -607,7 +555,7 @@ curl -s http://localhost:9990/api/trace/stats | jq .
 OnMind-XDB incluye un script completo para probar todas las funcionalidades de coherencia:
 
 ```bash
-./test-coherence.sh
+./scripts/test-coherence.sh
 ```
 
 Este script:
@@ -636,7 +584,56 @@ app.logger = 2    # Logging completo
 db.check = +      # Verificaciones automáticas activas
 ```
 
-**Nota:** Los endpoints de monitoreo están **siempre disponibles** independientemente de la configuración, permitiendo verificaciones bajo demanda sin impacto en el rendimiento.
+**Nota:** Los endpoints de monitoreo (`/api/store/coherence`, `/api/store/coherence/verify`, `/api/store/coherence/sync`, `/api/store/health`, `/api/trace/stats`) están **siempre disponibles** independientemente de la configuración, permitiendo verificaciones bajo demanda sin impacto en el rendimiento.
+
+### Detalles de Implementación
+
+#### Contadores Incrementales (O(1))
+
+```kotlin
+// En CoherenceStore.kt - Contadores atómicos thread-safe
+private val memoryCounts = ConcurrentHashMap<String, AtomicInteger>()
+private val diskCounts = ConcurrentHashMap<String, AtomicInteger>()
+
+// Operaciones O(1)
+fun incrementMemoryCount(entityType: String)  { memoryCounts[entityType]?.incrementAndGet() }
+fun decrementMemoryCount(entityType: String)  { memoryCounts[entityType]?.decrementAndGet() }
+fun incrementDiskCount(entityType: String)    { diskCounts[entityType]?.incrementAndGet() }
+fun decrementDiskCount(entityType: String)    { diskCounts[entityType]?.decrementAndGet() }
+
+fun getMemoryCount(entityType: String): Int = memoryCounts[entityType]?.get() ?: 0
+fun getDiskCount(entityType: String): Int = diskCounts[entityType]?.get() ?: 0
+```
+
+#### Verificación Atómica con Shared Lock
+
+```kotlin
+@Suppress("NOTHING_TO_INLINE")
+internal inline fun verifyCoherenceQuick(entityType: String) {
+    if (!CoherenceConfig.shouldCheckCoherence()) return  // Zero overhead
+    
+    lock.read {  // Shared lock - NO bloquea otros readers
+        val memoryCount = getMemoryCount(entityType)
+        val diskCount = getDiskCount(entityType)  // O(1)
+        
+        if (memoryCount != diskCount) {
+            Trace.logCoherenceCheck(entityType, memoryCount, diskCount, false)
+        }
+    }
+}
+```
+
+#### Integración en Operaciones CRUD
+
+El sistema de contadores incrementales se actualiza automáticamente en cada operación:
+
+| Operación | H2 (memoria) | KVStore (disco) | Contadores |
+|-----------|--------------|-----------------|------------|
+| INSERT | `forUpdate()` | `savePoint*()` + `commit()` | `incrementMemoryCount` + `incrementDiskCount` |
+| UPDATE | `forUpdate()` | `savePoint*()` + `commit()` | No cambia conteo |
+| DELETE | `forUpdate(DELETE)` | `movePoint()` + `commit()` | `decrementMemoryCount` + `decrementDiskCount` |
+| CREATE kit | `forUpdate()` | `savePointKit()` + `commit()` | `incrementMemoryCount("kit")` + `incrementDiskCount("kit")` |
+| DROP kit | `forUpdate(DELETE)` | `movePoint(id, "kit")` + `commit()` | `decrementMemoryCount("kit")` + `decrementDiskCount("kit")` |
 
 ---
 

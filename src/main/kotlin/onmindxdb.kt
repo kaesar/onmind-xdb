@@ -68,6 +68,9 @@ object onmindxdb {
 
         CoherenceStore.init(xdb)
         xdb.readPoint()
+        
+        // Hidratar contadores de coherencia tras carga inicial desde disco
+        CoherenceStore.resyncCounters()
 
         val appMode = cfg.getProperty("app.mode", "production")
         val enableSwagger = appMode != "production"
