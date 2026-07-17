@@ -86,6 +86,15 @@ object Rote {
                             # auth.oidc.user_claim = sub
                             # auth.oidc.roles_claim = roles
 
+                            # OTP Mail (passwordless) — set auth.type = OTPMAIL to enable
+                            # auth.otp.smtp_host = localhost
+                            # auth.otp.smtp_port = 1025
+                            # auth.otp.smtp_user =
+                            # auth.otp.smtp_pass =
+                            # auth.otp.from = xdb@localhost
+                            # auth.otp.session_key = change-me-otp-session-key
+                            # auth.otp.auto_register = true
+
                             # Parametros de persistencia
                             kv.store = mvstore
                             kv.mvstore.name = xybox

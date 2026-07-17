@@ -711,9 +711,10 @@ OnMind-XDB usa **autenticación básica HTTP por defecto** configurada desde `on
 ### Proveedores Soportados
 
 1. **Basic** (Default) - Autenticación HTTP Basic
-2. **Authelia** - Autenticación corporativa con headers
-3. **AWS Cognito** - Autenticación cloud con JWT
-4. **OIDC / Keycloak / Entra ID** - Autenticación estándar con JWT (OIDC)
+2. **OTP Mail** - Passwordless con código de un solo uso por email
+3. **Authelia** - Autenticación corporativa con headers
+4. **AWS Cognito** - Autenticación cloud con JWT
+5. **OIDC / Keycloak / Entra ID** - Autenticación estándar con JWT (OIDC)
 
 ### Configuración en onmind.ini
 
@@ -725,6 +726,46 @@ auth.type = BASIC
 auth.basic.user = YWRtaW4=  # admin en Base64
 auth.basic.pass = YWRtaW4=  # admin en Base64
 ```
+
+#### OTP Mail (passwordless, recomendado sin IdP externo)
+```ini
+auth.enabled = true
+auth.type = OTPMAIL
+auth.otp.smtp_host = localhost
+auth.otp.smtp_port = 1025
+auth.otp.smtp_user =
+auth.otp.smtp_pass =
+auth.otp.from = xdb@localhost
+auth.otp.session_key = change-me-otp-session-key
+auth.otp.auto_register = true
+```
+
+Flujo:
+1. Usuario visita `/app/` sin sesión → redirect a `/auth/otpmail/login`
+2. Ingresa email → XDB genera código de 6 dígitos (TTL 5 min, máx. 3 intentos)
+3. Código enviado por SMTP; en `localhost`/`127.0.0.1` se muestra también en pantalla (dev mode)
+4. Verificación OK → cookie firmada `xdb-otp-session` (7 días) e inyección de `X-Auth-User`
+5. Auto-registro en `xykey` (`key02` = email) si `auth.otp.auto_register = true`
+
+Mailpit (desarrollo):
+```bash
+docker run -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+
+Gmail (relay SMTP):
+```ini
+auth.otp.smtp_host = smtp.gmail.com
+auth.otp.smtp_port = 587
+auth.otp.smtp_user = tu-cuenta@gmail.com
+auth.otp.smtp_pass = contraseña-de-aplicacion
+auth.otp.from = tu-cuenta@gmail.com
+```
+
+Rutas públicas OTP:
+- `GET  /auth/otpmail/login`
+- `POST /auth/otpmail/send`
+- `POST /auth/otpmail/verify`
+- `GET|POST /auth/otpmail/logout`
 
 #### Sin Autenticación
 ```ini
@@ -757,9 +798,10 @@ auth.oidc.client_id = onmind-xdb
 ### Uso
 
 #### Acceder a la UI
-Al acceder a `http://localhost:9990/_/`, el navegador pedirá usuario y contraseña.
+- Con **BASIC**: al acceder a `http://localhost:9990/app/`, el navegador pedirá usuario y contraseña.
+- Con **OTPMAIL**: se redirige a `/auth/otpmail/login` para login passwordless por email.
 
-#### Cambiar Credenciales
+#### Cambiar Credenciales (BASIC)
 Editar `~/onmind/onmind.ini`:
 ```ini
 auth.basic.user = miusuario
@@ -769,21 +811,19 @@ auth.basic.pass = mipassword
 ### Arquitectura de Autenticación
 
 ```
-Request → BasicAuthProvider.filter()
+Request → AuthProvider.filter()
     ↓
-Valida Authorization: Basic header
-    ↓
-Decodifica Base64 (user:pass)
-    ↓
-Compara con auth.basic.user y auth.basic.pass
+Valida credenciales / sesión / JWT según auth.type
     ↓
 Si válido: Agrega X-Auth-User header → Routes
-Si inválido: 401 Unauthorized + WWW-Authenticate header
+Si inválido: 401 (API) o redirect a login (UI / OTP)
 ```
 
 **Proveedores disponibles (Strategy pattern):**
-- `BasicAuthPlug`: Valida usuario/contraseña con HTTP Basic Auth
+
 - `NoAuthPlug`: Sin autenticación (cuando auth.enabled=false)
+- `BasicAuthPlug`: Valida usuario/contraseña con HTTP Basic Auth
+- `OTPMailPlug`: Passwordless OTP por email + cookie de sesión firmada
 - `AutheliaPlug`: Lee headers Remote-User, Remote-Email, Remote-Groups
 - `CognitoPlug`: Valida JWT token de AWS Cognito
 - `OIDCPlug`: Valida JWT de proveedores OIDC (Keycloak, Entra ID, etc.)

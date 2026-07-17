@@ -41,6 +41,7 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
     implementation("io.agroal:agroal-pool:3.0")
+    implementation("org.slf4j:slf4j-simple:2.0.16")    // lightest lib for console logging
 }
 
 group = "co.onmind"

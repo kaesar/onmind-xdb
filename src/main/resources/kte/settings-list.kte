@@ -1,8 +1,10 @@
 @param settings: List<Map<String, Any?>>
 @param settingsJson: String
 @param columnsJson: String
+@param showLogout: Boolean = false
+@param logoutUrl: String = ""
 
-@template.layout(title = "Settings", content = @`
+@template.layout(title = "Settings", showLogout = showLogout, logoutUrl = logoutUrl, content = @`
     <div class="p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-slate-800 ml-12">Settings</h1>

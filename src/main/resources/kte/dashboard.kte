@@ -1,6 +1,8 @@
 @param title: String
+@param showLogout: Boolean = false
+@param logoutUrl: String = ""
 
-@template.layout(title = title, content = @`
+@template.layout(title = title, showLogout = showLogout, logoutUrl = logoutUrl, content = @`
     <div class="p-8">
         <h1 class="text-3xl font-bold text-slate-800 mb-6 ml-12">eXpress DataBase WebApp</h1>
         

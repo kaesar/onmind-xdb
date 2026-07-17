@@ -30,6 +30,8 @@ import co.onmind.api.AbcAPI
 import co.onmind.app.AppUI
 import co.onmind.db.RDB
 import co.onmind.auth.AuthConfig
+import co.onmind.auth.AuthType
+import co.onmind.auth.OTPMailPlug
 
 object onmindxdb {
     val os = System.getProperty("os.name")
@@ -41,6 +43,9 @@ object onmindxdb {
     var config: Properties? = null
     val version = "0.9.0"
     var uiEnabled = true
+    /** When true, UI shows a logout link (not NoAuth; only strategies with a real logout URL). */
+    var uiShowLogout: Boolean = false
+    var uiLogoutUrl: String = ""
     private val json = JsonMapper.instance
 
     @JvmStatic
@@ -79,6 +84,18 @@ object onmindxdb {
         val authConfig = AuthConfig.fromConfig(cfg)
         val authProvider = authConfig.createProvider()
         val appLanguage = cfg.getProperty("app.language", "en")
+
+        // Logout link: only when auth is enabled and the strategy has a real server-side logout.
+        // NoAuth → hidden. BASIC → hidden (browser caches credentials; no clean logout).
+        // OTPMAIL → /auth/otpmail/logout. OIDC/Cognito/Authelia → no in-app logout yet.
+        val logoutUrl = if (authConfig.enabled) {
+            when (authConfig.type) {
+                AuthType.OTPMAIL -> "/auth/otpmail/logout"
+                else -> null
+            }
+        } else null
+        uiShowLogout = logoutUrl != null
+        uiLogoutUrl = logoutUrl.orEmpty()
         
         print("Exposing api/db service ... ")
         val routesList = mutableListOf(
@@ -98,6 +115,11 @@ object onmindxdb {
             "/static" bind GZip().then(static(Classpath("/static"))),
             appUI.routes()
         )
+
+        // OTP Mail login/send/verify/logout (public paths; filter allows them without session)
+        if (authProvider is OTPMailPlug) {
+            routesList.add(authProvider.routes())
+        }
 
         if (enableSwagger) {
             routesList.add("/swagger" bind Method.GET to { _: Request -> Response(OK).body(Swagger.ui()).header("Content-Type", "text/html") })

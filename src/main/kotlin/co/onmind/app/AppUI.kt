@@ -171,9 +171,14 @@ class AppUI {
     }
 
     private fun renderTemplate(name: String, model: Map<String, Any>): String {
+        // Inject auth UI flags so layout (via page templates) can show conditional logout.
+        val fullModel = model + mapOf(
+            "showLogout" to onmindxdb.uiShowLogout,
+            "logoutUrl" to onmindxdb.uiLogoutUrl
+        )
         return try {
             val output = StringOutput()
-            templateEngine.render("$name.kte", model, output)
+            templateEngine.render("$name.kte", fullModel, output)
             output.toString()
         } catch (e: Exception) {
             try {

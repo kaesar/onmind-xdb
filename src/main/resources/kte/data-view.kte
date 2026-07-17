@@ -3,8 +3,10 @@
 @param recordsJson: String
 @param columnsJson: String
 @param code: String
+@param showLogout: Boolean = false
+@param logoutUrl: String = ""
 
-@template.layout(title = sheet["kit02"]?.toString() ?: "Data", content = @`
+@template.layout(title = sheet["kit02"]?.toString() ?: "Data", showLogout = showLogout, logoutUrl = logoutUrl, content = @`
     <div class="p-8">
         <div class="mb-6 ml-12">
             <a href="/app/data" class="inline-flex items-center text-blue-600 hover:text-blue-800 p-2 rounded hover:bg-blue-50 no-underline cursor-pointer" title="Back to Collections">
