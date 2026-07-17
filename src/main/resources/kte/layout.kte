@@ -1,5 +1,7 @@
 @param title: String = "OnMind-XDB"
 @param content: gg.jte.Content
+@param showLogout: Boolean = false
+@param logoutUrl: String = ""
 
 <!DOCTYPE html>
 <html lang="en">
@@ -95,6 +97,12 @@
                 <i data-lucide="book-open" class="w-5 h-5"></i>
                 <span>Documentation</span>
             </a>
+            @if(showLogout && !logoutUrl.isBlank())
+            <a href="${logoutUrl}">
+                <i data-lucide="log-out" class="w-5 h-5"></i>
+                <span>Logout</span>
+            </a>
+            @endif
         </div>
     </nav>
     <main class="main-content" id="mainContent">

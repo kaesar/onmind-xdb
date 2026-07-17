@@ -711,9 +711,10 @@ OnMind-XDB usa **autenticación básica HTTP por defecto** configurada desde `on
 ### Proveedores Soportados
 
 1. **Basic** (Default) - Autenticación HTTP Basic
-2. **Authelia** - Autenticación corporativa con headers
-3. **AWS Cognito** - Autenticación cloud con JWT
-4. **OIDC / Keycloak / Entra ID** - Autenticación estándar con JWT (OIDC)
+2. **OTP Mail** - Passwordless con código de un solo uso por email
+3. **Authelia** - Autenticación corporativa con headers
+4. **AWS Cognito** - Autenticación cloud con JWT
+5. **OIDC / Keycloak / Entra ID** - Autenticación estándar con JWT (OIDC)
 
 ### Configuración en onmind.ini
 
@@ -725,6 +726,46 @@ auth.type = BASIC
 auth.basic.user = YWRtaW4=  # admin en Base64
 auth.basic.pass = YWRtaW4=  # admin en Base64
 ```
+
+#### OTP Mail (passwordless, recomendado sin IdP externo)
+```ini
+auth.enabled = true
+auth.type = OTPMAIL
+auth.otp.smtp_host = localhost
+auth.otp.smtp_port = 1025
+auth.otp.smtp_user =
+auth.otp.smtp_pass =
+auth.otp.from = xdb@localhost
+auth.otp.session_key = change-me-otp-session-key
+auth.otp.auto_register = true
+```
+
+Flujo:
+1. Usuario visita `/app/` sin sesión → redirect a `/auth/otpmail/login`
+2. Ingresa email → XDB genera código de 6 dígitos (TTL 5 min, máx. 3 intentos)
+3. Código enviado por SMTP; en `localhost`/`127.0.0.1` se muestra también en pantalla (dev mode)
+4. Verificación OK → cookie firmada `xdb-otp-session` (7 días) e inyección de `X-Auth-User`
+5. Auto-registro en `xykey` (`key02` = email) si `auth.otp.auto_register = true`
+
+Mailpit (desarrollo):
+```bash
+docker run -p 1025:1025 -p 8025:8025 axllent/mailpit
+```
+
+Gmail (relay SMTP):
+```ini
+auth.otp.smtp_host = smtp.gmail.com
+auth.otp.smtp_port = 587
+auth.otp.smtp_user = tu-cuenta@gmail.com
+auth.otp.smtp_pass = contraseña-de-aplicacion
+auth.otp.from = tu-cuenta@gmail.com
+```
+
+Rutas públicas OTP:
+- `GET  /auth/otpmail/login`
+- `POST /auth/otpmail/send`
+- `POST /auth/otpmail/verify`
+- `GET|POST /auth/otpmail/logout`
 
 #### Sin Autenticación
 ```ini
@@ -757,9 +798,10 @@ auth.oidc.client_id = onmind-xdb
 ### Uso
 
 #### Acceder a la UI
-Al acceder a `http://localhost:9990/_/`, el navegador pedirá usuario y contraseña.
+- Con **BASIC**: al acceder a `http://localhost:9990/app/`, el navegador pedirá usuario y contraseña.
+- Con **OTPMAIL**: se redirige a `/auth/otpmail/login` para login passwordless por email.
 
-#### Cambiar Credenciales
+#### Cambiar Credenciales (BASIC)
 Editar `~/onmind/onmind.ini`:
 ```ini
 auth.basic.user = miusuario
@@ -769,21 +811,19 @@ auth.basic.pass = mipassword
 ### Arquitectura de Autenticación
 
 ```
-Request → BasicAuthProvider.filter()
+Request → AuthProvider.filter()
     ↓
-Valida Authorization: Basic header
-    ↓
-Decodifica Base64 (user:pass)
-    ↓
-Compara con auth.basic.user y auth.basic.pass
+Valida credenciales / sesión / JWT según auth.type
     ↓
 Si válido: Agrega X-Auth-User header → Routes
-Si inválido: 401 Unauthorized + WWW-Authenticate header
+Si inválido: 401 (API) o redirect a login (UI / OTP)
 ```
 
 **Proveedores disponibles (Strategy pattern):**
-- `BasicAuthPlug`: Valida usuario/contraseña con HTTP Basic Auth
+
 - `NoAuthPlug`: Sin autenticación (cuando auth.enabled=false)
+- `BasicAuthPlug`: Valida usuario/contraseña con HTTP Basic Auth
+- `OTPMailPlug`: Passwordless OTP por email + cookie de sesión firmada
 - `AutheliaPlug`: Lee headers Remote-User, Remote-Email, Remote-Groups
 - `CognitoPlug`: Valida JWT token de AWS Cognito
 - `OIDCPlug`: Valida JWT de proveedores OIDC (Keycloak, Entra ID, etc.)
@@ -1023,6 +1063,187 @@ kv.store = mvstore
 
 ---
 
+## MCP (Model Context Protocol) – Acceso de Agentes a XDB
+
+OnMind-XDB incluye un servidor MCP **embebido** (sin dependencias pesadas) que expone el protocolo JSON-RPC sobre el contrato ABC existente.
+
+### Cómo activarlo
+
+En `onmind.ini`:
+
+```ini
+mcp.enabled = +     # expone /mcp y /mcp/chat
+mcp.write = -       # ¡importante! + habilita herramientas de escritura (por defecto deshabilitado)
+# mcp.stdio = +     # o arrancar con: java -jar ... --mcp  (solo stdio, sin servidor HTTP)
+```
+
+### Puntos de entrada
+
+| Ruta | Método | Uso |
+|------|--------|-----|
+| `/mcp` | GET / POST | Servidor MCP JSON-RPC puro (`initialize`, `tools/list`, `tools/call`) |
+| `/mcp/chat` | GET / POST | Sketch de chat para el Dashboard (comandos en lenguaje natural corto) |
+
+Stdio (`--mcp`): transporte recomendado para Claude Desktop, Cursor, etc.
+
+### Tools disponibles (prefijo `abc_`)
+
+**Lectura (siempre):**
+- `abc_status` — Estado del servicio + modo MCP actual.
+- `abc_list` — Listado de sheets/arquetipos (xykit).
+- `abc_describe` — Metadatos y spec (kit05) de un sheet.
+- `abc_find` — Consultas con los mismos campos que el cuerpo ABC (`some`, `with`, `show`, `size`, etc.).
+
+**Escritura de esquemas (solo con `mcp.write=+`):**
+- `abc_create` — Crear un sheet/arquetipo (lo que hace `what=create`).
+- `abc_define` — Definir/actualizar campos (lo que hace `what=define`, `puts` contiene la spec).
+- `abc_schema` — Ruta recomendada (combinada): crea el sheet si falta + aplica el spec en un solo paso (idempotente).
+
+**Nota importante**: Las operaciones **row-level** (`insert`, `update`, `delete`, `drop`) NO están expuestas por MCP en esta versión. Solo se permite definir la estructura.
+
+### Permisos explícitos
+
+- Por defecto `mcp.write = -` (modo solo lectura). Esto es intencional.
+- `mcp.write = +` es una autorización explícita en el archivo de configuración local.
+- Las tools de escritura fallan con mensaje claro si están deshabilitadas.
+- Las requests por `/mcp` siguen pasando por el mismo filtro de autenticación que el resto de la aplicación.
+
+### Ejemplos de uso desde el Dashboard
+
+Una vez activado `mcp.enabled = +`, aparece un panel **"MCP Chat"** al final del Dashboard.
+
+Comandos de ejemplo:
+
+```
+status
+list sheets
+describe PRODUCTS
+find PRODUCTS where any03 = 'demo' size 10
+create sheet demo title "Demo"
+schema demo2 title "Demo 2" spec any02=code,any03=name
+/tool abc_define {"some":"demo","spec":"any02=code,any03=name"}
+```
+
+`/mcp/chat` interpreta los mensajes con reglas locales (sin LLM externo) y llama a las tools `abc_*`.
+
+### JSON-RPC directo
+
+```bash
+# Inicialización rápida
+curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
+
+# Llamar tool directamente
+curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"abc_find","arguments":{"some":"PRODUCTS.SHEET","size":"5"}}}'
+```
+
+---
+
+### Licencia
+
+Este proyecto está bajo la Licencia Apache 2.0 - ver el archivo [LICENSE.md](LICENSE.md) para detalles.
+
+---
+
+## MCP (Model Context Protocol) – Acceso de Agentes a XDB
+
+OnMind-XDB incluye un servidor MCP **embebido** (sin dependencias pesadas) que expone el protocolo JSON-RPC sobre el contrato ABC existente.
+
+### Cómo activarlo
+
+En `onmind.ini`:
+
+```ini
+mcp.enabled = +     # expone /mcp y /mcp/chat
+mcp.write = -       # ¡importante! + habilita herramientas de escritura (por defecto deshabilitado)
+# mcp.stdio = +     # o arrancar con: java -jar ... --mcp  (solo stdio, sin servidor HTTP)
+```
+
+### Puntos de entrada
+
+| Ruta | Método | Uso |
+|------|--------|-----|
+| `/mcp` | GET / POST | Servidor MCP JSON-RPC puro (`initialize`, `tools/list`, `tools/call`) |
+| `/mcp/chat` | GET / POST | Sketch de chat para el Dashboard (comandos en lenguaje natural corto) |
+
+Stdio (`--mcp`): transporte recomendado para Claude Desktop, Cursor, etc.
+
+### Tools disponibles (prefijo `abc_`)
+
+**Lectura (siempre):**
+- `abc_status` — Estado del servicio + modo MCP actual.
+- `abc_list` — Listado de sheets/arquetipos (xykit).
+- `abc_describe` — Metadatos y spec (kit05) de un sheet.
+- `abc_find` — Consultas con los mismos campos que el cuerpo ABC (`some`, `with`, `show`, `size`, etc.).
+
+**Escritura de esquemas (solo con `mcp.write=+`):**
+- `abc_create` — Crear un sheet/arquetipo (lo que hace `what=create`).
+- `abc_define` — Definir/actualizar campos (lo que hace `what=define`, `puts` contiene la spec).
+- `abc_schema` — Ruta recomendada (combinada): crea el sheet si falta + aplica el spec en un solo paso (idempotente).
+
+**Nota importante**: Las operaciones **row-level** (`insert`, `update`, `delete`, `drop`) NO están expuestas por MCP en esta versión. Solo se permite definir la estructura.
+
+### Permisos explícitos
+
+- Por defecto `mcp.write = -` (modo solo lectura). Esto es intencional.
+- `mcp.write = +` es una autorización explícita en el archivo de configuración local.
+- Las tools de escritura fallan con un mensaje claro si están deshabilitadas.
+- Las requests por `/mcp` siguen pasando por el mismo filtro de autenticación que el resto de la aplicación.
+
+### Ejemplos de uso desde el Dashboard
+
+Una vez activado `mcp.enabled = +`, aparece un panel **"MCP Chat"** al final del Dashboard.
+
+Comandos de ejemplo:
+
+```
+status
+list sheets
+describe PRODUCTS
+find PRODUCTS where any03 = 'demo' size 10
+create sheet demo title "Demo"
+schema demo title "Demo" spec any02=code,any03=name
+/tool abc_define {"some":"demo","spec":"any02=code,any03=name"}
+```
+
+/mcp/chat interpreta los mensajes con reglas locales (sin LLM externo) y llama a las tools `abc_*`.
+
+### JSON-RPC directo
+
+```bash
+# Inicialización rápida
+curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
+
+# Llamar tool directamente
+curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"abc_find","arguments":{"some":"PRODUCTS.SHEET","size":"3"}}}'
+```
+
+### Implementación interna
+
+- Código en `co.onmind.mcp`:
+  - `AbcMcpServer` — JSON-RPC 2.0 manual sobre Jackson (cero SDK externo).
+  - `AbcMcpTools` — Adaptador que convierte tools a `AbcBody` + llama a `AbcAPI`.
+  - `AbcMcpChat` — Intérprete simple de comandos para el panel del Dashboard.
+- Reutiliza `AbcAPI`, Jackson (`JsonMapper.instance`) y el mismo filtro de autenticación.
+<!--
+- Impacto en el `.jar` fat: **~20KB comprimidos** (prácticamente cero comparado con los ~94 MB totales). No hay reactor, no hay MCP Java SDK.
+
+### Futuro (fuera del alcance actual)
+
+- Conectar un LLM real (por ejemplo vía build-with-ai) para que planifique y use las tools `abc_*` de forma más libre.
+- Panel de chat más elaborado con historial persistente y resultados tabulares bonitos.
+- Apertura controlada a más operaciones de escritura (con roles y confirmación) si hace falta.
+
+Todo lo anterior mantiene la filosofía de XDB: una sola API (ABC) y ahora también accesible de manera limpia por agentes.
+-->
+
 ### Licencia
 
 Este proyecto está bajo la Licencia Apache 2.0 - ver el archivo [LICENSE.md](LICENSE.md) para detalles.
@@ -1031,3 +1252,4 @@ Este proyecto está bajo la Licencia Apache 2.0 - ver el archivo [LICENSE.md](LI
 
 **Última actualización**: 2026  
 **Versión**: 1.0.0-RC
+

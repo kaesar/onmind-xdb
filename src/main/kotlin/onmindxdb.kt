@@ -30,6 +30,11 @@ import co.onmind.api.AbcAPI
 import co.onmind.app.AppUI
 import co.onmind.db.RDB
 import co.onmind.auth.AuthConfig
+import co.onmind.auth.AuthType
+import co.onmind.auth.OTPMailPlug
+import co.onmind.mcp.AbcMcpChat
+import co.onmind.mcp.AbcMcpServer
+import co.onmind.mcp.AbcMcpTools
 
 object onmindxdb {
     val os = System.getProperty("os.name")
@@ -41,6 +46,9 @@ object onmindxdb {
     var config: Properties? = null
     val version = "0.9.0"
     var uiEnabled = true
+    /** When true, UI shows a logout link (not NoAuth; only strategies with a real logout URL). */
+    var uiShowLogout: Boolean = false
+    var uiLogoutUrl: String = ""
     private val json = JsonMapper.instance
 
     @JvmStatic
@@ -79,7 +87,34 @@ object onmindxdb {
         val authConfig = AuthConfig.fromConfig(cfg)
         val authProvider = authConfig.createProvider()
         val appLanguage = cfg.getProperty("app.language", "en")
+
+        // Logout link: only when auth is enabled and the strategy has a real server-side logout.
+        // NoAuth → hidden. BASIC → hidden (browser caches credentials; no clean logout).
+        // OTPMAIL → /auth/otpmail/logout. OIDC/Cognito/Authelia → no in-app logout yet.
+        val logoutUrl = if (authConfig.enabled) {
+            when (authConfig.type) {
+                AuthType.OTPMAIL -> "/auth/otpmail/logout"
+                else -> null
+            }
+        } else null
+        uiShowLogout = logoutUrl != null
+        uiLogoutUrl = logoutUrl.orEmpty()
         
+        val mcpEnabled = cfg.getProperty("mcp.enabled", "-") == "+"
+        val mcpWrite = cfg.getProperty("mcp.write", "-") == "+"
+        val mcpStdio = args.contains("--mcp") || cfg.getProperty("mcp.stdio", "-") == "+"
+
+        val mcpTools = AbcMcpTools(abc, writeEnabled = mcpWrite)
+        val mcpServer = if (mcpEnabled || mcpStdio) AbcMcpServer(mcpTools) else null
+        val mcpChat = if (mcpEnabled) AbcMcpChat(mcpTools) else null
+
+        // MCP-only stdio mode: no Jetty (for Claude Desktop / Cursor / agent hosts).
+        if (mcpStdio && mcpServer != null) {
+            println("MCP stdio mode (read-only abc_* tools). Waiting for JSON-RPC on stdin...")
+            mcpServer.serveStdio()
+            return
+        }
+
         print("Exposing api/db service ... ")
         val routesList = mutableListOf(
             "/" bind Method.GET to handleRoot(),
@@ -98,6 +133,21 @@ object onmindxdb {
             "/static" bind GZip().then(static(Classpath("/static"))),
             appUI.routes()
         )
+
+        if (mcpEnabled && mcpServer != null) {
+            routesList.add("/mcp" bind Method.GET to mcpServer.httpHandler())
+            routesList.add("/mcp" bind Method.POST to mcpServer.httpHandler())
+        }
+
+        if (mcpEnabled && mcpChat != null) {
+            routesList.add("/mcp/chat" bind Method.GET to mcpChat.httpHandler())
+            routesList.add("/mcp/chat" bind Method.POST to mcpChat.httpHandler())
+        }
+
+        // OTP Mail login/send/verify/logout (public paths; filter allows them without session)
+        if (authProvider is OTPMailPlug) {
+            routesList.add(authProvider.routes())
+        }
 
         if (enableSwagger) {
             routesList.add("/swagger" bind Method.GET to { _: Request -> Response(OK).body(Swagger.ui()).header("Content-Type", "text/html") })
@@ -121,7 +171,15 @@ object onmindxdb {
             )))
             .then(routes(*routesList.toTypedArray()))
 
-        println("[  OK!  ] => http://127.0.0.1:${port}\n")
+        if (mcpEnabled) {
+            val toolsLine = if (mcpWrite) "abc_status, abc_list, abc_describe, abc_find, abc_create, abc_define, abc_schema" else "abc_status, abc_list, abc_describe, abc_find"
+            val mode = if (mcpWrite) "read + schema-write" else "read-only"
+            println("[  OK!  ] => http://127.0.0.1:${port}")
+            println("MCP $mode => http://127.0.0.1:${port}/mcp")
+            println("MCP chat     => http://127.0.0.1:${port}/mcp/chat  (tools: $toolsLine)\n")
+        } else {
+            println("[  OK!  ] => http://127.0.0.1:${port}\n")
+        }
         val serve = app.asServer(Jetty(port)).start()
         
         Runtime.getRuntime().addShutdownHook(Thread {

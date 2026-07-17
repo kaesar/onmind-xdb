@@ -62,6 +62,14 @@ object Rote {
                             dai.host = http://localhost
                             dai.cors = *
 
+                            # MCP (Model Context Protocol) — abc_* tools over /mcp (and /mcp/chat)
+                            # mcp.enabled = +   # expose HTTP JSON-RPC at /mcp + chat panel in Dashboard
+                            # mcp.stdio = +     # or pass --mcp for stdio-only agent hosts (Claude/Cursor)
+                            # mcp.write = +     # DANGER: enables abc_create, abc_define, abc_schema (schema only, not row writes)
+                            mcp.enabled = -
+                            mcp.stdio = -
+                            mcp.write = -
+
                             # Parametros conector de base de datos
                             db.driver = 0
                             db.port = 9091
@@ -85,6 +93,15 @@ object Rote {
                             auth.oidc.client_id = onmind-xdb
                             # auth.oidc.user_claim = sub
                             # auth.oidc.roles_claim = roles
+
+                            # OTP Mail (passwordless) — set auth.type = OTPMAIL to enable
+                            # auth.otp.smtp_host = localhost
+                            # auth.otp.smtp_port = 1025
+                            # auth.otp.smtp_user =
+                            # auth.otp.smtp_pass =
+                            # auth.otp.from = xdb@localhost
+                            # auth.otp.session_key = change-me-otp-session-key
+                            # auth.otp.auto_register = true
 
                             # Parametros de persistencia
                             kv.store = mvstore

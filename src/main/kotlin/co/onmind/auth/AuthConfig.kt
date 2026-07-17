@@ -4,7 +4,7 @@ import co.onmind.trait.AuthProvider
 import java.util.Properties
 
 enum class AuthType {
-    BASIC, AUTHELIA, COGNITO, KEYCLOAK, ENTRAID, OIDC
+    BASIC, AUTHELIA, COGNITO, KEYCLOAK, ENTRAID, OIDC, OTPMAIL
 }
 
 data class AuthConfig(
@@ -21,7 +21,14 @@ data class AuthConfig(
     val oidcClientId: String? = null,
     val oidcUserClaim: String? = null,
     val oidcEmailClaim: String? = null,
-    val oidcRolesClaim: String? = null
+    val oidcRolesClaim: String? = null,
+    val otpSmtpHost: String = "localhost",
+    val otpSmtpPort: String = "1025",
+    val otpSmtpUser: String = "",
+    val otpSmtpPass: String = "",
+    val otpFromEmail: String = "xdb@localhost",
+    val otpSessionKey: String = "change-me-otp-session-key",
+    val otpAutoRegister: Boolean = true
 ) {
     fun createProvider(): AuthProvider = when {
         !enabled -> NoAuthPlug()
@@ -51,6 +58,15 @@ data class AuthConfig(
             emailClaim = oidcEmailClaim ?: "email",
             rolesClaim = oidcRolesClaim,
             provider = "OIDC"
+        )
+        type == AuthType.OTPMAIL -> OTPMailPlug(
+            smtpHost = otpSmtpHost,
+            smtpPort = otpSmtpPort,
+            smtpUser = otpSmtpUser,
+            smtpPass = otpSmtpPass,
+            fromEmail = otpFromEmail,
+            sessionKey = otpSessionKey,
+            autoRegister = otpAutoRegister
         )
         else -> BasicAuthPlug(basicUser, basicPass)
     }
@@ -86,7 +102,14 @@ data class AuthConfig(
                 oidcClientId = config.getProperty("auth.oidc.client_id") ?: config.getProperty("auth.keycloak.client_id"),
                 oidcUserClaim = config.getProperty("auth.oidc.user_claim"),
                 oidcEmailClaim = config.getProperty("auth.oidc.email_claim"),
-                oidcRolesClaim = config.getProperty("auth.oidc.roles_claim")
+                oidcRolesClaim = config.getProperty("auth.oidc.roles_claim"),
+                otpSmtpHost = config.getProperty("auth.otp.smtp_host", "localhost"),
+                otpSmtpPort = config.getProperty("auth.otp.smtp_port", "1025"),
+                otpSmtpUser = config.getProperty("auth.otp.smtp_user", ""),
+                otpSmtpPass = config.getProperty("auth.otp.smtp_pass", ""),
+                otpFromEmail = config.getProperty("auth.otp.from", "xdb@localhost"),
+                otpSessionKey = config.getProperty("auth.otp.session_key", "change-me-otp-session-key"),
+                otpAutoRegister = config.getProperty("auth.otp.auto_register", "true") == "true"
             )
         }
     }

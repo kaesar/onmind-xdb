@@ -1,6 +1,8 @@
 @param title: String
+@param showLogout: Boolean = false
+@param logoutUrl: String = ""
 
-@template.layout(title = title, content = @`
+@template.layout(title = title, showLogout = showLogout, logoutUrl = logoutUrl, content = @`
     <div class="p-8">
         <h1 class="text-3xl font-bold text-slate-800 mb-6 ml-12">eXpress DataBase WebApp</h1>
         
@@ -80,6 +82,44 @@
                 </div>
                 <div id="response" style="height: 350px; border: 1px solid #e2e8f0; border-radius: 0.375rem;"></div>
                 <as-datagrid id="responseGrid" class="hidden" theme="light" filterable pageable selectable style="max-height: 350px;"></as-datagrid>
+            </div>
+        </div>
+
+        <!-- MCP Chat Sketch -->
+        <div id="mcp-chat-panel" class="bg-white rounded-lg shadow p-6 mt-6" style="display: none;">
+            <div class="flex justify-between items-start mb-3">
+                <div class="flex items-center gap-2">
+                    <h2 class="text-xl font-semibold text-slate-800">MCP Chat</h2>
+                    <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
+                    <span class="text-sm px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium" id="mcp-mode-pill">connected</span>
+                    <span class="text-xs text-slate-500" id="mcp-mode-label"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="mcpCheckStatus()" class="text-xs px-3 py-1 rounded border border-slate-200 hover:bg-slate-50">Check /mcp</button>
+                    <button onclick="mcpQuickCommand('status')" class="text-xs px-3 py-1 rounded border border-slate-200 hover:bg-slate-50">status</button>
+                    <button onclick="mcpQuickCommand('list')" class="text-xs px-3 py-1 rounded border border-slate-200 hover:bg-slate-50">list</button>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <div class="flex flex-wrap gap-1" id="mcp-tools-pills"></div>
+                <p class="text-[11px] text-amber-600 mt-1" id="mcp-write-banner" style="display:none;">
+                    ⚠️ Write mode enabled (mcp.write=+): <code>create</code>, <code>define</code>, <code>schema</code> actions are active.
+                </p>
+            </div>
+
+            <div id="mcp-chat-log" class="bg-slate-50 border border-slate-200 rounded text-sm p-3 h-64 overflow-auto mb-3 font-mono" style="white-space:pre-wrap;"></div>
+
+            <div class="flex gap-2">
+                <input id="mcp-chat-input" type="text" class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm"
+                       placeholder="Try: status | list sheets | describe PRODUCTS | find PRODUCTS size 5 | create sheet demo title &quot;Demo&quot;">
+                <button onclick="mcpSendMessage()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 border-0 cursor-pointer">Send</button>
+                <button onclick="mcpClearChatLog()" class="text-sm px-3 py-2 rounded border border-slate-200 hover:bg-slate-50">Clear</button>
+            </div>
+
+            <div class="mt-2 text-[11px] text-slate-500">
+                Stateless sketch — sends messages through <code>POST /mcp/chat</code>. 
+                Commands are interpreted locally (no LLM in the base build).
             </div>
         </div>
     </div>
@@ -179,7 +219,152 @@
             });
             observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
         }
-        
-        lucide.createIcons();
+
+        // ===== MCP Chat sketch (client-side bridge to /mcp/chat) =====
+        // Shows only when MCP is enabled. No external LLM; maps plain English to abc_* tools.
+        let mcpInfo = null;
+
+        async function mcpProbe() {
+            try {
+                const r = await fetch('/mcp/chat', { method: 'GET' });
+                if (!r.ok) return null;
+                return await r.json();
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function mcpShowPanel(info) {
+            const panel = document.getElementById('mcp-chat-panel');
+            if (!panel) return;
+            panel.style.display = '';
+            document.getElementById('mcp-mode-pill').textContent = info && info.write ? 'schema-write' : 'read';
+            if (info && info.write) {
+                document.getElementById('mcp-mode-pill').className = 'text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-700 font-medium';
+                document.getElementById('mcp-write-banner').style.display = '';
+            }
+            document.getElementById('mcp-mode-label').textContent = (info && info.mode) ? (' · ' + info.mode) : '';
+            mcpInfo = info;
+            mcpPopulatePills(info);
+        }
+
+        function mcpPopulatePills(info) {
+            const bar = document.getElementById('mcp-tools-pills');
+            if (!bar) return;
+            bar.innerHTML = '';
+            const list = (info && info.tools) ? info.tools : [
+                {name:'abc_status'}, {name:'abc_list'}, {name:'abc_describe'}, {name:'abc_find'}
+            ];
+            list.forEach(t => {
+                const el = document.createElement('span');
+                el.className = 'text-[10px] px-1.5 py-0.5 rounded ' + (t.write ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600');
+                el.textContent = t.name;
+                el.style.cursor = 'pointer';
+                el.onclick = () => {
+                    const inp = document.getElementById('mcp-chat-input');
+                    inp.value = '/tool ' + t.name + ' {}';
+                    inp.focus();
+                };
+                bar.appendChild(el);
+            });
+        }
+
+        function mcpAppendLog(who, text, isError) {
+            const log = document.getElementById('mcp-chat-log');
+            if (!log) return;
+            const line = document.createElement('div');
+            line.className = 'py-0.5';
+            const prefix = who + ': ';
+            const pre = document.createElement('span');
+            pre.style.color = '#64748b';
+            pre.textContent = prefix;
+            const span = document.createElement('span');
+            if (isError) span.style.color = '#b91c1c';
+            span.style.whiteSpace = 'pre-wrap';
+            span.textContent = typeof text === 'string' ? text : JSON.stringify(text, null, 2);
+            line.appendChild(pre);
+            line.appendChild(span);
+            log.appendChild(line);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function mcpClearChatLog() {
+            const log = document.getElementById('mcp-chat-log');
+            if (log) log.innerHTML = '';
+        }
+
+        async function mcpCheckStatus() {
+            const log = document.getElementById('mcp-chat-log');
+            mcpAppendLog('system', 'GET /mcp ...');
+            try {
+                const r = await fetch('/mcp');
+                const j = await r.json();
+                mcpAppendLog('mcp', JSON.stringify(j, null, 2));
+            } catch(e) {
+                mcpAppendLog('error', e.message, true);
+            }
+        }
+
+        async function mcpSendMessage() {
+            const inp = document.getElementById('mcp-chat-input');
+            const text = (inp.value || '').trim();
+            if (!text) return;
+            mcpAppendLog('you', text);
+            inp.value = '';
+            try {
+                const r = await fetch('/mcp/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text })
+                });
+                const j = await r.json();
+                if (j && j.content) mcpAppendLog('assistant', j.content);
+                if (j && j.tool) mcpAppendLog('tool', j.tool.name + ' ' + JSON.stringify(j.tool.arguments || {}));
+                if (j && j.toolResult) {
+                    const isErr = j.toolResult.isError;
+                    const body = j.toolResult.text;
+                    // Try pretty JSON for readability
+                    let shown = body;
+                    try {
+                        const parsed = JSON.parse(body);
+                        shown = JSON.stringify(parsed, null, 2);
+                    } catch (_) {}
+                    mcpAppendLog(isErr ? 'error' : 'result', shown, isErr);
+                }
+            } catch(e) {
+                mcpAppendLog('error', 'Request failed: ' + e.message, true);
+            }
+        }
+
+        function mcpQuickCommand(kind) {
+            const inp = document.getElementById('mcp-chat-input');
+            if (kind === 'status') inp.value = 'status';
+            if (kind === 'list') inp.value = 'list sheets';
+            if (kind === 'help') inp.value = 'help';
+            inp.focus();
+            mcpSendMessage();
+        }
+
+        // Auto-probe /mcp/chat; only reveal the chat panel if the endpoint answers
+        (async function initMcpChat() {
+            const info = await mcpProbe();
+            if (info && info.ok !== false) {
+                mcpShowPanel(info);
+            }
+            lucide.createIcons();
+        })();
+
+        // Enable Enter in chat input
+        setTimeout(() => {
+            const inp = document.getElementById('mcp-chat-input');
+            if (inp) {
+                inp.addEventListener('keydown', function(ev) {
+                    if (ev.key === 'Enter') {
+                        ev.preventDefault();
+                        mcpSendMessage();
+                    }
+                });
+            }
+        }, 300);
     </script>
 `)

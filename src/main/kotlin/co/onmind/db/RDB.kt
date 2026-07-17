@@ -265,7 +265,7 @@ class RDB() {
                 map["set15"] as Int?,
                 map["set16"] as Int?,
                 map["set17"] as String?,
-                map["set18"] as String,
+                map["set18"] as String?,
                 map["set19"] as String?,
                 map["set20"] as String?,
                 map["set21"] as String?,
