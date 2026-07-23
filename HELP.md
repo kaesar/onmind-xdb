@@ -1142,12 +1142,6 @@ curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
 
 ---
 
-### Licencia
-
-Este proyecto está bajo la Licencia Apache 2.0 - ver el archivo [LICENSE.md](LICENSE.md) para detalles.
-
----
-
 ## MCP (Model Context Protocol) – Acceso de Agentes a XDB
 
 OnMind-XDB incluye un servidor MCP **embebido** (sin dependencias pesadas) que expone el protocolo JSON-RPC sobre el contrato ABC existente.
@@ -1209,7 +1203,7 @@ schema demo title "Demo" spec any02=code,any03=name
 /tool abc_define {"some":"demo","spec":"any02=code,any03=name"}
 ```
 
-/mcp/chat interpreta los mensajes con reglas locales (sin LLM externo) y llama a las tools `abc_*`.
+`/mcp/chat` interpreta los mensajes con reglas locales (sin LLM externo) y llama a las tools `abc_*`.
 
 ### JSON-RPC directo
 
@@ -1230,19 +1224,109 @@ curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
 - Código en `co.onmind.mcp`:
   - `AbcMcpServer` — JSON-RPC 2.0 manual sobre Jackson (cero SDK externo).
   - `AbcMcpTools` — Adaptador que convierte tools a `AbcBody` + llama a `AbcAPI`.
-  - `AbcMcpChat` — Intérprete simple de comandos para el panel del Dashboard.
+  - `AbcMcpChat` — Interfaz HTTP `/mcp/chat` para el Dashboard.
+  - `AbcMcpLlm` — Cliente Ollama opcional (OmniCoder u otro modelo) para planner LLM.
 - Reutiliza `AbcAPI`, Jackson (`JsonMapper.instance`) y el mismo filtro de autenticación.
+- Impacto en el `.jar` fat: **~33 KB comprimidos** (prácticamente cero comparado con los ~94 MB totales). No hay reactor, no hay MCP Java SDK.
+
+### Arquitectura MCP en XDB
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Dashboard Chat (UI)                                        │
+│    ├─ modo "rules"  → regex → AbcMcpTools → ABC /abc        │
+│    └─ modo "llm"    → AbcMcpLlm (Ollama) → AbcMcpTools      │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│  MCP Server (/mcp) — JSON-RPC 2.0                           │
+│    tools/list  →  [abc_status, abc_list, abc_find, ...]     │
+│    tools/call  →  ejecuta AbcMcpTools → AbcAPI              │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+                    ┌─────────────────┐
+                    │  Agentes MCP    │  ← Traen su propio LLM
+                    │ (Claude, Cursor,│
+                    │  Grok, etc.)    │
+                    └─────────────────┘
+```
+
+**Puntos clave:**
+- El **MCP server (`/mcp`) no tiene LLM** — es solo protocolo JSON-RPC.
+- Los **agentes externos** (Claude Desktop, Cursor, Grok TUI) **traen su propio LLM** y hablan MCP nativo.
+- El **Dashboard chat (`/mcp/chat`)** es un cliente HTTP opcional con dos planners:
+  1. **Rules planner** (regex, sin LLM) — fallback, comandos básicos
+  2. **LLM planner** (Ollama: OmniCoder, etc.) — lenguaje natural completo
+
 <!--
-- Impacto en el `.jar` fat: **~20KB comprimidos** (prácticamente cero comparado con los ~94 MB totales). No hay reactor, no hay MCP Java SDK.
+### Planner "rules" — Tabla de patrones (fallback sin LLM)
 
-### Futuro (fuera del alcance actual)
+El *rules planner* cubre comandos básicos mediante regex. Orden = prioridad (primera coincidencia gana).
 
-- Conectar un LLM real (por ejemplo vía build-with-ai) para que planifique y use las tools `abc_*` de forma más libre.
-- Panel de chat más elaborado con historial persistente y resultados tabulares bonitos.
-- Apertura controlada a más operaciones de escritura (con roles y confirmación) si hace falta.
-
-Todo lo anterior mantiene la filosofía de XDB: una sola API (ABC) y ahora también accesible de manera limpia por agentes.
+| Intención | Patrones (regex resumido) | Tool invocada | Argumentos |
+|-----------|---------------------------|---------------|------------|
+| **status** | `^(status\|estado\|version\|ping\|que tal\|como estas\|hello\|hola)\b` | `abc_status` | `{}` |
+| **list sheets** | `^(list\|listar\|sheets\|hojas\|collections\|dame\|muestra\|muestrame\|puedes)\b.*(list\|sheet\|hoj\|collection\|tabla\|coleccion)` | `abc_list` | `{scheme?}` |
+| **list (palabra sola)** | `^(list\|sheets\|hojas\|collections\|listar)\b` | `abc_list` | `{}` |
+| **describe X** | `^(describe\|describir\|desc\|que es\|que hay\|informacion de\|que contiene)\s+(\w+)` | `abc_describe` | `{some: X}` |
+| **find X [where F] [size N]** | `^(find\|buscar\|query\|consultar\|buscar en\|dame los\|muestra los\|muestrame los)\s+(\w+)(?:\s+(where\|con\|with\|donde\|filtro)\s+(.+?))?(?:\s+size\s+(\d+))?` | `abc_find` | `{some: X, with?: F, size?: N}` |
+| **create sheet X [title "T"]** | `^(create\|crear\|crea\|nueva?)\s+(sheet\|hoja\|tabla\|coleccion)?\s*(\w+)(?:\s+title\s+"(.+?)")?` | `abc_create` | `{some: X, title?: T}` |
+| **define X spec S** | `^(define\|definir)\s+(\w+)\s+(?:spec\s+)?(.+)` | `abc_define` | `{some: X, spec: S}` |
+| **schema X [title "T"] [spec S]** | `^(schema\|esquema)\s+(\w+)(?:\s+title\s+"(.+?)")?(?:\s+spec\s+(.+))?` | `abc_schema` | `{some: X, title?: T, spec?: S}` |
+| **explain ACTION ...** | `^(explain\|explicar\|como\|how\s+to\|show\s+(?:query\|body))\s+(find\|list\|describe\|create\|define\|schema)\b(.*)$` | `abc_explain` | `{action, some?, with?, size?, title?, spec?, with?}` |
 -->
+> **Nota:** El comando `/tool abc_* {...}` salta el planner y llama a la tool directamente (uso power-user / agentes).
+
+### LLM Planner (opcional)
+
+Con `mcp.llm=ollama` en `onmind.ini`:
+
+```ini
+mcp.llm = ollama
+mcp.llm.url = http://127.0.0.1:11434
+mcp.llm.model = carstenuhlig/omnicoder-9b:latest
+mcp.llm.timeout = 120
+```
+
+- Usa `AbcMcpLlm` (cliente Ollama nativo, sin SDK pesado).
+- Soporta **tool calls nativas** de Ollama + protocolo JSON en contenido (`{"tool":"abc_find","arguments":{...}}`).
+- System prompt incluye esquema de todas las tools `abc_*`.
+- Multi-paso: el LLM puede encadenar tools (`abc_list` → `abc_describe` → `abc_find`).
+
+### Ejemplos de uso desde el Dashboard
+
+Una vez activado `mcp.enabled = +`, aparece un panel **"MCP Chat"** al final del Dashboard.
+
+```
+status
+list sheets
+describe PRODUCTS
+find PRODUCTS where any03 = 'demo' size 10
+create sheet demo title "Demo"
+schema demo title "Demo" spec any02=code,any03=name
+explain find PRODUCTS where any03 = 'x' size 10
+explain create sheet PROYECTOS title "Proyectos" spec any02=code,any03=name
+explain list sheets
+/tool abc_define {"some":"demo","spec":"any02=code,any03=name"}
+```
+
+### JSON-RPC directo (para agentes / scripts)
+
+```bash
+# Inicialización
+curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
+
+# Llamar tool directamente
+curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
+  -H 'Content-Type: application/json' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"abc_find","arguments":{"some":"PRODUCTS.SHEET","size":"5"}}}'
+```
+
+---
 
 ### Licencia
 

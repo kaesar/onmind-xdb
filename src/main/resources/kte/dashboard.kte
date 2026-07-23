@@ -56,17 +56,22 @@
             </a>
         </div>
         
-        <div class="bg-white rounded-lg shadow p-6">
+        <div id="query-panel" class="bg-white rounded-lg shadow p-6">
             <div class="flex justify-between items-center mb-4">
                 <div class="flex items-center gap-2">
                     <h2 class="text-xl font-semibold text-slate-800">Query</h2>
                     <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
                     <span class="text-lg text-slate-600">/abc</span>
                 </div>
-                <button onclick="executeRequest()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center gap-2 border-0 cursor-pointer">
-                    <i data-lucide="play" class="w-4 h-4"></i>
-                    Execute
-                </button>
+                <div class="flex items-center gap-2">
+                    <button id="mcpChatToggleBtn" onclick="mcpToggleChat()" class="hidden px-3 py-1.5 rounded border border-slate-200 hover:bg-slate-50 text-sm cursor-pointer">
+                        <i data-lucide="message-square" class="w-4 h-4 inline-block align-text-bottom mr-1"></i>By Chat
+                    </button>
+                    <button onclick="executeRequest()" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center gap-2 border-0 cursor-pointer">
+                        <i data-lucide="play" class="w-4 h-4"></i>
+                        Execute
+                    </button>
+                </div>
             </div>
             
             <div class="mb-4">
@@ -85,42 +90,64 @@
             </div>
         </div>
 
-        <!-- MCP Chat Sketch -->
+        <!-- MCP Chat client (onmind-cui as-button) -->
         <div id="mcp-chat-panel" class="bg-white rounded-lg shadow p-6 mt-6" style="display: none;">
-            <div class="flex justify-between items-start mb-3">
-                <div class="flex items-center gap-2">
+            <div class="flex justify-between items-center mb-4 flex-wrap gap-3">
+                <div class="flex items-center gap-2 flex-wrap">
                     <h2 class="text-xl font-semibold text-slate-800">MCP Chat</h2>
                     <i data-lucide="chevron-right" class="w-5 h-5 text-slate-400"></i>
-                    <span class="text-sm px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium" id="mcp-mode-pill">connected</span>
-                    <span class="text-xs text-slate-500" id="mcp-mode-label"></span>
+                    <span class="text-lg text-slate-600">/mcp/chat</span>
+                    <span class="text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium" id="mcp-mode-pill">read</span>
+                    <span class="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium" id="mcp-planner-pill">rules</span>
+                    <span class="text-xs text-slate-500" id="mcp-llm-label"></span>
                 </div>
-                <div class="flex items-center gap-2">
-                    <button onclick="mcpCheckStatus()" class="text-xs px-3 py-1 rounded border border-slate-200 hover:bg-slate-50">Check /mcp</button>
-                    <button onclick="mcpQuickCommand('status')" class="text-xs px-3 py-1 rounded border border-slate-200 hover:bg-slate-50">status</button>
-                    <button onclick="mcpQuickCommand('list')" class="text-xs px-3 py-1 rounded border border-slate-200 hover:bg-slate-50">list</button>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button id="mcpQueryToggleBtn" onclick="mcpShowQuery()" class="hidden px-3 py-1.5 rounded border border-slate-200 hover:bg-slate-50 text-sm cursor-pointer">
+                        <i data-lucide="terminal" class="w-4 h-4 inline-block align-text-bottom mr-1"></i>Query
+                    </button>
+                    <as-button id="mcpBtnStatus" label="status"></as-button>
+                    <as-button id="mcpBtnList" label="list"></as-button>
+                    <as-button id="mcpBtnProbe" label="Check /mcp"></as-button>
+                    <as-button id="mcpBtnHelp" label="help"></as-button>
                 </div>
             </div>
 
             <div class="mb-3">
-                <div class="flex flex-wrap gap-1" id="mcp-tools-pills"></div>
-                <p class="text-[11px] text-amber-600 mt-1" id="mcp-write-banner" style="display:none;">
-                    ⚠️ Write mode enabled (mcp.write=+): <code>create</code>, <code>define</code>, <code>schema</code> actions are active.
+                <div class="flex flex-wrap gap-1.5" id="mcp-tools-pills"></div>
+                <p class="text-xs text-amber-700 mt-2" id="mcp-write-banner" style="display:none;">
+                    Write mode enabled (<code>mcp.write=+</code>): schema tools <code>create</code>, <code>define</code>, <code>schema</code> are active.
                 </p>
             </div>
 
-            <div id="mcp-chat-log" class="bg-slate-50 border border-slate-200 rounded text-sm p-3 h-64 overflow-auto mb-3 font-mono" style="white-space:pre-wrap;"></div>
-
-            <div class="flex gap-2">
-                <input id="mcp-chat-input" type="text" class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm"
-                       placeholder="Try: status | list sheets | describe PRODUCTS | find PRODUCTS size 5 | create sheet demo title &quot;Demo&quot;">
-                <button onclick="mcpSendMessage()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm hover:bg-blue-700 border-0 cursor-pointer">Send</button>
-                <button onclick="mcpClearChatLog()" class="text-sm px-3 py-2 rounded border border-slate-200 hover:bg-slate-50">Clear</button>
+            <div class="mb-3">
+                <label class="block text-sm font-medium text-slate-700 mb-2">Conversation</label>
+                <div id="mcp-chat-log"
+                     class="bg-slate-50 border border-slate-200 rounded-md text-sm p-3 h-72 overflow-auto font-mono leading-relaxed"
+                     style="white-space:pre-wrap;"></div>
+                <!-- Loading indicator -->
+                <div id="mcp-loading" class="hidden flex items-center gap-2 mt-2 text-xs text-slate-500">
+                    <span class="mcp-spinner"></span>
+                    <span id="mcp-loading-text">Thinking...</span>
+                </div>
             </div>
 
-            <div class="mt-2 text-[11px] text-slate-500">
-                Stateless sketch — sends messages through <code>POST /mcp/chat</code>. 
-                Commands are interpreted locally (no LLM in the base build).
+            <div class="flex gap-2 items-end flex-wrap">
+                <div class="flex-1 min-w-[220px]">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">Message</label>
+                    <as-input id="mcp-chat-input"
+                              placeholder="Ask in natural language: status | list sheets | describe X | find X where F size N"></as-input>
+                </div>
+                <div class="flex items-center gap-2 pb-0.5">
+                    <as-button id="mcpBtnSend" label="Send"></as-button>
+                    <as-button id="mcpBtnCancel" label="Cancel" class="hidden"></as-button>
+                    <as-button id="mcpBtnClear" label="Clear"></as-button>
+                </div>
             </div>
+
+            <!--<div class="mt-3 text-xs text-slate-500">
+                Posts to <code>POST /mcp/chat</code>. With <code>mcp.llm=ollama</code> the server uses your local model
+                (e.g. <code>carstenuhlig/omnicoder-9b:latest</code>); otherwise short commands map to tools by rules.
+            </div>-->
         </div>
     </div>
     
@@ -220,9 +247,42 @@
             observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
         }
 
-        // ===== MCP Chat sketch (client-side bridge to /mcp/chat) =====
-        // Shows only when MCP is enabled. No external LLM; maps plain English to abc_* tools.
+        // ===== MCP Chat client (as-button / as-input from onmind-cui-v2) =====
         let mcpInfo = null;
+        let mcpBusy = false;
+        let mcpAbortController = null;
+
+        /** Toggle between Query panel and Chat panel */
+        window.mcpToggleChat = function() {
+            document.getElementById('query-panel').style.display = 'none';
+            document.getElementById('mcp-chat-panel').style.display = '';
+        };
+        window.mcpShowQuery = function() {
+            document.getElementById('query-panel').style.display = '';
+            document.getElementById('mcp-chat-panel').style.display = 'none';
+        };
+
+        function mcpShowToggleButtons() {
+            document.getElementById('mcpChatToggleBtn').classList.remove('hidden');
+            document.getElementById('mcpQueryToggleBtn').classList.remove('hidden');
+        }
+
+        function mcpInputEl() {
+            return document.getElementById('mcp-chat-input');
+        }
+
+        function mcpGetInput() {
+            const el = mcpInputEl();
+            if (!el) return '';
+            return (el.value != null ? el.value : (el.getAttribute('value') || '')).toString();
+        }
+
+        function mcpSetInput(text) {
+            const el = mcpInputEl();
+            if (!el) return;
+            el.value = text;
+            try { el.setAttribute('value', text); } catch (_) {}
+        }
 
         async function mcpProbe() {
             try {
@@ -238,14 +298,41 @@
             const panel = document.getElementById('mcp-chat-panel');
             if (!panel) return;
             panel.style.display = '';
-            document.getElementById('mcp-mode-pill').textContent = info && info.write ? 'schema-write' : 'read';
+
+            const modePill = document.getElementById('mcp-mode-pill');
+            const plannerPill = document.getElementById('mcp-planner-pill');
+            const llmLabel = document.getElementById('mcp-llm-label');
+            const writeBanner = document.getElementById('mcp-write-banner');
+
             if (info && info.write) {
-                document.getElementById('mcp-mode-pill').className = 'text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-700 font-medium';
-                document.getElementById('mcp-write-banner').style.display = '';
+                modePill.textContent = 'schema-write';
+                modePill.className = 'text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-700 font-medium';
+                writeBanner.style.display = '';
+            } else {
+                modePill.textContent = 'read';
+                modePill.className = 'text-xs px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium';
             }
-            document.getElementById('mcp-mode-label').textContent = (info && info.mode) ? (' · ' + info.mode) : '';
+
+            const planner = (info && info.planner) || 'rules';
+            plannerPill.textContent = planner;
+            if (planner === 'llm') {
+                plannerPill.className = 'text-xs px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium';
+            } else {
+                plannerPill.className = 'text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-medium';
+            }
+
+            const llm = info && info.llm;
+            if (llm && llm.model) {
+                llmLabel.textContent = llm.model + (llm.url ? ' @ ' + llm.url : '');
+            } else {
+                llmLabel.textContent = 'LLM off';
+            }
+
             mcpInfo = info;
             mcpPopulatePills(info);
+            mcpBindButtons();
+            mcpShowToggleButtons();
+            lucide.createIcons();
         }
 
         function mcpPopulatePills(info) {
@@ -253,33 +340,44 @@
             if (!bar) return;
             bar.innerHTML = '';
             const list = (info && info.tools) ? info.tools : [
-                {name:'abc_status'}, {name:'abc_list'}, {name:'abc_describe'}, {name:'abc_find'}
+                { name: 'abc_status' }, { name: 'abc_list' }, { name: 'abc_describe' }, { name: 'abc_find' }
             ];
             list.forEach(t => {
                 const el = document.createElement('span');
-                el.className = 'text-[10px] px-1.5 py-0.5 rounded ' + (t.write ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600');
+                el.className = 'text-[11px] px-2 py-0.5 rounded border cursor-pointer select-none ' +
+                    (t.write
+                        ? 'border-orange-200 bg-orange-50 text-orange-800'
+                        : 'border-slate-200 bg-slate-50 text-slate-600');
                 el.textContent = t.name;
-                el.style.cursor = 'pointer';
+                el.title = t.description || t.name;
                 el.onclick = () => {
-                    const inp = document.getElementById('mcp-chat-input');
-                    inp.value = '/tool ' + t.name + ' {}';
-                    inp.focus();
+                    mcpSetInput('/tool ' + t.name + ' {}');
+                    mcpFocusInput();
                 };
                 bar.appendChild(el);
             });
+        }
+
+        function mcpFocusInput() {
+            const el = mcpInputEl();
+            if (!el) return;
+            try {
+                if (typeof el.focus === 'function') el.focus();
+                const inner = el.shadowRoot && el.shadowRoot.querySelector('input');
+                if (inner) inner.focus();
+            } catch (_) {}
         }
 
         function mcpAppendLog(who, text, isError) {
             const log = document.getElementById('mcp-chat-log');
             if (!log) return;
             const line = document.createElement('div');
-            line.className = 'py-0.5';
-            const prefix = who + ': ';
+            line.className = 'py-1 border-b border-slate-100 last:border-0';
             const pre = document.createElement('span');
-            pre.style.color = '#64748b';
-            pre.textContent = prefix;
+            pre.className = 'text-slate-500 font-semibold';
+            pre.textContent = who + '  ';
             const span = document.createElement('span');
-            if (isError) span.style.color = '#b91c1c';
+            span.className = isError ? 'text-red-700' : 'text-slate-800';
             span.style.whiteSpace = 'pre-wrap';
             span.textContent = typeof text === 'string' ? text : JSON.stringify(text, null, 2);
             line.appendChild(pre);
@@ -288,64 +386,143 @@
             log.scrollTop = log.scrollHeight;
         }
 
+        /** Show/hide the spinner + message below the conversation log */
+        function mcpSetLoading(show, text) {
+            const el = document.getElementById('mcp-loading');
+            const txt = document.getElementById('mcp-loading-text');
+            if (!el) return;
+            if (show) {
+                el.classList.remove('hidden');
+                if (text) txt.textContent = text;
+                else txt.textContent = 'Thinking...';
+                // Show cancel, hide send
+                document.getElementById('mcpBtnSend').classList.add('hidden');
+                document.getElementById('mcpBtnCancel').classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+                document.getElementById('mcpBtnSend').classList.remove('hidden');
+                document.getElementById('mcpBtnCancel').classList.add('hidden');
+            }
+        }
+
+        function mcpCancelRequest() {
+            if (mcpAbortController) {
+                mcpAbortController.abort();
+                mcpAbortController = null;
+            }
+            mcpBusy = false;
+            mcpSetLoading(false);
+            mcpAppendLog('system', 'Request cancelled by user');
+        }
+
         function mcpClearChatLog() {
             const log = document.getElementById('mcp-chat-log');
             if (log) log.innerHTML = '';
         }
 
         async function mcpCheckStatus() {
-            const log = document.getElementById('mcp-chat-log');
+            mcpSetLoading(true, 'Checking /mcp status...');
             mcpAppendLog('system', 'GET /mcp ...');
             try {
                 const r = await fetch('/mcp');
                 const j = await r.json();
+                mcpSetLoading(false);
                 mcpAppendLog('mcp', JSON.stringify(j, null, 2));
-            } catch(e) {
+            } catch (e) {
+                mcpSetLoading(false);
                 mcpAppendLog('error', e.message, true);
             }
         }
 
         async function mcpSendMessage() {
-            const inp = document.getElementById('mcp-chat-input');
-            const text = (inp.value || '').trim();
+            if (mcpBusy) return;
+            const text = mcpGetInput().trim();
             if (!text) return;
             mcpAppendLog('you', text);
-            inp.value = '';
+            mcpSetInput('');
+            mcpBusy = true;
+            // Create AbortController for cancellation
+            mcpAbortController = new AbortController();
+            mcpSetLoading(true, 'Thinking...');
             try {
                 const r = await fetch('/mcp/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
+                    body: JSON.stringify({ message: text }),
+                    signal: mcpAbortController.signal
                 });
                 const j = await r.json();
-                if (j && j.content) mcpAppendLog('assistant', j.content);
-                if (j && j.tool) mcpAppendLog('tool', j.tool.name + ' ' + JSON.stringify(j.tool.arguments || {}));
-                if (j && j.toolResult) {
-                    const isErr = j.toolResult.isError;
-                    const body = j.toolResult.text;
-                    // Try pretty JSON for readability
-                    let shown = body;
-                    try {
-                        const parsed = JSON.parse(body);
-                        shown = JSON.stringify(parsed, null, 2);
-                    } catch (_) {}
-                    mcpAppendLog(isErr ? 'error' : 'result', shown, isErr);
+                mcpSetLoading(false);
+                if (j && j.planner) {
+                    mcpAppendLog('system', 'planner=' + j.planner + (j.llm && j.llm.model ? ' model=' + j.llm.model : ''));
                 }
-            } catch(e) {
+                if (j && j.llmError) mcpAppendLog('system', 'llm fallback: ' + j.llmError, true);
+                if (j && j.content) mcpAppendLog('assistant', j.content);
+                if (j && j.tools && Array.isArray(j.tools)) {
+                    j.tools.forEach(step => {
+                        if (step.tool) {
+                            mcpAppendLog('tool', step.tool.name + ' ' + JSON.stringify(step.tool.arguments || {}));
+                        }
+                        if (step.toolResult) {
+                            let shown = step.toolResult.text;
+                            try { shown = JSON.stringify(JSON.parse(shown), null, 2); } catch (_) {}
+                            mcpAppendLog(step.toolResult.isError ? 'error' : 'result', shown, !!step.toolResult.isError);
+                        }
+                    });
+                } else {
+                    if (j && j.tool) mcpAppendLog('tool', j.tool.name + ' ' + JSON.stringify(j.tool.arguments || {}));
+                    if (j && j.toolResult) {
+                        let shown = j.toolResult.text;
+                        try { shown = JSON.stringify(JSON.parse(shown), null, 2); } catch (_) {}
+                        mcpAppendLog(j.toolResult.isError ? 'error' : 'result', shown, !!j.toolResult.isError);
+                    }
+                }
+                if (j && j.error && !j.content) mcpAppendLog('error', j.error, true);
+            } catch (e) {
+                mcpSetLoading(false);
                 mcpAppendLog('error', 'Request failed: ' + e.message, true);
+            } finally {
+                mcpBusy = false;
+                mcpFocusInput();
             }
         }
 
         function mcpQuickCommand(kind) {
-            const inp = document.getElementById('mcp-chat-input');
-            if (kind === 'status') inp.value = 'status';
-            if (kind === 'list') inp.value = 'list sheets';
-            if (kind === 'help') inp.value = 'help';
-            inp.focus();
+            if (kind === 'status') mcpSetInput('status');
+            else if (kind === 'list') mcpSetInput('list sheets');
+            else if (kind === 'help') mcpSetInput('help');
             mcpSendMessage();
         }
 
-        // Auto-probe /mcp/chat; only reveal the chat panel if the endpoint answers
+        function mcpBindButtons() {
+            const bind = (id, fn) => {
+                const el = document.getElementById(id);
+                if (!el || el._mcpBound) return;
+                el._mcpBound = true;
+                el.addEventListener('button-tap', fn);
+            };
+            bind('mcpBtnSend', () => mcpSendMessage());
+            bind('mcpBtnCancel', () => mcpCancelRequest());
+            bind('mcpBtnClear', () => mcpClearChatLog());
+            bind('mcpBtnStatus', () => mcpQuickCommand('status'));
+            bind('mcpBtnList', () => mcpQuickCommand('list'));
+            bind('mcpBtnHelp', () => mcpQuickCommand('help'));
+            bind('mcpBtnProbe', () => mcpCheckStatus());
+
+            const input = mcpInputEl();
+            if (input && !input._mcpKeyBound) {
+                input._mcpKeyBound = true;
+                input.addEventListener('keydown', (ev) => {
+                    if (ev.key === 'Enter') {
+                        ev.preventDefault();
+                        mcpSendMessage();
+                    }
+                });
+                // as-input may keep focus inside shadow DOM
+                input.addEventListener('value-changed', () => {});
+            }
+        }
+
         (async function initMcpChat() {
             const info = await mcpProbe();
             if (info && info.ok !== false) {
@@ -353,18 +530,5 @@
             }
             lucide.createIcons();
         })();
-
-        // Enable Enter in chat input
-        setTimeout(() => {
-            const inp = document.getElementById('mcp-chat-input');
-            if (inp) {
-                inp.addEventListener('keydown', function(ev) {
-                    if (ev.key === 'Enter') {
-                        ev.preventDefault();
-                        mcpSendMessage();
-                    }
-                });
-            }
-        }, 300);
     </script>
 `)

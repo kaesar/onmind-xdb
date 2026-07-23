@@ -103,6 +103,45 @@ class AbcMcpTools(
                     "required" to listOf("some"),
                     "additionalProperties" to false
                 )
+            ),
+            ToolDef(
+                name = "abc_explain",
+                description = "Translate a natural-language intent into the equivalent ABC body (JSON). Read-only preview — does not execute.",
+                inputSchema = mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "action" to mapOf(
+                            "type" to "string",
+                            "description" to "Action: find, list, describe, create, define, schema"
+                        ),
+                        "some" to mapOf(
+                            "type" to "string",
+                            "description" to "Sheet/collection code (required for most actions)"
+                        ),
+                        "with" to mapOf(
+                            "type" to "string",
+                            "description" to "Filter (for find) or scheme (for list/create/define/schema)"
+                        ),
+                        "show" to mapOf(
+                            "type" to "string",
+                            "description" to "Columns to return (for find) or title (for create/define/schema)"
+                        ),
+                        "size" to mapOf(
+                            "type" to "string",
+                            "description" to "Max rows (for find)"
+                        ),
+                        "spec" to mapOf(
+                            "type" to "string",
+                            "description" to "Field spec for define/schema (e.g. any02=code,any03=name)"
+                        ),
+                        "from" to mapOf(
+                            "type" to "string",
+                            "description" to "Entity table for create (default: xyany)"
+                        )
+                    ),
+                    "required" to listOf("action"),
+                    "additionalProperties" to false
+                )
             )
         )
 
@@ -241,6 +280,7 @@ class AbcMcpTools(
                         )
                     )
                 }
+                "abc_explain" -> explain(arguments)
                 "abc_create" -> {
                     denyUnlessWrite()?.let { return it }
                     createSheet(arguments)
@@ -406,6 +446,61 @@ class AbcMcpTools(
             }
         } catch (ex: Exception) {
             ToolResult.error("Failed to parse list for describe: ${ex.message}")
+        }
+    }
+
+    private fun explain(arguments: Map<String, Any?>?): ToolResult {
+        val action = argString(arguments, "action")
+            ?: return ToolResult.error("Missing required argument: action")
+        val actionLower = action.lowercase()
+
+        val body = when (actionLower) {
+            "find" -> AbcBody(
+                what = "find",
+                from = argString(arguments, "from") ?: "xyany",
+                some = argString(arguments, "some"),
+                with = argString(arguments, "with"),
+                show = argString(arguments, "show") ?: "*",
+                size = argString(arguments, "size") ?: "50"
+            )
+            "list" -> AbcBody(
+                what = "list",
+                with = argString(arguments, "with") ?: "SHEET"
+            )
+            "describe" -> AbcBody(
+                what = "list",
+                with = argString(arguments, "with") ?: "SHEET"
+            )
+            "create" -> AbcBody(
+                what = "create",
+                from = argString(arguments, "from") ?: "xyany",
+                some = argString(arguments, "some"),
+                with = argString(arguments, "with") ?: "SHEET",
+                show = argString(arguments, "title") ?: argString(arguments, "some")?.uppercase(),
+                puts = argString(arguments, "spec") ?: "[]"
+            )
+            "define" -> AbcBody(
+                what = "define",
+                some = argString(arguments, "some")?.substringBefore("."),
+                with = argString(arguments, "with") ?: "SHEET",
+                puts = argString(arguments, "spec") ?: return ToolResult.error("Missing required argument: spec for define"),
+                show = argString(arguments, "title")
+            )
+            "schema" -> AbcBody(
+                what = "create",
+                from = argString(arguments, "from") ?: "xyany",
+                some = argString(arguments, "some")?.substringBefore(".")?.lowercase(),
+                with = argString(arguments, "with") ?: "SHEET",
+                show = argString(arguments, "title") ?: argString(arguments, "some")?.uppercase(),
+                puts = argString(arguments, "spec") ?: "[]"
+            )
+            else -> return ToolResult.error("Unknown action: $action. Valid: find, list, describe, create, define, schema")
+        }
+
+        return try {
+            ToolResult.ok(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(body))
+        } catch (ex: Exception) {
+            ToolResult.error("Failed to serialize explain body: ${ex.message}")
         }
     }
 

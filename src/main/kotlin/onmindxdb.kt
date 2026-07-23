@@ -33,6 +33,7 @@ import co.onmind.auth.AuthConfig
 import co.onmind.auth.AuthType
 import co.onmind.auth.OTPMailPlug
 import co.onmind.mcp.AbcMcpChat
+import co.onmind.mcp.AbcMcpLlm
 import co.onmind.mcp.AbcMcpServer
 import co.onmind.mcp.AbcMcpTools
 
@@ -103,10 +104,17 @@ object onmindxdb {
         val mcpEnabled = cfg.getProperty("mcp.enabled", "-") == "+"
         val mcpWrite = cfg.getProperty("mcp.write", "-") == "+"
         val mcpStdio = args.contains("--mcp") || cfg.getProperty("mcp.stdio", "-") == "+"
+        val mcpLlm = cfg.getProperty("mcp.llm", "-")
+        val mcpLlmUrl = cfg.getProperty("mcp.llm.url", "http://127.0.0.1:11434")
+        val mcpLlmModel = cfg.getProperty("mcp.llm.model", "carstenuhlig/omnicoder-9b:latest")
+        val mcpLlmTimeout = cfg.getProperty("mcp.llm.timeout", "120").toLongOrNull() ?: 120L
 
         val mcpTools = AbcMcpTools(abc, writeEnabled = mcpWrite)
         val mcpServer = if (mcpEnabled || mcpStdio) AbcMcpServer(mcpTools) else null
-        val mcpChat = if (mcpEnabled) AbcMcpChat(mcpTools) else null
+        val mcpLlmClient = if (mcpEnabled) {
+            AbcMcpLlm.fromConfig(mcpTools, mcpLlm, mcpLlmUrl, mcpLlmModel, mcpLlmTimeout)
+        } else null
+        val mcpChat = if (mcpEnabled) AbcMcpChat(mcpTools, mcpLlmClient) else null
 
         // MCP-only stdio mode: no Jetty (for Claude Desktop / Cursor / agent hosts).
         if (mcpStdio && mcpServer != null) {
@@ -174,9 +182,15 @@ object onmindxdb {
         if (mcpEnabled) {
             val toolsLine = if (mcpWrite) "abc_status, abc_list, abc_describe, abc_find, abc_create, abc_define, abc_schema" else "abc_status, abc_list, abc_describe, abc_find"
             val mode = if (mcpWrite) "read + schema-write" else "read-only"
-            println("[  OK!  ] => http://127.0.0.1:${port}")
+            val llmLine = if (mcpLlmClient != null) {
+                "MCP llm => ${mcpLlmClient.info()["model"]} @ ${mcpLlmClient.info()["url"]}"
+            } else {
+                "MCP llm => off (set mcp.llm=ollama for local model chat)"
+            }
+            println("[  OK!  ] => http://127.0.0.1:${port}\n")
             println("MCP $mode => http://127.0.0.1:${port}/mcp")
-            println("MCP chat     => http://127.0.0.1:${port}/mcp/chat  (tools: $toolsLine)\n")
+            println("MCP chat => http://127.0.0.1:${port}/mcp/chat  (tools: $toolsLine)")
+            println("$llmLine\n")
         } else {
             println("[  OK!  ] => http://127.0.0.1:${port}\n")
         }

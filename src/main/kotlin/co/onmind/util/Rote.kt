@@ -65,10 +65,19 @@ object Rote {
                             # MCP (Model Context Protocol) — abc_* tools over /mcp (and /mcp/chat)
                             # mcp.enabled = +   # expose HTTP JSON-RPC at /mcp + chat panel in Dashboard
                             # mcp.stdio = +     # or pass --mcp for stdio-only agent hosts (Claude/Cursor)
-                            # mcp.write = +     # DANGER: enables abc_create, abc_define, abc_schema (schema only, not row writes)
+                            # mcp.write = +     # enables abc_create, abc_define, abc_schema (schema only, not row writes)
+                            # Local LLM for Dashboard chat (Ollama). Example model: carstenuhlig/omnicoder-9b:latest
+                            # mcp.llm = ollama
+                            # mcp.llm.url = http://127.0.0.1:11434
+                            # mcp.llm.model = carstenuhlig/omnicoder-9b:latest
+                            # mcp.llm.timeout = 120
                             mcp.enabled = -
                             mcp.stdio = -
                             mcp.write = -
+                            mcp.llm = -
+                            mcp.llm.url = http://127.0.0.1:11434
+                            mcp.llm.model = carstenuhlig/omnicoder-9b:latest
+                            mcp.llm.timeout = 120
 
                             # Parametros conector de base de datos
                             db.driver = 0

@@ -43,10 +43,14 @@ object AbcMcpServerTest {
         println("\n--- tools/list ---")
         val reply = server.handleMessage("""{"jsonrpc":"2.0","id":2,"method":"tools/list"}""")!!
         val names = mapper.readTree(reply).path("result").path("tools").map { it.path("name").asText() }
-        check(names == listOf("abc_status", "abc_list", "abc_describe", "abc_find")) {
-            "unexpected tools: $names"
+        val expected = setOf("abc_status", "abc_list", "abc_describe", "abc_find", "abc_explain")
+        val actual = names.toSet()
+        check(actual == expected) {
+            "unexpected tools: $names, expected: $expected"
         }
-        check(names.none { it.contains("insert") || it.contains("update") || it.contains("delete") })
+        check(names.none { it.contains("insert") || it.contains("update") || it.contains("delete") || it.contains("define") || it.contains("drop") }) {
+            "unexpected write tools present: $names"
+        }
         println("ok: $names")
     }
 
