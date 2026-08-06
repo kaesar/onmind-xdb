@@ -1,12 +1,10 @@
 package co.onmind.kv
 
 import co.onmind.trait.KVStore
-/*
 import org.rocksdb.ColumnFamilyDescriptor
 import org.rocksdb.ColumnFamilyHandle
 import org.rocksdb.Options
 import org.rocksdb.RocksDB
-import org.rocksdb.RocksIterator
 
 class RocksDBPlug : KVStore {
 
@@ -58,4 +56,3 @@ class RocksDBPlug : KVStore {
         iterator.close()
     }
 }
-*/

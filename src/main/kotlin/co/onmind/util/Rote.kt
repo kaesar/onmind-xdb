@@ -1,10 +1,8 @@
 /** Created by Cesar Andres Arcila Buitrago from Colombia on 4/12/20. */
 package co.onmind.util
 
-import io.agroal.api.AgroalDataSource
-import io.agroal.api.configuration.supplier.AgroalDataSourceConfigurationSupplier
-import io.agroal.api.security.NamePrincipal
-import io.agroal.api.security.SimplePassword
+import com.zaxxer.hikari.HikariConfig
+import com.zaxxer.hikari.HikariDataSource
 import java.io.File
 import java.io.FileInputStream
 import java.sql.Connection
@@ -34,7 +32,16 @@ object Rote {
                 if (os.contains("Windows", true)) {
                     home = home.replace("\\Users\\", "/Users/")
                     file = "$home/onmind/$fileName"
-                } else file = "$home${separator}onmind${separator}$fileName"
+                } else {
+                    file = "$home${separator}onmind${separator}$fileName"
+                    // 3. Linux container fallback: check /app/onmind.ini (used with -w /app + bind mount)
+                    if (os.contains("Linux", true) && !File(file).isFile()) {
+                        val containerFile = "/app${separator}$fileName"
+                        if (File(containerFile).isFile()) {
+                            file = containerFile
+                        }
+                    }
+                }
 
                 if (!File(file).isFile()) {
                     // 7. Verificar archivo de configuracion en el mismo directorio
@@ -79,6 +86,12 @@ object Rote {
                             mcp.llm.model = carstenuhlig/omnicoder-9b:latest
                             mcp.llm.timeout = 120
 
+                            # gRPC (Protocol Buffers) — ABC mirror over Netty on a dedicated port
+                            # Reuses the same ABC core (AbcAPI.dispatch) as /abc and /mcp.
+                            # grpc.enabled = +   # expose localhost:<grpc.port> AbcService (Execute, Status)
+                            grpc.enabled = -
+                            grpc.port = 9991
+
                             # Parametros conector de base de datos
                             db.driver = 0
                             db.port = 9091
@@ -115,8 +128,6 @@ object Rote {
                             # Parametros de persistencia
                             kv.store = mvstore
                             kv.mvstore.name = xybox
-                            kv.ehcache.name = xybox
-                            kv.ehcache.max_entries = 10000
                             kv.dynamodb.table = onmind-xdb
                             kv.dynamodb.region = us-east-1
                         """.trimIndent()
@@ -144,7 +155,7 @@ object Rote {
     fun getConfig(file: String) =
             Properties().apply { FileInputStream(file).use { fis -> load(fis) } }
 
-    fun getDataSource(config: Properties): AgroalDataSource {
+    fun getDataSource(config: Properties): HikariDataSource {
         port = (config.getProperty("dai.port") ?: "9000").toInt()
         val maxPoolSize = (config.getProperty("db.max_pool_size") ?: "10").toInt()
         path = config.getProperty("app.local")
@@ -179,21 +190,18 @@ object Rote {
         onmindxdb.driver = driver
 
         try {
-            val dataSourceConfig =
-                    AgroalDataSourceConfigurationSupplier().connectionPoolConfiguration { cp ->
-                        cp.maxSize(maxPoolSize)
-                                .minSize(2)
-                                .initialSize(2)
-                                .acquisitionTimeout(Duration.ofSeconds(5))
-                                .connectionFactoryConfiguration { cf ->
-                                    cf.jdbcUrl(boxUrl)
-                                            .connectionProviderClass(Class.forName(driver))
-                                            .principal(NamePrincipal(user))
-                                            .credential(SimplePassword(password))
-                                }
-                    }
+            val hikariConfig = HikariConfig().apply {
+                jdbcUrl = boxUrl
+                driverClassName = driver
+                username = user
+                password = password
+                maximumPoolSize = maxPoolSize
+                minimumIdle = 2
+                connectionTimeout = Duration.ofSeconds(5).toMillis()
+                poolName = "XDB-Pool"
+            }
 
-            val dataSource = AgroalDataSource.from(dataSourceConfig)
+            val dataSource = HikariDataSource(hikariConfig)
             println("[  OK!  ] => ${Timestamp(System.currentTimeMillis())}")
             return dataSource
         } catch (e: SQLException) {
@@ -258,7 +266,7 @@ object Rote {
         return box
     }
 
-    fun getConnection(dataSource: AgroalDataSource): Connection = dataSource.connection
+    fun getConnection(dataSource: HikariDataSource): Connection = dataSource.connection
 
     fun isUIEnabled(config: Properties): Boolean {
         return config.getProperty("app.ui", "+") == "+"

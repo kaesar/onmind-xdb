@@ -57,7 +57,7 @@ class AppUI {
             return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
         }
         val limit = onmindxdb.queryLimit
-        val query = "SELECT id, kit01 as code, kit02 as name, kit03 as title FROM xykit WHERE kitxy = 'SHEET' AND kit01 LIKE '%.SHEET' LIMIT $limit"
+        val query = "SELECT id, kit01 as code, kit02 as name, kit03 as title FROM xykit WHERE kitxy = 'SHEET' LIMIT $limit"
         val sheets = xdb.forQuery(query) ?: emptyList()
         val columns = listOf(
             mapOf("key" to "code", "header" to "Code"),

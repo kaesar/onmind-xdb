@@ -17,7 +17,7 @@ import org.http4k.routing.static
 import org.http4k.routing.ResourceLoader.Companion.Classpath
 import org.http4k.server.Jetty
 import org.http4k.server.asServer
-import io.agroal.api.AgroalDataSource
+import com.zaxxer.hikari.HikariDataSource
 import java.sql.Connection
 import java.util.Properties
 import co.onmind.util.CoherenceConfig
@@ -39,7 +39,7 @@ import co.onmind.mcp.AbcMcpTools
 
 object onmindxdb {
     val os = System.getProperty("os.name")
-    var dataSource: AgroalDataSource? = null
+    var dataSource: HikariDataSource? = null
     var dbc: Connection? = null
     var driver = "org.h2.Driver"
     var dbfile: String? = null
@@ -57,6 +57,7 @@ object onmindxdb {
         val filex = Rote.getConfigFile()
         val cfg = Rote.getConfig(filex)
         config = cfg
+        queryLimit = cfg.getProperty("db.query_limit", "1200").toIntOrNull() ?: 1200
         dataSource = Rote.getDataSource(cfg)
         dbc = dataSource?.connection
         dbfile = cfg.getProperty("app.local") + "xy/xybox.xdb"
@@ -115,6 +116,14 @@ object onmindxdb {
             AbcMcpLlm.fromConfig(mcpTools, mcpLlm, mcpLlmUrl, mcpLlmModel, mcpLlmTimeout)
         } else null
         val mcpChat = if (mcpEnabled) AbcMcpChat(mcpTools, mcpLlmClient) else null
+
+        // Optional gRPC on a dedicated Netty port (default 9991). Shares AbcAPI.dispatch core.
+        // In lite profile, gRPC classes are not available - skip gracefully
+        val grpcEnabled = try {
+            args.contains("--grpc") || cfg.getProperty("grpc.enabled", "-") == "+"
+        } catch (_: Exception) { false }
+        val grpcPort = cfg.getProperty("grpc.port", "9991").toIntOrNull() ?: 9991
+        var grpcServer: Any? = null  // Use Any? to avoid class not found in lite profile
 
         // MCP-only stdio mode: no Jetty (for Claude Desktop / Cursor / agent hosts).
         if (mcpStdio && mcpServer != null) {
@@ -194,12 +203,37 @@ object onmindxdb {
         } else {
             println("[  OK!  ] => http://127.0.0.1:${port}\n")
         }
+
+        if (grpcEnabled) {
+            try {
+                // Use reflection to avoid class not found in lite profile
+                val grpcClass = Class.forName("co.onmind.grpc.AbcGrpcServer")
+                val constructor = grpcClass.getDeclaredConstructor(Int::class.java, AbcAPI::class.java)
+                grpcServer = constructor.newInstance(grpcPort, abc)
+                grpcServer?.let { server ->
+                    val startMethod = server.javaClass.getMethod("start")
+                    startMethod.invoke(server)
+                }
+            } catch (e: ClassNotFoundException) {
+                println("[WARN] gRPC classes not available (lite profile). Skipping gRPC server.")
+            } catch (e: Exception) {
+                println("[ERROR] Failed to start gRPC server: ${e.message}")
+            }
+        }
+
         val serve = app.asServer(Jetty(port)).start()
-        
+
         Runtime.getRuntime().addShutdownHook(Thread {
+            try {
+                grpcServer?.let { server ->
+                    val stopMethod = server.javaClass.getMethod("stop")
+                    stopMethod.invoke(server)
+                }
+            } catch (_: Exception) {
+            }
             Trace.shutdown()
         })
-        
+
         serve.block()
     }
 

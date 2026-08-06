@@ -25,6 +25,7 @@ import org.http4k.core.Status
 import java.time.LocalDateTime
 import java.lang.IllegalStateException
 import java.sql.SQLException
+import java.util.regex.Pattern
 
 /**
  * Created by Cesar Andres Arcila Buitrago from Colombia on 08/06/21.
@@ -42,11 +43,23 @@ class AbcAPI(): AbstractAPI() {
     fun mainControl(req: Request): Response {
         val authUser = req.header("X-Auth-User") ?: "anonymous"
         return try {
-            val body = parseRequestBody(req)
+            dispatch(parseRequestBody(req), authUser)
+        } catch (iae: IllegalArgumentException) {
+            sendError(iae.message ?: "Invalid argument")
+        } catch (ex: Exception) {
+            sendError(ex.message ?: "Internal server error", Status.INTERNAL_SERVER_ERROR, 0)
+        }
+    }
+
+    /**
+     * Shared ABC dispatcher used by HTTP `/abc`, MCP, and gRPC.
+     * Transport adapters build [AbcBody]; this method owns validation + DB work.
+     */
+    fun dispatch(body: AbcBody, authUser: String = "anonymous"): Response {
+        return try {
             val context = RequestContext(body)
-            
             validateRequest(context)?.let { return it }
-            
+
             when (context.choice) {
                 "find" -> handleFind(context)
                 "insert" -> handleInsert(context)
@@ -56,9 +69,9 @@ class AbcAPI(): AbstractAPI() {
                 "drop" -> drop(body)
                 "define" -> define(body)
                 "list" -> list(body)
-                "whoami" -> whoami(req)
+                "whoami" -> whoami(authUser)
                 "signup" -> signup(body)
-                "signin" -> signin(req)
+                "signin" -> signin(body)
                 else -> sendError("Wrong Request, please check it!")
             }
         } catch (iae: IllegalArgumentException) {
@@ -135,6 +148,32 @@ class AbcAPI(): AbstractAPI() {
                         return sendError("Does not exists the object: ${context.some}")
                     }
                 }
+            }
+
+            if (body.what == "find" && !body.with.isNullOrEmpty()) {
+                validateWithFilter(body.with)?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun validateWithFilter(with: String): Response? {
+        val likePattern = Pattern.compile(
+            "\\w+\\s+LIKE\\s+['\"][^'\"]*%[^'\"]*['\"]",
+            Pattern.CASE_INSENSITIVE
+        )
+        val validPrefix = Pattern.compile(
+            "\\w+\\s+LIKE\\s+['\"][^'%\"]+%'",
+            Pattern.CASE_INSENSITIVE
+        )
+        val matcher = likePattern.matcher(with)
+        while (matcher.find()) {
+            if (!validPrefix.matcher(matcher.group()).matches()) {
+                return sendError(
+                    "LIKE pattern '${matcher.group()}' is not allowed. " +
+                    "Only prefix patterns (LIKE 'value%') are supported for DynamoDB compatibility. " +
+                    "Examples: any03 LIKE 'lab%' — rejected: '%lab%', '%lab%', 'la%b'"
+                )
             }
         }
         return null
@@ -569,8 +608,7 @@ class AbcAPI(): AbstractAPI() {
         return result
     }
 
-    private fun whoami(req: Request): Response {
-        val authUser = req.header("X-Auth-User") ?: "anonymous"
+    private fun whoami(authUser: String): Response {
         val appMode = onmindxdb.config?.getProperty("app.mode", "production") ?: "production"
         val result = mapOf(
             "ok" to true,
@@ -645,23 +683,22 @@ class AbcAPI(): AbstractAPI() {
         }
     }
 
-    private fun signin(req: Request): Response {
-        val body = parseRequestBody(req)
+    private fun signin(body: AbcBody): Response {
         val name = body.user
         val scheme = body.with ?: "USER"
-        
+
         if (name.isNullOrEmpty()) {
             return sendError("The username is required")
         }
-        
+
         val code = "${name.uppercase()}.${scheme.uppercase()}"
         val query = "SELECT * FROM xykey WHERE key01='$code'"
         val rows = xdb.forQuery(query)
-        
+
         if (rows.isNullOrEmpty()) {
             return sendError("User not found", Status.NOT_FOUND, 0)
         }
-        
+
         return sendSuccess(rows)
     }
 

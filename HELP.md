@@ -50,7 +50,7 @@ Utiliza una base de datos embebida (H2) que ejecuta SQL internamente en memoria 
 **Componentes Principales Frontend**
 - JTE templates (.kte): layout, dashboard, data-list, data-view, users-list, settings-list, sheets-list, error
 - Tailwind CSS: Utilidades + tema dark/light
-- onmind-cui-v2: Web Components (as-datagrid, as-confirm, as-button, as-input, as-select)
+- onmind-cui-v3: Web Components (as-datagrid, as-confirm, as-button, as-input, as-select)
 - Lucide Icons: Iconografía
 - ACE Editor: Editor JSON en dashboard
 
@@ -175,7 +175,8 @@ curl -X POST http://localhost:9990/abc \
 ### Directorios Principales
 
 ```
-xdb/
+  ______
+./ xdb /
 ├── src/main/
 │   ├── kotlin/
 │   │   ├── onmindxdb.kt                    # Punto de entrada principal
@@ -218,7 +219,7 @@ xdb/
 └── build.gradle.kts                        # Configuración de build
 ```
 
-### 🏗️ Arquitectura
+### Arquitectura
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -1063,82 +1064,56 @@ kv.store = mvstore
 
 ---
 
-## MCP (Model Context Protocol) – Acceso de Agentes a XDB
+## Perfiles de Build (full / lite)
 
-OnMind-XDB incluye un servidor MCP **embebido** (sin dependencias pesadas) que expone el protocolo JSON-RPC sobre el contrato ABC existente.
+OnMind-XDB se compila en dos perfiles controlados por la propiedad `buildProfile` de Gradle. La diferencia es qué dependencias opcionales se incluyen en el artefacto.
 
-### Cómo activarlo
+### Resumen
 
-En `onmind.ini`:
+| Perfil | Comando | Dependencias |
+|--------|---------|--------------|
+| **full** (default) | `./gradlew shadowJar` | H2, MVStore, RocksDB, DynamoDB, CosmosDB, gRPC/Netty |
+| **lite** | `./gradlew shadowJar -PbuildProfile=lite` | H2, MVStore solamente |
+
+- **full**: perfil por defecto; incluye todos los backends de persistencia cloud y transporte gRPC.
+- **lite**: pensado para GraalVM native image y despliegues ligeros; excluye gRPC/Netty, DynamoDB, Azure Cosmos y RocksDB (~12 MB menos en el JAR fat).
+
+### Código exclusivo de full (`src/full/kotlin`)
+
+Los conectores que dependen de librerías nativas o cloud viven en un sourceSet aparte y **solo se compilan en el perfil full**:
+
+```
+src/full/kotlin/co/onmind/
+├── grpc/
+│   ├── AbcGrpcServer.kt
+│   └── AbcGrpcService.kt
+└── kv/
+    ├── CosmosPlug.kt
+    ├── DynamoPlug.kt
+    └── RocksDBPlug.kt
+```
+
+`KVStoreFactory.kt` instancia estos plugs por reflection (sin importarlos directamente), de modo que el código principal compila y corre sin ellos en el perfil lite.
+
+### Uso en runtime (`onmind.ini`)
 
 ```ini
-mcp.enabled = +     # expone /mcp y /mcp/chat
-mcp.write = -       # ¡importante! + habilita herramientas de escritura (por defecto deshabilitado)
-# mcp.stdio = +     # o arrancar con: java -jar ... --mcp  (solo stdio, sin servidor HTTP)
+# onmind.ini - full profile
+kv.store = mvstore    # default
+kv.store = rocksdb    # requiere full profile
+kv.store = dynamodb   # requiere full profile
+kv.store = cosmosdb   # requiere full profile
 ```
 
-### Puntos de entrada
+Si se configura `kv.store=rocksdb` (o dynamodb/cosmosdb) en el perfil **lite**, se lanza un error claro: `"RocksDB support not available (lite profile)"` (y análogo para cada backend no incluido).
 
-| Ruta | Método | Uso |
-|------|--------|-----|
-| `/mcp` | GET / POST | Servidor MCP JSON-RPC puro (`initialize`, `tools/list`, `tools/call`) |
-| `/mcp/chat` | GET / POST | Sketch de chat para el Dashboard (comandos en lenguaje natural corto) |
-
-Stdio (`--mcp`): transporte recomendado para Claude Desktop, Cursor, etc.
-
-### Tools disponibles (prefijo `abc_`)
-
-**Lectura (siempre):**
-- `abc_status` — Estado del servicio + modo MCP actual.
-- `abc_list` — Listado de sheets/arquetipos (xykit).
-- `abc_describe` — Metadatos y spec (kit05) de un sheet.
-- `abc_find` — Consultas con los mismos campos que el cuerpo ABC (`some`, `with`, `show`, `size`, etc.).
-
-**Escritura de esquemas (solo con `mcp.write=+`):**
-- `abc_create` — Crear un sheet/arquetipo (lo que hace `what=create`).
-- `abc_define` — Definir/actualizar campos (lo que hace `what=define`, `puts` contiene la spec).
-- `abc_schema` — Ruta recomendada (combinada): crea el sheet si falta + aplica el spec en un solo paso (idempotente).
-
-**Nota importante**: Las operaciones **row-level** (`insert`, `update`, `delete`, `drop`) NO están expuestas por MCP en esta versión. Solo se permite definir la estructura.
-
-### Permisos explícitos
-
-- Por defecto `mcp.write = -` (modo solo lectura). Esto es intencional.
-- `mcp.write = +` es una autorización explícita en el archivo de configuración local.
-- Las tools de escritura fallan con mensaje claro si están deshabilitadas.
-- Las requests por `/mcp` siguen pasando por el mismo filtro de autenticación que el resto de la aplicación.
-
-### Ejemplos de uso desde el Dashboard
-
-Una vez activado `mcp.enabled = +`, aparece un panel **"MCP Chat"** al final del Dashboard.
-
-Comandos de ejemplo:
-
-```
-status
-list sheets
-describe PRODUCTS
-find PRODUCTS where any03 = 'demo' size 10
-create sheet demo title "Demo"
-schema demo2 title "Demo 2" spec any02=code,any03=name
-/tool abc_define {"some":"demo","spec":"any02=code,any03=name"}
-```
-
-`/mcp/chat` interpreta los mensajes con reglas locales (sin LLM externo) y llama a las tools `abc_*`.
-
-### JSON-RPC directo
+### GraalVM Native Image
 
 ```bash
-# Inicialización rápida
-curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
-
-# Llamar tool directamente
-curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"abc_find","arguments":{"some":"PRODUCTS.SHEET","size":"5"}}}'
+./gradlew nativeCompile -PbuildProfile=lite
 ```
+
+El binario nativo resultante arranca en ~10-12 ms (vs ~180 ms del JVM). El camino recomendado: **lite** para native image, **full** para JVM/fat JAR con backends cloud.
 
 ---
 
@@ -1184,40 +1159,8 @@ Stdio (`--mcp`): transporte recomendado para Claude Desktop, Cursor, etc.
 
 - Por defecto `mcp.write = -` (modo solo lectura). Esto es intencional.
 - `mcp.write = +` es una autorización explícita en el archivo de configuración local.
-- Las tools de escritura fallan con un mensaje claro si están deshabilitadas.
+- Las tools de escritura fallan con mensaje claro si están deshabilitadas.
 - Las requests por `/mcp` siguen pasando por el mismo filtro de autenticación que el resto de la aplicación.
-
-### Ejemplos de uso desde el Dashboard
-
-Una vez activado `mcp.enabled = +`, aparece un panel **"MCP Chat"** al final del Dashboard.
-
-Comandos de ejemplo:
-
-```
-status
-list sheets
-describe PRODUCTS
-find PRODUCTS where any03 = 'demo' size 10
-create sheet demo title "Demo"
-schema demo title "Demo" spec any02=code,any03=name
-/tool abc_define {"some":"demo","spec":"any02=code,any03=name"}
-```
-
-`/mcp/chat` interpreta los mensajes con reglas locales (sin LLM externo) y llama a las tools `abc_*`.
-
-### JSON-RPC directo
-
-```bash
-# Inicialización rápida
-curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
-
-# Llamar tool directamente
-curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"abc_find","arguments":{"some":"PRODUCTS.SHEET","size":"3"}}}'
-```
 
 ### Implementación interna
 
@@ -1328,12 +1271,56 @@ curl -u admin:admin -X POST http://127.0.0.1:9990/mcp \
 
 ---
 
-### Licencia
+## gRPC (Protocol Buffers) – Transporte alterno para microservicios
 
-Este proyecto está bajo la Licencia Apache 2.0 - ver el archivo [LICENSE.md](LICENSE.md) para detalles.
+OnMind-XDB puede exponer su contrato ABC por **gRPC/Protobuf** (además de HTTP `/abc` y MCP), en un **puerto dedicado** con servidor **Netty**. Reutiliza el mismo core de base de datos (`AbcAPI.dispatch`) que `/abc` y `/mcp` — sin duplicar lógica de H2/KV.
+
+### Cómo activarlo
+
+Opcional y opt-in. En `onmind.ini`:
+
+```ini
+grpc.enabled = +    # expone AbcService en localhost:9991
+grpc.port   = 9991  # puerto dedicado (independiente del HTTP 9990)
+```
+
+O al arrancar:
+
+```bash
+java -jar onmind-xdb-1.0.0-early2026-full.jar --grpc
+```
+
+### Servicios expuestos
+
+| gRPC RPC | Equivale a | Descripción |
+|----------|-----------|-------------|
+| `Execute(AbcRequest) → AbcResponse` | `POST /abc` | Todas las operaciones CRUD/esquema/auth (`find`, `insert`, `update`, `delete`, `create`, `drop`, `define`, `list`, `signin`, `whoami`…) |
+| `Status(StatusRequest) → StatusResponse` | `GET /abc` | Estado del servicio (versión, driver, puerto gRPC, embedded) |
+
+`AbcRequest` es el espejo campo-a-campo de `AbcBody`; `AbcResponse` es el espejo de `AbcBack` y lleva las filas en `data_json` (JSON string) porque las columnas de XDB son dinámicas.
+
+### Decisión de implementación
+
+- **Netty**: el servidor gRPC usa el transport Netty (`grpc-netty-shaded`), para no interferir con Jetty del HTTP.
+- **Distinto puerto**: `grpc.port` (por defecto 9991), ajeno al Jetty 9990.
+- **Opcional**: deshabilitado por defecto (`grpc.enabled = -`); activarlo se loguea en consola.
+- **Core reutilizado**: `AbcAPI` expone ahora `dispatch(AbcBody, authUser)`, el despachador compartido que usan `/abc`, MCP y gRPC.
+- **Native image**: gRPC (Netty) añade dependencias pesadas con config de reflection; el build GraalVM debería deshabilitar el flag. El camino recomendado es JVM/fat JAR.
+
+### Ejemplo de cliente (grpcurl)
+
+```bash
+# Estado
+grpcurl -plaintext -d '{}' localhost:9991 onmind.xdb.abc.AbcService/Status
+
+# Listar sheets (espejo de POST /abc { what: "list", with: "SHEET" })
+grpcurl -plaintext -d '{"what":"list","with":"SHEET","user":"admin"}' \
+  localhost:9991 onmind.xdb.abc.AbcService/Execute
+```
+
+El `.proto` fuente vive en `src/main/proto/abc.proto`; los artefactos generados se compilan con el plugin `com.google.protobuf` + `protoc-gen-grpc-java` y quedan incluidos en el shadow JAR.
 
 ---
 
 **Última actualización**: 2026  
 **Versión**: 1.0.0-RC
-

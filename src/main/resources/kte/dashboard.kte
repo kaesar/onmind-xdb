@@ -247,7 +247,7 @@
             observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
         }
 
-        // ===== MCP Chat client (as-button / as-input from onmind-cui-v2) =====
+        // ===== MCP Chat client (as-button / as-input from onmind-cui-v3) =====
         let mcpInfo = null;
         let mcpBusy = false;
         let mcpAbortController = null;

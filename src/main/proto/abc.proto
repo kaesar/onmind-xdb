@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "co.onmind.grpc.proto";
+option java_outer_classname = "AbcProto";
+
+package onmind.xdb.abc;
+
+// gRPC mirror of the HTTP ABC contract (POST/GET /abc).
+// Dynamic row payloads travel as JSON strings to preserve sheet flexibility.
+service AbcService {
+  // Equivalent to POST /abc — all CRUD / schema / auth-call operations.
+  rpc Execute (AbcRequest) returns (AbcResponse);
+
+  // Equivalent to GET /abc — service status.
+  rpc Status (StatusRequest) returns (StatusResponse);
+}
+
+// Mirrors co.onmind.io.AbcBody field-for-field.
+message AbcRequest {
+  string way = 1;    // sql | mql | abc
+  string what = 2;   // find | insert | update | delete | create | drop | define | list | invoke | !
+  string from = 3;   // xyany | xykey | xyset | xydoc | xykit
+  string some = 4;
+  string with = 5;
+  string show = 6;
+  string how = 7;
+  string puts = 8;   // JSON string (same as HTTP /abc)
+  string cast = 9;
+  string size = 10;
+  string call = 11;  // whoami | signup | signin
+  string keys = 12;
+  string user = 13;
+  string auth = 14;
+  string pin = 15;
+  string hint = 16;
+  string icon = 17;
+  string level = 18;
+}
+
+// Mirrors co.onmind.io.AbcBack; data stays JSON for dynamic columns.
+message AbcResponse {
+  bool ok = 1;
+  string status = 2;
+  string message = 3;
+  int32 total = 4;
+  // JSON array (rows) or other JSON value when present; empty when only message.
+  string data_json = 5;
+}
+
+message StatusRequest {}
+
+message StatusResponse {
+  bool ok = 1;
+  string status = 2;
+  string service = 3;
+  string version = 4;
+  string driver = 5;
+  bool embedded = 6;
+  int32 grpc_port = 7;
+}

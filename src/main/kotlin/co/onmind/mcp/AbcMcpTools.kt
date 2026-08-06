@@ -3,8 +3,6 @@ package co.onmind.mcp
 import co.onmind.api.AbcAPI
 import co.onmind.io.AbcBody
 import co.onmind.util.JsonMapper
-import org.http4k.core.Method
-import org.http4k.core.Request
 import org.http4k.core.Status
 
 /**
@@ -522,12 +520,7 @@ class AbcMcpTools(
     }
 
     private fun invokeAbc(body: AbcBody): ToolResult {
-        val json = mapper.writeValueAsString(body)
-        val request = Request(Method.POST, "/abc")
-            .header("Content-Type", "application/json")
-            .header("X-Auth-User", body.user ?: defaultUser)
-            .body(json)
-        val response = abc.mainControl(request)
+        val response = abc.dispatch(body, body.user ?: defaultUser)
         val text = response.bodyString()
         val isError = response.status != Status.OK && response.status != Status.CREATED
         return if (isError) ToolResult.error(text) else ToolResult.ok(text)
