@@ -14,6 +14,7 @@ import co.onmind.io.IOSet
 import co.onmind.io.IODoc
 import co.onmind.trait.AbstractAPI
 import co.onmind.util.CoherenceStore
+import co.onmind.util.Trace
 import co.onmind.xy.XYKit
 import co.onmind.xy.XYKey
 import com.fasterxml.jackson.databind.exc.MismatchedInputException
@@ -57,7 +58,7 @@ class AbcAPI(): AbstractAPI() {
      */
     fun dispatch(body: AbcBody, authUser: String = "anonymous"): Response {
         return try {
-            val context = RequestContext(body)
+            val context = RequestContext(body, authUser)
             validateRequest(context)?.let { return it }
 
             when (context.choice) {
@@ -65,13 +66,14 @@ class AbcAPI(): AbstractAPI() {
                 "insert" -> handleInsert(context)
                 "update" -> handleUpdate(context)
                 "delete" -> handleDelete(context)
-                "create" -> create(body)
-                "drop" -> drop(body)
-                "define" -> define(body)
-                "list" -> list(body)
-                "whoami" -> whoami(authUser)
-                "signup" -> signup(body)
-                "signin" -> signin(body)
+                "create" -> handleCreate(body)
+                "drop" -> handleDrop(body)
+                "define" -> handleDefine(body)
+                "list" -> handleList(body)
+                "export" -> handleExport(context)
+                "whoami" -> handleWhoAmI(authUser)
+                "signup" -> handleSignup(body)
+                "signin" -> handleSignin(body)
                 else -> sendError("Wrong Request, please check it!")
             }
         } catch (iae: IllegalArgumentException) {
@@ -102,7 +104,8 @@ class AbcAPI(): AbstractAPI() {
     }
 
     private data class RequestContext(
-        val body: AbcBody
+        val body: AbcBody,
+        val authUser: String = "anonymous"
     ) {
         val prefix: String = if (body.from != "xyany") body.from.substring(2..4) else "any"
         val choice: String = body.call?.lowercase() ?: body.what.lowercase()
@@ -127,7 +130,7 @@ class AbcAPI(): AbstractAPI() {
         val body = context.body
         
         if (body.what != "!") {
-            val validOperations = listOf("find", "insert", "update", "delete", "create", "drop", "define", "list", "invoke")
+            val validOperations = listOf("find", "insert", "update", "delete", "create", "drop", "define", "list", "invoke", "export")
             if (body.what !in validOperations) {
                 return sendError("'WHAT' is wrong. Valid values are: ${validOperations.joinToString(", ")}")
             }
@@ -136,7 +139,7 @@ class AbcAPI(): AbstractAPI() {
                 return sendError("That kind of 'WHAT' can't be mixed with 'CALL'")
             }
 
-            if (body.what != "invoke" && body.what != "list") {
+            if (body.what != "invoke" && body.what != "list" && body.what != "export") {
                 if (context.some.isNullOrEmpty()) {
                     return sendError("'SOME' is missing. You must set it!")
                 }
@@ -361,6 +364,50 @@ class AbcAPI(): AbstractAPI() {
             else -> xdb.savePointAny(row)
         }
     }
+
+    private fun handleExport(context: RequestContext): Response {
+        val body = context.body
+        if (!onmindxdb.exportEnabled) {
+            return sendError("Export is disabled. Enable with db.export = + in onmind.ini")
+        }
+
+        val authUser = context.authUser
+        if (authUser == "anonymous") {
+            return sendError("Export requires an authenticated user")
+        }
+
+        // Export is fire-and-forget: resolve the output file, kick off a
+        // background thread, and return 202 immediately. The client can read
+        // the file at the returned path once the export completes.
+        val select = body.from?.lowercase()?.trim()
+        val filter = body.with
+        val format = body.cast?.lowercase()?.trim() ?: "sqlite"
+        if (format != "sqlite") {
+            return sendError("Unsupported export format '$format'. Available: sqlite")
+        }
+
+        return try {
+            val outFile = xdb.resolveExportFile()
+            val filePath = outFile.absolutePath
+
+            Thread {
+                try {
+                    xdb.exportToSqlite(authUser, select, filter, format)
+                    Trace.infoWith("Export completed", "file" to filePath, "user" to authUser)
+                } catch (ex: Exception) {
+                    Trace.logError("Export failed", ex, mapOf("file" to filePath, "user" to authUser))
+                }
+            }.start()
+
+            sendAccepted(mapOf(
+                "file" to filePath,
+                "format" to format,
+                "status" to "running"
+            ))
+        } catch (ex: Exception) {
+            sendError("Export failed: ${ex.message}", Status.INTERNAL_SERVER_ERROR, 0)
+        }
+    }
     
     private fun validateSpec(spec: String): String? {
         if (spec.isEmpty() || spec == "[]") return null
@@ -393,7 +440,7 @@ class AbcAPI(): AbstractAPI() {
         return null
     }
 
-    fun create(body: AbcBody): Response {
+    fun handleCreate(body: AbcBody): Response {
         val from = body.from
         val name = body.some
         var scheme = body.with ?: "SHEET"
@@ -438,7 +485,7 @@ class AbcAPI(): AbstractAPI() {
             var now = LocalDateTime.now()
             val id = putID(1, user, now)
             val kit12 = "${code.lowercase()}.0"
-            var kiton: String? = now.toString()  //.replace("T"," ")
+            var kiton: String? = now.toString()
 
             var query: String
 
@@ -464,7 +511,7 @@ class AbcAPI(): AbstractAPI() {
         }
     }
 
-    fun drop(body: AbcBody): Response {  // POST => name, scheme, kind, user
+    fun handleDrop(body: AbcBody): Response {  // POST => name, scheme, kind, user
         val from = body.from ?: "xyany"
         val name = body.some
         var scheme = body.with ?: "SHEET"
@@ -506,7 +553,7 @@ class AbcAPI(): AbstractAPI() {
         }
     }
 
-    fun define(body: AbcBody): Response {
+    fun handleDefine(body: AbcBody): Response {
         val name = body.some
         var scheme = body.with ?: "SHEET"
         val spec = body.puts ?: "[]"
@@ -550,7 +597,7 @@ class AbcAPI(): AbstractAPI() {
         }
     }
 
-    fun list(body: AbcBody): Response {
+    fun handleList(body: AbcBody): Response {
         var scheme = body.with ?: "SHEET"
         try {
             val query = "SELECT id, kit01 as code, kit02 as name, kit03 as title, kit04 as hint, kit05 as spec FROM xykit WHERE kitxy = '$scheme'"
@@ -608,7 +655,7 @@ class AbcAPI(): AbstractAPI() {
         return result
     }
 
-    private fun whoami(authUser: String): Response {
+    private fun handleWhoAmI(authUser: String): Response {
         val appMode = onmindxdb.config?.getProperty("app.mode", "production") ?: "production"
         val result = mapOf(
             "ok" to true,
@@ -624,7 +671,7 @@ class AbcAPI(): AbstractAPI() {
         return sendSuccess(result)
     }
 
-    fun signup(body: AbcBody): Response {
+    fun handleSignup(body: AbcBody): Response {
         val name = body.some
         var scheme = body.with ?: "USER"
         val user = body.user
@@ -683,7 +730,7 @@ class AbcAPI(): AbstractAPI() {
         }
     }
 
-    private fun signin(body: AbcBody): Response {
+    private fun handleSignin(body: AbcBody): Response {
         val name = body.user
         val scheme = body.with ?: "USER"
 

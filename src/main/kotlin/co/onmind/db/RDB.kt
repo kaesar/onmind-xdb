@@ -11,7 +11,10 @@ import co.onmind.util.CoherenceStore
 import co.onmind.util.JsonMapper
 import org.apache.commons.dbutils.QueryRunner
 import org.apache.commons.dbutils.handlers.MapListHandler
+import java.sql.Connection
+import java.sql.DriverManager
 import java.sql.SQLException
+import java.sql.Statement
 import java.text.DecimalFormat
 
 /**
@@ -447,6 +450,127 @@ class RDB() {
         }
         catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private data class TableExport(val name: String, val ddl: String, val rows: List<MutableMap<String, Any?>>?)
+
+    /**
+     * Resolves export with full dump by default (with "*). Could choice tables to export.
+     *`select`: null/empty/"*"/"xyany" ⇒ ALL tables; otherwise a single entity
+     */
+     private fun collectTables(select: String?, filter: String?): List<TableExport> {
+         val targets: List<Pair<String, String>> = when (select?.trim()) {
+             null, "", "*", "xyany" -> allExportTables()
+             "xykit" -> listOf("xykit" to DBKit().tableDDL("sqlite"))
+             "xykey" -> listOf("xykey" to DBKey().tableDDL("sqlite"))
+             "xyset" -> listOf("xyset" to DBSet().tableDDL("sqlite"))
+             "xydoc" -> listOf("xydoc" to DBDoc().tableDDL("sqlite"))
+             else -> allExportTables()
+         }
+        return targets.map { (name, ddl) ->
+            val where = if (!filter.isNullOrEmpty()) " WHERE $filter" else ""
+            val rows: List<MutableMap<String, Any?>>? = try {
+                forQuery("SELECT * FROM $name$where")
+            } catch (ex: SQLException) {
+                // Filter references a column absent in this table ⇒ fall back to all rows.
+                if (!filter.isNullOrEmpty() && ex.message?.contains("column", ignoreCase = true) == true) {
+                    forQuery("SELECT * FROM $name")
+                } else {
+                    throw ex
+                }
+            }
+            TableExport(name, ddl, rows)
+        }
+    }
+
+    private fun allExportTables(): List<Pair<String, String>> = listOf(
+        DBKit().table to DBKit().tableDDL("sqlite"),
+        DBKey().table to DBKey().tableDDL("sqlite"),
+        DBSet().table to DBSet().tableDDL("sqlite"),
+        DBAny().table to DBAny().tableDDL("sqlite"),
+        DBDoc().table to DBDoc().tableDDL("sqlite")
+    )
+
+    /**
+     * Resolves the next available export file path under `<app.local>/xy/export/`.
+     * Same-day re-exports get a `_N` suffix to avoid clobbering.
+     */
+    fun resolveExportFile(): java.io.File {
+        val dataDir = java.io.File(onmindxdb.dbfile).parentFile
+        val exportDir = java.io.File(dataDir, "export")
+        if (!exportDir.exists()) exportDir.mkdirs()
+
+        val stamp = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE)
+        var file = java.io.File(exportDir, "export${stamp}.db")
+        var i = 1
+        while (file.exists() && file.length() > 0L) {
+            file = java.io.File(exportDir, "export${stamp}_${i}.db")
+            i++
+        }
+        return file
+    }
+
+    /**
+     * export (contract: from, with, cast) with SQLite as the supported format.
+     * - select (from): null/""/"*"/"xyany" ⇒ full dump of all tables (XDB default);
+     *       xykit/xykey/xyset/xydoc ⇒ that single table.
+     * - filter (with): optional raw WHERE clause, applied tolerantly to every exported table.
+     * - format (cast): currently only "sqlite" (XDB priority); others error.
+     * - user: auth user performing the export.
+     */
+    fun exportToSqlite(user: String, select: String?, filter: String?, format: String): Map<String, Any?> {
+        val start = System.currentTimeMillis()
+        Class.forName("org.sqlite.JDBC")
+
+        val outFile = resolveExportFile()
+        val sqliteUrl = "jdbc:sqlite:${outFile.absolutePath}"
+        val sqliteConn: Connection = DriverManager.getConnection(sqliteUrl)
+        try {
+            sqliteConn.autoCommit = false
+            val tables = collectTables(select, filter)
+            val exported = mutableMapOf<String, Int>()
+            var totalRows = 0
+
+            for (t in tables) {
+                sqliteConn.createStatement().use { it.execute("DROP TABLE IF EXISTS ${t.name}") }
+                sqliteConn.createStatement().use { it.execute(t.ddl) }
+
+                if (!t.rows.isNullOrEmpty()) {
+                    val cols = t.rows.first().keys.toList()
+                    val colList = cols.joinToString()
+                    val placeholders = cols.joinToString { "?" }
+                    val insertSql = "INSERT INTO ${t.name} ($colList) VALUES ($placeholders)"
+                    val prep = sqliteConn.prepareStatement(insertSql)
+                    for (row in t.rows) {
+                        var p = 1
+                        cols.forEach { col -> prep.setObject(p++, row[col]) }
+                        prep.addBatch()
+                    }
+                    prep.executeBatch()
+                    prep.close()
+                }
+
+                val count = sqliteConn.createStatement().use { st ->
+                    st.executeQuery("SELECT COUNT(*) FROM ${t.name}").use { rs -> rs.getInt(1) }
+                }
+                totalRows += count
+                exported[t.name] = count
+            }
+            sqliteConn.commit()
+
+            return mapOf(
+                "ok" to true,
+                "file" to outFile.absolutePath,
+                "format" to format,
+                "user" to user,
+                "tables" to exported,
+                "rows" to totalRows,
+                "records" to totalRows,   // parity field with WDB exportResp.Records
+                "ms" to (System.currentTimeMillis() - start)
+            )
+        } finally {
+            sqliteConn.close()
         }
     }
 }

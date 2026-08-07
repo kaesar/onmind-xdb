@@ -1,3 +1,4 @@
+import org.http4k.core.Filter
 import org.http4k.core.Method
 import org.http4k.core.Request
 import org.http4k.core.Response
@@ -44,6 +45,7 @@ object onmindxdb {
     var driver = "org.h2.Driver"
     var dbfile: String? = null
     var queryLimit = 1200
+    var exportEnabled = false
     var config: Properties? = null
     val version = "0.9.0"
     var uiEnabled = true
@@ -58,6 +60,7 @@ object onmindxdb {
         val cfg = Rote.getConfig(filex)
         config = cfg
         queryLimit = cfg.getProperty("db.query_limit", "1200").toIntOrNull() ?: 1200
+        exportEnabled = cfg.getProperty("db.export", "-") == "+"
         dataSource = Rote.getDataSource(cfg)
         dbc = dataSource?.connection
         dbfile = cfg.getProperty("app.local") + "xy/xybox.xdb"
@@ -170,6 +173,10 @@ object onmindxdb {
             routesList.add("/swagger" bind Method.GET to { _: Request -> Response(OK).body(Swagger.ui()).header("Content-Type", "text/html") })
         }
         
+        // Paths that never require authentication (health, static assets, root).
+        val publicPaths = setOf("/health", "/favicon.ico")
+        val publicPrefixes = listOf("/static")
+
         val app = RequestTracing()
             .then(ResponseFilters.ReportHttpTransaction { tx ->
                 val logMsg = "[${tx.request.method}] ${tx.request.uri} -> ${tx.response.status.code}"
@@ -180,7 +187,11 @@ object onmindxdb {
                 if (CoherenceConfig.logLevel == 0)
                     println(logMsg)
             })
-            .then(authProvider.filter())
+            .then(Filter { next -> { request ->
+                val path = request.uri.path
+                val isPublic = path in publicPaths || publicPrefixes.any { path.startsWith(it) }
+                if (isPublic) next(request) else authProvider.filter().invoke(next)(request)
+            }})
             .then(Cors(CorsPolicy(
                 OriginPolicy.AllowAll(),
                 listOf("Content-Type", "Cache-Control", "X-Request-Id"),

@@ -19,6 +19,11 @@ open class AbstractAPI() {
             .header("Content-Type",ContentType.APPLICATION_JSON.value)
             .body(mapper.writeValueAsString(result))
 
+    fun sendAccepted(result: Map<String, Any?>) =
+        Response(Status.ACCEPTED)
+            .header("Content-Type",ContentType.APPLICATION_JSON.value)
+            .body(mapper.writeValueAsString(result))
+
     fun sendSuccess(result: List<MutableMap<String, Any?>>?) =
         apiSend.inject(AbcBack(true, Status.OK.code.toString(), result, result?.size), Response(Status.OK))
 

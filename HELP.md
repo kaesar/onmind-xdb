@@ -82,6 +82,7 @@ RDB.savePoint → KVStore (MVStore/DynamoDB/CosmosDB)
 - drop: Eliminar sheet (valida sin datos, elimina de H2 y KVStore por id)
 - define: Actualizar spec de sheet (mapeo de datos)
 - list: Listar sheets por esquema
+- export: Volcar H2 a SQLite portable (`db.export = +`, requiere auth; alineado con WDB `handleExport`)
 
 **Rendimiento mínimo estimado**
 - Startup: ~2s (JVM), ~10ms (GraalVM Native)
@@ -347,6 +348,7 @@ curl -X POST http://localhost:9990/abc \
 | `signup` | Crear usuario | Registrar nuevo usuario |
 | `signin` | Autenticar | Login de usuario |
 | `whoami` | Info del sistema | Obtener info del servidor |
+| `export` | Volcar a SQLite | Volcado completo o por entidad (WDB parity: `from`/`with`/`cast`) |
 
 ### Endpoints
 
@@ -412,11 +414,62 @@ kv.cosmosdb.endpoint = https://your-account.documents.azure.com:443/
 kv.cosmosdb.key = your-primary-key
 kv.cosmosdb.database = onmindxdb
 kv.cosmosdb.container = kvstore
+#### Configuración de exportación (SQLite)
+
+OnMind-XDB puede volcar la base de datos en memoria (H2) a un archivo **SQLite** portable. El dump incluye las 5 tablas (`xykit`, `xykey`, `xyset`, `xyany`, `xydoc`) con su DDL original (tipos, PK, UNIQUE, defaults).
+
+```ini
+# Habilitar la operación export (por defecto deshabilitada)
+db.export = +
 ```
 
----
+**Contrato (alineado con WDB `handleExport`):**
 
-## Coherencia y Monitoreo
+La operación es `what=export` sobre `POST /abc`. Acepta los campos `from`, `with`, `cast` (mismos que WDB), con SQLite como formato prioritario. **Es fire-and-forget**: retorna 202 inmediatamente con la ruta del archivo; el volcado se ejecuta en background y el archivo queda disponible en esa ruta al completarse.
+
+| Campo | Descripción | Default |
+|-------|-------------|---------|
+| `from` | Entidad a exportar. `"*"` o omitido = volcado completo (5 tablas). Valor único: `xykit`/`xykey`/`xyset`/`xydoc` = solo esa tabla. | `*` (ALL) |
+| `with` | Filtro WHERE applied tolerantly a todas las tablas exportadas. Si una tabla no tiene la columna referenciada, se exporta completa (sin filtro). | `null` |
+| `cast` | Formato de salida. Solo `"sqlite"` soportado; otros valores retornan error 400. | `"sqlite"` |
+
+**Ejemplos:**
+
+```bash
+# Volcado completo (default) — retorna 202 inmediatamente
+curl -u admin:admin -X POST http://localhost:9990/abc \
+  -H "Content-Type: application/json" \
+  -d '{ "what": "export", "user": "admin" }'
+
+# Exportar solo la tabla xyany
+curl -u admin:admin -X POST http://localhost:9990/abc \
+  -H "Content-Type: application/json" \
+  -d '{ "what": "export", "from": "xyany", "user": "admin" }'
+
+# Volcado completo con filtro tolerante (solo xyany filtrado; xykit/xykey/... exportados completos)
+curl -u admin:admin -X POST http://localhost:9990/abc \
+  -H "Content-Type: application/json" \
+  -d '{ "what": "export", "with": "any02 = '\''producto-1'\''", "user": "admin" }'
+```
+
+**Respuesta (202 Accepted):**
+```json
+{
+  "ok": true,
+  "file": "/Users/.../onmind/xy/export/export20260806.db",
+  "format": "sqlite",
+  "status": "running"
+}
+```
+
+El export se ejecuta en un thread en background. Cuando termina, el archivo SQLite está disponible en la ruta `file`. Si falla, el error se registra en el log del servidor.
+
+**Guards de seguridad:**
+- Requiere `db.export = +` en `onmind.ini` (por defecto deshabilitado).
+- Requiere un usuario autenticado (no `anonymous`).
+- Múltiples exportes en el mismo día no se pisan: se generan `exportyyyymmdd_1.db`, `_2.db`, …
+
+---
 
 ### Sistema de Coherencia
 

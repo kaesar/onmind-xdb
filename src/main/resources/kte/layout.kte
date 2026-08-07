@@ -58,6 +58,13 @@
         @keyframes mcp-spin { to { transform: rotate(360deg); } }
         body.dark .mcp-spinner { border-color: #475569; border-top-color: #818cf8; }
         body.dark .toast { background: #334155; }
+        body.dark #configModal > div { background: #1e293b; }
+        body.dark #configModal h2 { color: #f1f5f9; }
+        body.dark #configModal p { color: #94a3b8; }
+        body.dark #configModal [style*="border-bottom:1px solid #e2e8f0"] { border-color: #334155; }
+        body.dark #configModal [style*="border-top:1px solid #e2e8f0"] { border-color: #334155; }
+        body.dark #configModal button[style*="background:white"] { background: #334155; color: #e2e8f0; border-color: #475569; }
+        body.dark #configEditor { border-color: #475569; }
 
     </style>
 </head>

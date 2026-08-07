@@ -102,6 +102,7 @@ object Rote {
                             db.max_pool_size = 10
                             db.query_limit = 1200
                             db.charset = UTF-8
+                            db.export = -      # + enables /abc what=export to SQLite file
 
                             # Parametros de autenticacion
                             auth.enabled = true

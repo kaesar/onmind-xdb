@@ -3,6 +3,7 @@ package co.onmind.app
 import co.onmind.db.RDB
 import co.onmind.util.JsonMapper
 import co.onmind.util.Rote
+import com.fasterxml.jackson.databind.ObjectMapper
 import gg.jte.ContentType
 import gg.jte.TemplateEngine
 import gg.jte.output.StringOutput
@@ -15,6 +16,7 @@ import org.http4k.core.Status
 import org.http4k.lens.Path as PathLens
 import org.http4k.routing.bind
 import org.http4k.routing.routes
+import java.io.File
 import java.nio.file.Path
 import java.nio.file.Files
 
@@ -41,7 +43,9 @@ class AppUI {
         "/app/data/{sheet}" bind Method.GET to { req: Request -> dataView(req) },
         "/app/users" bind Method.GET to { _: Request -> usersList() },
         "/app/settings" bind Method.GET to { _: Request -> settingsList() },
-        "/app/sheets" bind Method.GET to { _: Request -> sheetsList() }
+        "/app/sheets" bind Method.GET to { _: Request -> sheetsList() },
+        "/app/config" bind Method.GET to { _: Request -> configRead() },
+        "/app/config" bind Method.POST to { req: Request -> configWrite(req) }
     )
 
     private fun dashboard(): Response {
@@ -168,6 +172,47 @@ class AppUI {
             "columnsJson" to json.writeValueAsString(columns)
         ))
         return Response(Status.OK).body(output).header("Content-Type", "text/html; charset=utf-8")
+    }
+
+    private fun configRead(): Response {
+        if (!onmindxdb.uiEnabled) {
+            return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
+        }
+        return try {
+            val configFile = Rote.getConfigFile()
+            val content = File(configFile).readText()
+            val json = ObjectMapper().createObjectNode()
+            json.put("path", configFile)
+            json.put("content", content)
+            Response(Status.OK).body(json.toString()).header("Content-Type", "application/json")
+        } catch (e: Exception) {
+            val error = ObjectMapper().createObjectNode()
+            error.put("ok", false)
+            error.put("message", "Error reading config: ${e.message}")
+            Response(Status.INTERNAL_SERVER_ERROR).body(error.toString()).header("Content-Type", "application/json")
+        }
+    }
+
+    private fun configWrite(request: Request): Response {
+        if (!onmindxdb.uiEnabled) {
+            return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
+        }
+        return try {
+            val body = ObjectMapper().readTree(request.bodyString())
+            val content = body.get("content")?.asText() ?: ""
+            val configFile = Rote.getConfigFile()
+            File(configFile).writeText(content)
+            val json = ObjectMapper().createObjectNode()
+            json.put("ok", true)
+            json.put("path", configFile)
+            json.put("message", "Config saved. Restart the service to apply changes.")
+            Response(Status.OK).body(json.toString()).header("Content-Type", "application/json")
+        } catch (e: Exception) {
+            val error = ObjectMapper().createObjectNode()
+            error.put("ok", false)
+            error.put("message", "Error saving config: ${e.message}")
+            Response(Status.INTERNAL_SERVER_ERROR).body(error.toString()).header("Content-Type", "application/json")
+        }
     }
 
     private fun renderTemplate(name: String, model: Map<String, Any>): String {

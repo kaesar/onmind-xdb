@@ -47,6 +47,7 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
     implementation("com.zaxxer:HikariCP:5.1.0")
     implementation("org.slf4j:slf4j-simple:2.0.16")
+    implementation("org.xerial:sqlite-jdbc:3.45.3.0")  // export-to-SQLite (core, lite + full)
 
     // Optional cloud/DB backends (excluded in lite profile)
     if (!isLite) {

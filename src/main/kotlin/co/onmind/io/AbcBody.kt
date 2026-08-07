@@ -2,7 +2,7 @@ package co.onmind.io
 
 data class AbcBody(
     val way: String = "sql",    // sql, mql, abc (abc = mql-like)
-    val what: String = "!",     // find, insert, update, delete, create, drop, invoke
+    val what: String = "!",     // find, insert, update, delete, create, drop, invoke, export
     val from: String = "xyany",
     val some: String? = null,
     val with: String? = null,

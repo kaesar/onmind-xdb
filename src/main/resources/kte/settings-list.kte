@@ -8,10 +8,14 @@
     <div class="p-8">
         <div class="flex justify-between items-center mb-6">
             <h1 class="text-3xl font-bold text-slate-800 ml-12">Settings</h1>
-            <as-button label="+ New Setting"></as-button>
+            <div class="flex gap-2">
+                <as-button label="Config" id="configBtn"></as-button>
+                <as-button label="+ New Setting"></as-button>
+            </div>
         </div>
         <script>
-            document.querySelector('as-button').addEventListener('button-tap', () => goToNewSetting());
+            document.querySelectorAll('as-button')[1].addEventListener('button-tap', () => goToNewSetting());
+            document.getElementById('configBtn').addEventListener('button-tap', () => openConfigEditor());
         </script>
         
         @if(settings.isEmpty())
@@ -96,7 +100,94 @@
             sessionStorage.removeItem('onmind-xdb-response-time');
             window.location.href = '/app/';
         }
-        
+    </script>
 
+    <div id="configModal" style="display:none; position:fixed; inset:0; z-index:5000; background:rgba(0,0,0,0.5); align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:0.75rem; width:90%; max-width:800px; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:1rem 1.5rem; border-bottom:1px solid #e2e8f0;">
+                <div>
+                    <h2 style="font-size:1.125rem; font-weight:600; color:#1e293b; margin:0;">Service Configuration</h2>
+                    <p id="configPath" style="font-size:0.75rem; color:#64748b; margin:0.25rem 0 0 0; font-family:monospace;"></p>
+                </div>
+                <button onclick="closeConfigModal()" style="background:none; border:none; cursor:pointer; padding:0.25rem; color:#64748b;">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div style="padding:1rem 1.5rem; flex:1; overflow:hidden;">
+                <div id="configEditor" style="height:400px; border:1px solid #e2e8f0; border-radius:0.375rem;"></div>
+            </div>
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:1rem 1.5rem; border-top:1px solid #e2e8f0;">
+                <p style="font-size:0.75rem; color:#94a3b8; margin:0;">
+                    <i data-lucide="info" class="w-4 h-4" style="display:inline; vertical-align:middle;"></i>
+                    Changes apply after service restart
+                </p>
+                <div class="flex gap-2">
+                    <button onclick="closeConfigModal()" style="padding:0.5rem 1rem; border:1px solid #e2e8f0; border-radius:0.375rem; background:white; cursor:pointer; color:#475569; font-size:0.875rem;">Cancel</button>
+                    <button onclick="saveConfig()" id="saveConfigBtn" style="padding:0.5rem 1rem; border:none; border-radius:0.375rem; background:#2563eb; color:white; cursor:pointer; font-size:0.875rem;">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/ace.js"></script>
+    <script>
+        let configEditorInstance = null;
+
+        window.openConfigEditor = async function() {
+            const modal = document.getElementById('configModal');
+            modal.style.display = 'flex';
+            lucide.createIcons();
+
+            try {
+                const resp = await fetch('/app/config');
+                const data = await resp.json();
+                document.getElementById('configPath').textContent = data.path;
+
+                if (!configEditorInstance) {
+                    ace.config.set('basePath', '/static/js');
+                    configEditorInstance = ace.edit('configEditor');
+                    configEditorInstance.setTheme('ace/theme/github');
+                    configEditorInstance.session.setMode('ace/mode/properties');
+                    configEditorInstance.setOptions({ fontSize: '13px', tabSize: 4, showPrintMargin: false });
+                }
+                configEditorInstance.setValue(data.content, -1);
+            } catch (e) {
+                showToast('Error loading config: ' + e.message);
+                closeConfigModal();
+            }
+        };
+
+        window.closeConfigModal = function() {
+            document.getElementById('configModal').style.display = 'none';
+        };
+
+        window.saveConfig = async function() {
+            const btn = document.getElementById('saveConfigBtn');
+            btn.textContent = 'Saving...';
+            btn.disabled = true;
+            try {
+                const resp = await fetch('/app/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ content: configEditorInstance.getValue() })
+                });
+                const result = await resp.json();
+                if (result.ok) {
+                    showToast('Config saved. Restart the service to apply changes.');
+                    closeConfigModal();
+                } else {
+                    showToast(result.message || 'Error saving config');
+                }
+            } catch (e) {
+                showToast('Error saving config: ' + e.message);
+            } finally {
+                btn.textContent = 'Save';
+                btn.disabled = false;
+            }
+        };
+
+        document.getElementById('configModal').addEventListener('click', function(e) {
+            if (e.target === this) closeConfigModal();
+        });
     </script>
 `)
