@@ -272,7 +272,6 @@ object Trace {
                 is String -> "$key=\"$value\""
                 is Number -> "$key=$value"
                 is Boolean -> "$key=$value"
-                null -> "$key=null"
                 else -> "$key=\"$value\""
             }
         }

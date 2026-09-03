@@ -18,7 +18,11 @@ class OIDCPlug(
     private val emailClaim: String = "email",
     private val nameClaim: String = "name",
     private val rolesClaim: String? = null, // if null, try default mappings
-    private val provider: String = "GENERIC"
+    private val provider: String = "GENERIC",
+    /** HMAC shared secret for HS256 JWT verification (OnMind-UID default). */
+    private val sharedSecret: String? = null,
+    /** Expected `iss` claim (OnMind-UID `uid.issuer`). */
+    private val expectedIssuer: String? = null
 ) : AuthProvider {
     
     private val json = JsonMapper.instance
@@ -40,19 +44,28 @@ class OIDCPlug(
         val authHeader = request.header("Authorization")
         if (authHeader != null && authHeader.startsWith("Bearer ", ignoreCase = true)) {
             val token = authHeader.substring(7)
-            return try {
-                val claims = parseJwt(token)
-                AuthResult.Success(
-                    AuthUser(
-                        id = claims[userClaim] as? String ?: "unknown",
-                        email = claims[emailClaim] as? String ?: (claims["preferred_username"] as? String ?: "unknown"),
-                        name = claims[nameClaim] as? String ?: (claims["preferred_username"] as? String ?: "unknown"),
-                        roles = extractRoles(claims)
-                    )
-                )
-            } catch (e: Exception) {
-                AuthResult.Failure("Invalid OIDC context ($provider): ${e.message}")
+
+            // When a shared secret is configured, verify signature/exp/iss before trusting the token.
+            val claims: Map<String, Any> = if (!sharedSecret.isNullOrEmpty()) {
+                JwtValidator.verify(token, sharedSecret, issuer = expectedIssuer, audience = null)
+                    ?: return AuthResult.Failure("Invalid JWT signature, issuer or expired token ($provider)")
+            } else {
+                // Legacy: decode only (no signature verification). Prefer configuring a shared secret.
+                try {
+                    parseJwt(token)
+                } catch (e: Exception) {
+                    return AuthResult.Failure("Invalid OIDC context ($provider): ${e.message}")
+                }
             }
+
+            return AuthResult.Success(
+                AuthUser(
+                    id = claims[userClaim] as? String ?: "unknown",
+                    email = claims[emailClaim] as? String ?: (claims["preferred_username"] as? String ?: "unknown"),
+                    name = claims[nameClaim] as? String ?: (claims["preferred_username"] as? String ?: "unknown"),
+                    roles = extractRoles(claims)
+                )
+            )
         }
 
         return AuthResult.Failure("No authentication found for $provider (missing headers or Bearer token)")
@@ -99,9 +112,10 @@ class OIDCPlug(
                 (roles + groups).distinct()
             }
             else -> {
-                // Try common claims
-                val roles = (claims["roles"] as? List<*>) ?: (claims["groups"] as? List<*>) ?: (claims["scp"] as? String)?.split(" ") ?: emptyList<Any>()
-                roles.map { it.toString() }
+                // Try common claims (incl. Cognito-style groups from OnMind-UID)
+                val cognitoGroups = (claims["cognito:groups"] as? List<*>)?.map { it.toString() } ?: emptyList()
+                val genericRoles = (claims["roles"] as? List<*>) ?: (claims["groups"] as? List<*>) ?: (claims["scp"] as? String)?.split(" ") ?: emptyList<Any>()
+                (cognitoGroups + genericRoles.map { it.toString() }).distinct()
             }
         }
     }

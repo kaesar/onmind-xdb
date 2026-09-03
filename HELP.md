@@ -894,6 +894,37 @@ val user = req.authUser()
 
 ---
 
+## Integración con OnMind-UID (IdP)
+
+XDB puede validar los tokens **JWT HS256** emitidos por **OnMind-UID** como
+resource-server. Activa `auth.type = OIDC` (o `COGNITO`) y comparte el mismo
+`jwt.secret` que UID. Sin el secret compartido, el JWT se decodifica sin
+verificar firma (modo legado, no recomendado en producción).
+
+```properties
+# onmind.ini (XDB)
+auth.enabled = true
+auth.type = OIDC            # o COGNITO
+auth.oidc.client_id = xdb-client      # id del client en UID
+auth.jwt.secret = <mismo jwt.secret de UID>
+auth.jwt.issuer = http://localhost:8080   # uid.issuer
+```
+
+Con `auth.type = COGNITO` se valida además que `token_use == access` y que el
+`aud` coincida con el `client_id`.
+
+**Flujo end-to-end:**
+
+1. El usuario (o servicio) se autentica en UID → obtiene `access_token`.
+2. El cliente llama a XDB con `Authorization: Bearer <access_token>`.
+3. XDB verifica firma HS256, `exp` y `iss` (y `aud` si es `COGNITO`).
+4. Inyecta `X-Auth-User`, `X-Auth-Email`, `X-Auth-Roles` (grupos) en el request.
+
+Los roles/grupos se toman de los claims `cognito:groups`, `groups` o `roles`
+(ver `OIDCPlug.extractRoles`).
+
+---
+
 ## Connection Pool con Agroal
 
 ### Beneficios
@@ -1078,7 +1109,7 @@ Para probar las funcionalidades de coherencia:
 ./gradlew run
 
 # Crear JAR ejecutable
-./gradlew shadowJar
+./gradlew shadowJar -PbuildProfile=lite
 
 # Limpiar build
 ./gradlew clean

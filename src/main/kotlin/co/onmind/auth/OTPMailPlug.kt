@@ -113,7 +113,7 @@ class OTPMailPlug(
     // ------------------------------------------------------------------
 
     private fun loginHandler(request: Request): Response {
-        val error = request.uri.query?.let { q ->
+        val error = request.uri.query.let { q ->
             q.split("&").mapNotNull { pair ->
                 val p = pair.split("=", limit = 2)
                 if (p.size == 2 && p[0] == "error") urlDecode(p[1]) else null

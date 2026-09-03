@@ -118,7 +118,7 @@ class DBAny(duo: Boolean = false): AbstractDB {
 
     fun tableDDL(driver: String? = null): String = xtableDDL(table,columnsList,dataTypes,sizes,nulls,defaults,key,unique,driver ?: "h2")
 
-    fun values(row: XYAny) = arrayOf(
+    fun values(row: XYAny) = arrayOf<Any?>(
         row.id,
         row.anyxy,
         row.anyis,

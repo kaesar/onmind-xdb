@@ -61,7 +61,7 @@ class DBDoc(duo: Boolean = false): AbstractDB {
 
     fun tableDDL(driver: String? = null): String = xtableDDL(table,columnsList,dataTypes,sizes,nulls,defaults,key,unique,driver ?: "h2")
 
-    fun values(row: XYDoc) = arrayOf(
+    fun values(row: XYDoc) = arrayOf<Any?>(
         row.id,
         row.docxy,
         row.doc00,

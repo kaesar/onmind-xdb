@@ -75,7 +75,7 @@ class DBSet(duo: Boolean = false): AbstractDB {
 
     fun tableDDL(driver: String? = null): String = xtableDDL(table,columnsList,dataTypes,sizes,nulls,defaults,key,unique,driver ?: "h2")
 
-    fun values(row: XYSet) = arrayOf(
+    fun values(row: XYSet) = arrayOf<Any?>(
         row.id,
         row.setxy,
         row.set00,

@@ -379,7 +379,7 @@ class AbcAPI(): AbstractAPI() {
         // Export is fire-and-forget: resolve the output file, kick off a
         // background thread, and return 202 immediately. The client can read
         // the file at the returned path once the export completes.
-        val select = body.from?.lowercase()?.trim()
+        val select = body.from.lowercase().trim()
         val filter = body.with
         val format = body.cast?.lowercase()?.trim() ?: "sqlite"
         if (format != "sqlite") {
@@ -512,7 +512,7 @@ class AbcAPI(): AbstractAPI() {
     }
 
     fun handleDrop(body: AbcBody): Response {  // POST => name, scheme, kind, user
-        val from = body.from ?: "xyany"
+        val from = body.from
         val name = body.some
         var scheme = body.with ?: "SHEET"
         val user = body.user

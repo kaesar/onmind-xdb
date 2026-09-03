@@ -3,9 +3,9 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 import java.nio.file.Path
 
-val javaVersion = "17"
-val kotlinVersion = "2.0.21"
-val http4kVersion = "5.47.0.0"
+val javaVersion = "25"
+val kotlinVersion = "2.4.10"
+val http4kVersion = "6.57.1.0"
 val jacksonVersion = "2.18.3"
 val grpcVersion = "1.69.1"
 val protobufVersion = "3.25.5"
@@ -16,11 +16,11 @@ val buildProfile = project.findProperty("buildProfile")?.toString() ?: "full"
 val isLite = buildProfile == "lite"
 
 plugins {
-    kotlin("jvm") version "2.0.21"
-    id("com.github.johnrengelman.shadow") version "8.1.1"
-    id("org.graalvm.buildtools.native") version "0.10.4"
-    id("gg.jte.gradle") version "3.1.15"
-    id("com.google.protobuf") version "0.9.4"
+    kotlin("jvm") version "2.4.10"
+    id("com.gradleup.shadow") version "9.6.1"
+    id("org.graalvm.buildtools.native") version "1.1.8"
+    id("gg.jte.gradle") version "3.2.4"
+    id("com.google.protobuf") version "0.10.0"
     application
 }
 
@@ -37,10 +37,8 @@ dependencies {
     implementation("org.http4k:http4k-core:$http4kVersion")
     implementation("org.http4k:http4k-server-jetty:$http4kVersion")
     implementation("org.http4k:http4k-format-jackson:$http4kVersion")
-    implementation("org.http4k:http4k-contract:$http4kVersion")
-    implementation("org.http4k:http4k-metrics-micrometer:$http4kVersion")
-    implementation("gg.jte:jte:3.1.15")
-    implementation("gg.jte:jte-kotlin:3.1.15")
+    implementation("gg.jte:jte:3.2.4")
+    implementation("gg.jte:jte-kotlin:3.2.4")
     implementation("com.h2database:h2:2.4.240")
     implementation("commons-dbutils:commons-dbutils:1.8.1")
     implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
@@ -120,7 +118,7 @@ application {
 }
 
 // Generate build profile property for conditional compilation
-val generateBuildConfig by tasks.registering {
+val generateBuildConfig = tasks.register("generateBuildConfig") {
     val outputDir = layout.buildDirectory.dir("generated/buildconfig")
     outputs.dir(outputDir)
     doLast {
@@ -152,8 +150,13 @@ tasks.named("compileKotlin") {
 
 tasks.withType<KotlinJvmCompile>().configureEach {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
     }
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    sourceCompatibility = JavaVersion.VERSION_21.toString()
+    targetCompatibility = JavaVersion.VERSION_21.toString()
 }
 
 jte {
@@ -162,15 +165,22 @@ jte {
     contentType.set(gg.jte.ContentType.Html)
 }
 
-val jar by tasks.getting(Jar::class) {
+// Test sources are standalone `main`-based runners (no JUnit @Test methods),
+// executed manually. Keep `./gradlew build` green when Gradle finds no tests.
+tasks.withType<Test>().configureEach {
+    failOnNoDiscoveredTests = false
+}
+
+val jar = tasks.named("jar", Jar::class) {
     manifest {
         attributes["Main-Class"] = "onmindxdb"
     }
 }
 
-val shadowJar by tasks.getting(ShadowJar::class) {
+val shadowJar = tasks.named("shadowJar", ShadowJar::class) {
     archiveClassifier.set(if (isLite) "lite" else "full")
     mergeServiceFiles()
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     manifest {
         attributes(mapOf("Main-Class" to "onmindxdb"))
     }

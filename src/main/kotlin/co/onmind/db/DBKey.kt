@@ -71,7 +71,7 @@ class DBKey(): AbstractDB {
 
     fun tableDDL(driver: String? = null): String = xtableDDL(table,columnsList,dataTypes,sizes,nulls,defaults,key,unique,driver ?: "h2")
 
-    fun values(row: XYKey) = arrayOf(
+    fun values(row: XYKey) = arrayOf<Any?>(
         row.id,
         row.keyxy,
         row.key00,

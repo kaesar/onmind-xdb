@@ -117,7 +117,7 @@ interface AbstractDB {
             //else
             if (driver!!.indexOf("firebird") > -1)
                 ddl = ddl.replace("not null default","default",true)
-            else if (driver!!.indexOf("oracle") > -1) {
+            else if (driver.indexOf("oracle") > -1) {
                 ddl = ddl.replace("not null default","default",true)
                 ddl = ddl.replace("integer","number(16)",true)
                 ddl = ddl.replace("real","number(20,8)",true)

@@ -62,7 +62,7 @@ class DBKit(): AbstractDB {
 
     fun tableDDL(driver: String? = null): String = xtableDDL(table,columnsList,dataTypes,sizes,nulls,defaults,key,unique,driver ?: "h2")
 
-    fun values(row: XYKit) = arrayOf(
+    fun values(row: XYKit) = arrayOf<Any?>(
         row.id,
         row.kitxy,
         row.kit01,

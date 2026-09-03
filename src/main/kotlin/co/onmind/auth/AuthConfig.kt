@@ -16,6 +16,10 @@ data class AuthConfig(
     val cognitoRegion: String? = null,
     val cognitoUserPoolId: String? = null,
     val cognitoClientId: String? = null,
+    /** HMAC shared secret to verify OnMind-UID HS256 JWTs. */
+    val jwtSharedSecret: String? = null,
+    /** Expected `iss` claim (OnMind-UID `uid.issuer`). */
+    val jwtIssuer: String? = null,
     val oidcUrl: String? = null,
     val oidcRealm: String? = null,
     val oidcClientId: String? = null,
@@ -37,18 +41,24 @@ data class AuthConfig(
         type == AuthType.COGNITO -> CognitoPlug(
             cognitoRegion ?: error("auth.cognito.region required"),
             cognitoUserPoolId ?: error("auth.cognito.user_pool_id required"),
-            cognitoClientId ?: error("auth.cognito.client_id required")
+            cognitoClientId ?: error("auth.cognito.client_id required"),
+            sharedSecret = jwtSharedSecret,
+            expectedIssuer = jwtIssuer
         )
         type == AuthType.KEYCLOAK -> OIDCPlug(
             serverUrl = oidcUrl,
             realm = oidcRealm,
             clientId = oidcClientId ?: error("auth.oidc.client_id required"),
-            provider = "KEYCLOAK"
+            provider = "KEYCLOAK",
+            sharedSecret = jwtSharedSecret,
+            expectedIssuer = jwtIssuer
         )
         type == AuthType.ENTRAID -> OIDCPlug(
             serverUrl = oidcUrl,
             clientId = oidcClientId ?: error("auth.oidc.client_id required"),
-            provider = "ENTRAID"
+            provider = "ENTRAID",
+            sharedSecret = jwtSharedSecret,
+            expectedIssuer = jwtIssuer
         )
         type == AuthType.OIDC -> OIDCPlug(
             serverUrl = oidcUrl,
@@ -57,7 +67,9 @@ data class AuthConfig(
             userClaim = oidcUserClaim ?: "sub",
             emailClaim = oidcEmailClaim ?: "email",
             rolesClaim = oidcRolesClaim,
-            provider = "OIDC"
+            provider = "OIDC",
+            sharedSecret = jwtSharedSecret,
+            expectedIssuer = jwtIssuer
         )
         type == AuthType.OTPMAIL -> OTPMailPlug(
             smtpHost = otpSmtpHost,
@@ -97,6 +109,8 @@ data class AuthConfig(
                 cognitoRegion = config.getProperty("auth.cognito.region"),
                 cognitoUserPoolId = config.getProperty("auth.cognito.user_pool_id"),
                 cognitoClientId = config.getProperty("auth.cognito.client_id"),
+                jwtSharedSecret = config.getProperty("auth.jwt.secret") ?: config.getProperty("jwt.secret"),
+                jwtIssuer = config.getProperty("auth.jwt.issuer") ?: config.getProperty("jwt.issuer"),
                 oidcUrl = config.getProperty("auth.oidc.url") ?: config.getProperty("auth.keycloak.url"),
                 oidcRealm = config.getProperty("auth.oidc.realm") ?: config.getProperty("auth.keycloak.realm"),
                 oidcClientId = config.getProperty("auth.oidc.client_id") ?: config.getProperty("auth.keycloak.client_id"),
