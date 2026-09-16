@@ -1,0 +1,278 @@
+@param mode: String = "local"
+@param authUser: String = "anonymous"
+@param showLogout: Boolean = false
+@param logoutUrl: String = ""
+
+@template.layout(title = "Files", showLogout = showLogout, logoutUrl = logoutUrl, content = @`
+    <div class="p-8">
+        <div class="flex justify-between items-center mb-6 ml-12">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-800">Files</h1>
+                <p class="text-sm text-slate-600 mt-1">Blob storage · <span class="font-mono" id="filesModePill">${mode}</span></p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="window.syncFiles()" class="px-3 py-2 rounded border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm cursor-pointer">
+                    <i data-lucide="refresh-cw" class="w-4 h-4 inline-block align-text-bottom mr-1"></i>Sync
+                </button>
+                <button onclick="window.openUploadModal()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 border-0 cursor-pointer">
+                    <i data-lucide="upload" class="w-4 h-4 inline-block align-text-bottom mr-1"></i>Upload
+                </button>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 mb-5 ml-12">
+            <input id="fileSearch" type="text" placeholder="Search..." oninput="window.filesFilter()"
+                   class="px-3 py-2 rounded border border-slate-200 text-sm w-64" />
+            <select id="fileMimeFilter" onchange="window.filesFilter()" class="px-3 py-2 rounded border border-slate-200 text-sm">
+                <option value="">All types</option>
+                <option value="image">Images</option>
+                <option value="pdf">PDF</option>
+                <option value="application">Documents</option>
+                <option value="text">Text</option>
+            </select>
+            <label class="flex items-center gap-2 text-sm text-slate-600">
+                <input type="checkbox" id="fileUserOnly" onchange="window.filesFilter()" /> Mine only
+            </label>
+        </div>
+
+        <div id="filesEmpty" class="bg-white rounded-lg shadow p-8 text-center text-slate-500 hidden">
+            <p class="text-lg">No files found</p>
+            <p class="text-sm mt-2">Upload your first file to get started</p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow overflow-hidden ml-12">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
+                    <tr>
+                        <th class="px-4 py-3 w-8"><input type="checkbox" id="fileSelectAll" onchange="window.filesSelectAll()" /></th>
+                        <th class="px-4 py-3">Name</th>
+                        <th class="px-4 py-3">Type</th>
+                        <th class="px-4 py-3">Size</th>
+                        <th class="px-4 py-3">Uploaded by</th>
+                        <th class="px-4 py-3">Date</th>
+                        <th class="px-4 py-3 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="filesTbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <as-modal id="uploadModal" title="Upload File">
+        <div class="p-4 space-y-3">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">File</label>
+                <input type="file" id="uploadFileInput" class="block w-full text-sm" />
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Tags (comma separated)</label>
+                <input type="text" id="uploadTagsInput" placeholder="docs, report"
+                       class="w-full px-3 py-2 rounded border border-slate-200 text-sm" />
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="document.getElementById('uploadModal').hide()" class="px-4 py-2 rounded border border-slate-200 text-sm cursor-pointer">Cancel</button>
+                <button onclick="window.startUpload()" class="bg-blue-600 text-white px-4 py-2 rounded text-sm border-0 cursor-pointer">
+                    Upload
+                </button>
+            </div>
+        </div>
+    </as-modal>
+
+    <as-modal id="metaModal" title="File Metadata">
+        <div id="metaContent" class="p-4 text-sm font-mono whitespace-pre-wrap"></div>
+    </as-modal>
+
+    <as-popup id="rowPopup" options="label=Download,value=download;label=Copy URL,value=url;label=Metadata,value=meta;label=Delete,value=delete"></as-popup>
+
+    <script type="module">
+        const MODE = '@{mode}';
+        const CURRENT_USER = '@{authUser}';
+        let files = [];
+        let currentRow = null;
+
+        function el(id) { return document.getElementById(id); }
+
+        function fmtSize(bytes) {
+            if (!bytes && bytes !== 0) return '-';
+            const units = ['B', 'KB', 'MB', 'GB'];
+            let i = 0, v = bytes;
+            while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+            return v.toFixed(i === 0 ? 0 : 1) + ' ' + units[i];
+        }
+
+        function fmtDate(iso) {
+            if (!iso) return '-';
+            const d = new Date(iso.replace(' ', 'T'));
+            return isNaN(d) ? iso : d.toLocaleDateString();
+        }
+
+        async function loadFiles() {
+            try {
+                const r = await fetch('/file');
+                const j = await r.json();
+                files = (j && j.data) ? j.data : [];
+                render();
+            } catch (e) {
+                showToast('Failed to load files: ' + e.message);
+            }
+        }
+
+        function render() {
+            const tbody = el('filesTbody');
+            tbody.innerHTML = '';
+            const q = (el('fileSearch').value || '').toLowerCase();
+            const mime = el('fileMimeFilter').value;
+            const mineOnly = el('fileUserOnly').checked;
+
+            const filtered = files.filter(f => {
+                if (q && !(f.name || '').toLowerCase().includes(q) && !(f.tags || '').toLowerCase().includes(q)) return false;
+                if (mime && !(f.mime || '').startsWith(mime)) return false;
+                if (mineOnly && f.uploadedBy !== CURRENT_USER) return false;
+                return true;
+            });
+
+            el('filesEmpty').classList.toggle('hidden', filtered.length > 0);
+
+            filtered.forEach(f => {
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-slate-100 hover:bg-slate-50';
+                tr.innerHTML = '<td class="px-4 py-3"><input type="checkbox" class="fileRowCheck" data-id="' + f.id + '" /></td>' +
+                    '<td class="px-4 py-3 font-medium text-slate-800">' + iconFor(f.mime) + ' ' + (f.name || '-') + '</td>' +
+                    '<td class="px-4 py-3 text-slate-500">' + (f.mime || '-') + '</td>' +
+                    '<td class="px-4 py-3 text-slate-500">' + fmtSize(f.size) + '</td>' +
+                    '<td class="px-4 py-3 text-slate-500">' + (f.uploadedBy || '-') + '</td>' +
+                    '<td class="px-4 py-3 text-slate-500">' + fmtDate(f.createdAt) + '</td>' +
+                    '<td class="px-4 py-3 text-right">' +
+                    '<button data-action="row" data-id="' + f.id + '" class="p-1 rounded hover:bg-slate-100 cursor-pointer">' +
+                    '<i data-lucide="more-vertical" class="w-4 h-4 text-slate-500"></i>' +
+                    '</button></td>';
+                tr.querySelector('[data-action="row"]').addEventListener('click', (e) => {
+                    currentRow = f;
+                    const popup = el('rowPopup');
+                    popup.show(e.clientX, e.clientY);
+                });
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        }
+
+        function iconFor(mime) {
+            if (!mime) return '📄';
+            if (mime.startsWith('image')) return '🖼️';
+            if (mime === 'application/pdf') return '📕';
+            if (mime.includes('spreadsheet') || mime.includes('excel')) return '📊';
+            if (mime.startsWith('text')) return '📝';
+            return '📄';
+        }
+
+        window.filesFilter = () => render();
+
+        window.filesSelectAll = function() {
+            const checked = el('fileSelectAll').checked;
+            document.querySelectorAll('.fileRowCheck').forEach(c => c.checked = checked);
+        };
+
+        function selectedIds() {
+            return Array.from(document.querySelectorAll('.fileRowCheck:checked')).map(c => c.dataset.id);
+        }
+
+        window.openUploadModal = function() {
+            currentRow = null;
+            el('uploadFileInput').value = '';
+            el('uploadTagsInput').value = '';
+            el('uploadModal').show();
+        };
+
+        window.startUpload = async function() {
+            const input = el('uploadFileInput');
+            if (!input.files || !input.files.length) { showToast('Select a file first'); return; }
+            const file = input.files[0];
+            const tags = el('uploadTagsInput').value.trim();
+
+            try {
+                const presignRes = await fetch('/file/presign-upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: file.name, mime: file.type || 'application/octet-stream', size: file.size, tags: tags || undefined })
+                });
+                const presign = await presignRes.json();
+                if (!presignRes.ok || !presign.ok) { showToast(presign.error || 'Presign failed'); return; }
+
+                if (presign.mode === 'local') {
+                    const putRes = await fetch('/file/' + encodeURIComponent(presign.fileId), {
+                        method: 'PUT',
+                        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+                        body: file
+                    });
+                    if (!putRes.ok) { showToast('Upload to server failed'); return; }
+                } else {
+                    const putRes = await fetch(presign.uploadUrl, { method: 'PUT', body: file });
+                    if (!putRes.ok) { showToast('Upload to bucket failed (' + putRes.status + ')'); return; }
+                }
+
+                const checksum = await sha256(file);
+                const confirmRes = await fetch('/file/confirm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fileId: presign.fileId,
+                        s3Key: presign.s3Key,
+                        name: file.name,
+                        mime: file.type || 'application/octet-stream',
+                        size: file.size,
+                        checksum: checksum,
+                        tags: tags || undefined
+                    })
+                });
+                const confirm = await confirmRes.json();
+                if (!confirmRes.ok || !confirm.ok) { showToast(confirm.error || 'Confirm failed'); return; }
+
+                el('uploadModal').hide();
+                showToast('File uploaded successfully');
+                loadFiles();
+            } catch (e) {
+                showToast('Upload error: ' + e.message);
+            }
+        };
+
+        async function sha256(file) {
+            try {
+                const buf = await file.arrayBuffer();
+                const digest = await crypto.subtle.digest('SHA-256', buf);
+                return Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+            } catch (_) { return ''; }
+        }
+
+        window.syncFiles = function() { loadFiles(); };
+
+        // Row popup actions
+        el('rowPopup').addEventListener('option-select', async (e) => {
+            if (!currentRow) return;
+            const row = currentRow;
+            const v = e.detail.value;
+            if (v === 'download') {
+                window.location.href = '/file/' + encodeURIComponent(row.id);
+            } else if (v === 'url') {
+                try {
+                    const r = await fetch('/file/' + encodeURIComponent(row.id) + '/url');
+                    const j = await r.json();
+                    if (j.downloadUrl) {
+                        await navigator.clipboard.writeText(j.downloadUrl);
+                        showToast('URL copied to clipboard');
+                    } else showToast(j.error || 'Could not get URL');
+                } catch (err) { showToast('Error: ' + err.message); }
+            } else if (v === 'meta') {
+                el('metaContent').textContent = JSON.stringify(row, null, 2);
+                el('metaModal').show();
+            } else if (v === 'delete') {
+                if (!confirm('Delete "' + (row.name || row.id) + '"?')) return;
+                const r = await fetch('/file/' + encodeURIComponent(row.id), { method: 'DELETE' });
+                const j = await r.json().catch(() => ({}));
+                if (r.ok && j.ok !== false) { showToast('File deleted'); loadFiles(); }
+                else showToast((j.error || 'Delete failed'));
+            }
+        });
+
+        loadFiles();
+    </script>
+`)

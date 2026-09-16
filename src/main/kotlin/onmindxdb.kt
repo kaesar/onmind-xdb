@@ -33,6 +33,10 @@ import co.onmind.db.RDB
 import co.onmind.auth.AuthConfig
 import co.onmind.auth.AuthType
 import co.onmind.auth.OTPMailPlug
+import co.onmind.file.FileAPI
+import co.onmind.file.FileMeta
+import co.onmind.file.FileService
+import co.onmind.file.FileStorage
 import co.onmind.mcp.AbcMcpChat
 import co.onmind.mcp.AbcMcpLlm
 import co.onmind.mcp.AbcMcpServer
@@ -52,6 +56,9 @@ object onmindxdb {
     /** When true, UI shows a logout link (not NoAuth; only strategies with a real logout URL). */
     var uiShowLogout: Boolean = false
     var uiLogoutUrl: String = ""
+    var fileEnabled = false
+    var fileService: FileService? = null
+    var fileTTL: java.time.Duration = java.time.Duration.ofHours(1)
     private val json = JsonMapper.instance
 
     @JvmStatic
@@ -104,6 +111,35 @@ object onmindxdb {
         } else null
         uiShowLogout = logoutUrl != null
         uiLogoutUrl = logoutUrl.orEmpty()
+
+        // FILES feature: blob storage (S3/RustFS/MinIO) + metadata sheet FILES.
+        fileEnabled = cfg.getProperty("file.enabled", "-") == "+"
+        fileTTL = java.time.Duration.ofMinutes(
+            cfg.getProperty("file.ttl", "60").toLongOrNull() ?: 60L
+        )
+        if (fileEnabled) {
+            val endpoint = cfg.getProperty("s3.endpoint")?.trim()?.takeIf { it.isNotEmpty() }
+            val bucket = cfg.getProperty("s3.bucket", "files")?.trim()?.ifEmpty { "files" } ?: "files"
+            val region = cfg.getProperty("s3.region", "us-east-1")?.trim()?.ifEmpty { "us-east-1" } ?: "us-east-1"
+            val accessKey = cfg.getProperty("s3.access_key")?.trim()?.takeIf { it.isNotEmpty() }
+            val secretKey = cfg.getProperty("s3.secret_key")?.trim()?.takeIf { it.isNotEmpty() }
+            val s3Service: FileService? = try {
+                if (endpoint != null) {
+                    // S3 backend lives in the full profile; reflect to keep lite green.
+                    val clazz = Class.forName("co.onmind.file.S3FileService")
+                    val ctor = clazz.getDeclaredConstructor(
+                        String::class.java, String::class.java, String::class.java,
+                        String::class.java, String::class.java
+                    )
+                    ctor.newInstance(bucket, endpoint, region, accessKey, secretKey) as FileService
+                } else null
+            } catch (e: Exception) {
+                println("[WARN] S3 backend not available (${e.message}). Falling back to local file storage.")
+                null
+            }
+            fileService = s3Service ?: FileStorage()
+            FileMeta.ensureSheet("system")
+        }
         
         val mcpEnabled = cfg.getProperty("mcp.enabled", "-") == "+"
         val mcpWrite = cfg.getProperty("mcp.write", "-") == "+"
@@ -169,6 +205,11 @@ object onmindxdb {
             routesList.add(authProvider.routes())
         }
 
+        // FILES feature: /file REST API (registered only when file.enabled=+)
+        fileService?.let { service ->
+            routesList.add(FileAPI(service, fileTTL).routes())
+        }
+
         if (enableSwagger) {
             routesList.add("/swagger" bind Method.GET to { _: Request -> Response(OK).body(Swagger.ui()).header("Content-Type", "text/html") })
         }
@@ -187,16 +228,19 @@ object onmindxdb {
                 if (CoherenceConfig.logLevel == 0)
                     println(logMsg)
             })
+            // CORS fuera del filtro auth: el propio filtro Cors responde 200 al preflight
+            // OPTIONS y añade cabeceras a TODAS las respuestas (incluidos los 401), en vez
+            // de que el navegador los enmascare como errores CORS.
+            .then(Cors(CorsPolicy(
+                OriginPolicy.AllowAll(),
+                listOf("Content-Type", "Cache-Control", "X-Request-Id", "Authorization"),
+                listOf(Method.POST, Method.GET, Method.PUT, Method.DELETE, Method.PATCH)
+            )))
             .then(Filter { next -> { request ->
                 val path = request.uri.path
                 val isPublic = path in publicPaths || publicPrefixes.any { path.startsWith(it) }
                 if (isPublic) next(request) else authProvider.filter().invoke(next)(request)
             }})
-            .then(Cors(CorsPolicy(
-                OriginPolicy.AllowAll(),
-                listOf("Content-Type", "Cache-Control", "X-Request-Id"),
-                listOf(Method.POST, Method.GET)
-            )))
             .then(routes(*routesList.toTypedArray()))
 
         if (mcpEnabled) {
@@ -213,6 +257,12 @@ object onmindxdb {
             println("$llmLine\n")
         } else {
             println("[  OK!  ] => http://127.0.0.1:${port}\n")
+        }
+
+        if (fileEnabled) {
+            val mode = if (fileService is FileStorage) "local" else "s3"
+            val bucket = fileService?.bucket ?: "-"
+            println("FILES feature => /file (mode: $mode, bucket: $bucket, UI: /app/files)")
         }
 
         if (grpcEnabled) {
@@ -242,6 +292,7 @@ object onmindxdb {
                 }
             } catch (_: Exception) {
             }
+            fileService?.close()
             Trace.shutdown()
         })
 

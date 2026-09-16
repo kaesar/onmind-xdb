@@ -23,6 +23,19 @@ object Rote {
     var port = 9990
     var embedded = false
 
+    /** Resolve dots and `..` segments in the app.local path. */
+    fun normalize(path: String): String {
+        val cleaned = path.replace("\\", "/").removeSuffix("/")
+        val parts = cleaned.split("/").filter { it.isNotEmpty() && it != "." }
+        val stack = ArrayDeque<String>()
+        for (p in parts) {
+            if (p == "..") {
+                if (stack.isNotEmpty()) stack.removeLast()
+            } else stack.addLast(p)
+        }
+        return stack.joinToString("/")
+    }
+
     fun getConfigFile(): String {
         try {
             // 1. Verificar archivo de configuracion en directorio inmediatamente anterior
@@ -110,6 +123,18 @@ object Rote {
                             auth.basic.user = YWRtaW4=
                             auth.basic.pass = YWRtaW4=
                             
+                            # FILES feature — blob storage (RustFS/MinIO/AWS S3)
+                            # file.enabled = + activates /file API, FILES sheet and /app/files UI.
+                            # With s3.endpoint set, presigned URLs point to that S3-compatible
+                            # service; without it, blobs live under <app.local>/xy/files (local mode).
+                            file.enabled = -
+                            file.ttl = 60
+                            s3.endpoint = http://rustfs:9000
+                            s3.region = us-east-1
+                            s3.bucket = files
+                            s3.access_key =
+                            s3.secret_key =
+                            
                             # OIDC / Keycloak / EntraID configuration
                             auth.oidc.url = http://localhost:8080
                             auth.oidc.realm = master
@@ -174,7 +199,7 @@ object Rote {
             } else if (!File(path + "xy").exists()) File(path + "xy").mkdir()
         } else println("\nGetting 'onmind' folder ... [  OK!  ] => $path")
 
-        path += "xy/"
+        path = normalize(path) + "/xy/"
         if (os.contains("Windows")) path = path.replace("/", "\\")
 
         if (driver == "6") {

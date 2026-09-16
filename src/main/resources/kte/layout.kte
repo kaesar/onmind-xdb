@@ -103,6 +103,10 @@
                 <i data-lucide="table" class="w-5 h-5"></i>
                 <span>Sheets</span>
             </a>
+            <a href="/app/files">
+                <i data-lucide="file" class="w-5 h-5"></i>
+                <span>Files</span>
+            </a>
             <a href="https://onmind.net/onmind/en/OnMind-XDB" target="_blank">
                 <i data-lucide="book-open" class="w-5 h-5"></i>
                 <span>Documentation</span>
@@ -167,6 +171,17 @@
         initTheme();
         initMobile();
         lucide.createIcons();
+        
+        // Highlight active sidebar link
+        (function highlightActive() {
+            const path = window.location.pathname;
+            document.querySelectorAll('.sidebar a').forEach(a => {
+                const href = a.getAttribute('href') || '';
+                if (path === href || (href.endsWith('/') && path.startsWith(href)) || (href === '/app/data' && path.startsWith('/app/data/'))) {
+                    a.classList.add('active');
+                }
+            });
+        })();
         
         function filterTable(input, tableId) {
             const filter = input.value.toLowerCase();

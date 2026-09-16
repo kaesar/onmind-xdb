@@ -10,7 +10,8 @@ build/
 jte-classes/
 old-http4k.zip
 old-dce.zip
-gradle*
+# Gradle wrapper SÍ se versiona (requerido por CI): gradlew, gradlew.bat,
+# gradle/wrapper y gradle.properties. Solo se ignora la caché local .gradle/.
 make-native*
 *build_artifacts.txt
 *.dll

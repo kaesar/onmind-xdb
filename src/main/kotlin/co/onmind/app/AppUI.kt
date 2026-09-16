@@ -44,6 +44,7 @@ class AppUI {
         "/app/users" bind Method.GET to { _: Request -> usersList() },
         "/app/settings" bind Method.GET to { _: Request -> settingsList() },
         "/app/sheets" bind Method.GET to { _: Request -> sheetsList() },
+        "/app/files" bind Method.GET to { req: Request -> filesList(req) },
         "/app/config" bind Method.GET to { _: Request -> configRead() },
         "/app/config" bind Method.POST to { req: Request -> configWrite(req) }
     )
@@ -171,6 +172,24 @@ class AppUI {
             "sheetsJson" to json.writeValueAsString(sheets),
             "columnsJson" to json.writeValueAsString(columns)
         ))
+        return Response(Status.OK).body(output).header("Content-Type", "text/html; charset=utf-8")
+    }
+
+    private fun filesList(req: Request): Response {
+        if (!onmindxdb.uiEnabled) {
+            return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
+        }
+        if (!onmindxdb.fileEnabled) {
+            return Response(Status.OK).body(Rote.welcome()).header("Content-Type", "text/html; charset=utf-8")
+        }
+        val mode = if (onmindxdb.fileService is co.onmind.file.FileStorage) "local" else "s3"
+        val output = renderTemplate(
+            "files",
+            mapOf(
+                "mode" to mode,
+                "authUser" to req.authUser()
+            )
+        )
         return Response(Status.OK).body(output).header("Content-Type", "text/html; charset=utf-8")
     }
 
