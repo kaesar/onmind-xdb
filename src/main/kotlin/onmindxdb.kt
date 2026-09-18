@@ -6,6 +6,7 @@ import org.http4k.core.Status
 import org.http4k.core.Status.Companion.OK
 import org.http4k.core.then
 import org.http4k.filter.AllowAll
+import org.http4k.filter.AnyOf
 import org.http4k.filter.CorsPolicy
 import org.http4k.filter.OriginPolicy
 import org.http4k.filter.ServerFilters.Cors
@@ -231,11 +232,8 @@ object onmindxdb {
             // CORS fuera del filtro auth: el propio filtro Cors responde 200 al preflight
             // OPTIONS y añade cabeceras a TODAS las respuestas (incluidos los 401), en vez
             // de que el navegador los enmascare como errores CORS.
-            .then(Cors(CorsPolicy(
-                OriginPolicy.AllowAll(),
-                listOf("Content-Type", "Cache-Control", "X-Request-Id", "Authorization"),
-                listOf(Method.POST, Method.GET, Method.PUT, Method.DELETE, Method.PATCH)
-            )))
+            // dai.cors = * (eXpress default) -> AllowAll; o lista separada por comas.
+            .then(Cors(buildCorsPolicy()))
             .then(Filter { next -> { request ->
                 val path = request.uri.path
                 val isPublic = path in publicPaths || publicPrefixes.any { path.startsWith(it) }
@@ -297,6 +295,22 @@ object onmindxdb {
         })
 
         serve.block()
+    }
+
+    private fun buildCorsPolicy(): CorsPolicy {
+        val origins = config?.let { Rote.corsOrigins(it) }
+        val originPolicy = if (origins == null) {
+            println("CORS => AllowAll (eXpress default, dai.cors=*)")
+            OriginPolicy.AllowAll()
+        } else {
+            println("CORS => restricted to ${origins.joinToString(", ")}")
+            OriginPolicy.AnyOf(origins)
+        }
+        return CorsPolicy(
+            originPolicy,
+            listOf("Content-Type", "Cache-Control", "X-Request-Id", "Authorization"),
+            listOf(Method.POST, Method.GET, Method.PUT, Method.DELETE, Method.PATCH)
+        )
     }
 
     private fun handleRoot(): (Request) -> Response = { _: Request ->

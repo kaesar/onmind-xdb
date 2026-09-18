@@ -20,12 +20,16 @@ data class AuthConfig(
     val jwtSharedSecret: String? = null,
     /** Expected `iss` claim (OnMind-UID `uid.issuer`). */
     val jwtIssuer: String? = null,
+    /** Expected `aud` claim. Null = no audience check (eXpress default). */
+    val jwtAudience: String? = null,
     val oidcUrl: String? = null,
     val oidcRealm: String? = null,
     val oidcClientId: String? = null,
     val oidcUserClaim: String? = null,
     val oidcEmailClaim: String? = null,
     val oidcRolesClaim: String? = null,
+    /** Explicit JWKS URL for RS256 verification (Keycloak, Entra ID, ...). */
+    val oidcJwksUrl: String? = null,
     val otpSmtpHost: String = "localhost",
     val otpSmtpPort: String = "1025",
     val otpSmtpUser: String = "",
@@ -49,16 +53,26 @@ data class AuthConfig(
             serverUrl = oidcUrl,
             realm = oidcRealm,
             clientId = oidcClientId ?: error("auth.oidc.client_id required"),
+            userClaim = oidcUserClaim ?: "sub",
+            emailClaim = oidcEmailClaim ?: "email",
+            rolesClaim = oidcRolesClaim,
             provider = "KEYCLOAK",
             sharedSecret = jwtSharedSecret,
-            expectedIssuer = jwtIssuer
+            expectedIssuer = jwtIssuer,
+            expectedAudience = jwtAudience,
+            jwksUrl = oidcJwksUrl
         )
         type == AuthType.ENTRAID -> OIDCPlug(
             serverUrl = oidcUrl,
             clientId = oidcClientId ?: error("auth.oidc.client_id required"),
+            userClaim = oidcUserClaim ?: "sub",
+            emailClaim = oidcEmailClaim ?: "email",
+            rolesClaim = oidcRolesClaim,
             provider = "ENTRAID",
             sharedSecret = jwtSharedSecret,
-            expectedIssuer = jwtIssuer
+            expectedIssuer = jwtIssuer,
+            expectedAudience = jwtAudience,
+            jwksUrl = oidcJwksUrl
         )
         type == AuthType.OIDC -> OIDCPlug(
             serverUrl = oidcUrl,
@@ -69,7 +83,9 @@ data class AuthConfig(
             rolesClaim = oidcRolesClaim,
             provider = "OIDC",
             sharedSecret = jwtSharedSecret,
-            expectedIssuer = jwtIssuer
+            expectedIssuer = jwtIssuer,
+            expectedAudience = jwtAudience,
+            jwksUrl = oidcJwksUrl
         )
         type == AuthType.OTPMAIL -> OTPMailPlug(
             smtpHost = otpSmtpHost,
@@ -111,12 +127,14 @@ data class AuthConfig(
                 cognitoClientId = config.getProperty("auth.cognito.client_id"),
                 jwtSharedSecret = config.getProperty("auth.jwt.secret") ?: config.getProperty("jwt.secret"),
                 jwtIssuer = config.getProperty("auth.jwt.issuer") ?: config.getProperty("jwt.issuer"),
+                jwtAudience = config.getProperty("auth.jwt.audience") ?: config.getProperty("jwt.audience"),
                 oidcUrl = config.getProperty("auth.oidc.url") ?: config.getProperty("auth.keycloak.url"),
                 oidcRealm = config.getProperty("auth.oidc.realm") ?: config.getProperty("auth.keycloak.realm"),
                 oidcClientId = config.getProperty("auth.oidc.client_id") ?: config.getProperty("auth.keycloak.client_id"),
                 oidcUserClaim = config.getProperty("auth.oidc.user_claim"),
                 oidcEmailClaim = config.getProperty("auth.oidc.email_claim"),
                 oidcRolesClaim = config.getProperty("auth.oidc.roles_claim"),
+                oidcJwksUrl = config.getProperty("auth.oidc.jwks_url") ?: config.getProperty("auth.keycloak.jwks_url"),
                 otpSmtpHost = config.getProperty("auth.otp.smtp_host", "localhost"),
                 otpSmtpPort = config.getProperty("auth.otp.smtp_port", "1025"),
                 otpSmtpUser = config.getProperty("auth.otp.smtp_user", ""),

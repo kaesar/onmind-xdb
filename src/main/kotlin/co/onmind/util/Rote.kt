@@ -66,7 +66,7 @@ object Rote {
                         // System.exit(1)
                         val text =
                                 """
-                            # Parametros del servicio frontal para aplicaciones web
+                            # Frontend service parameters for web applications
                             app.mode = production
                             app.local = ${file.replace(fileName,"")}
                             app.base = /app
@@ -76,10 +76,12 @@ object Rote {
                             app.deploy = 0
                             app.ui = +
 
-                            # Parametros del servicio adaptador de datos
+                            # Data adapter service parameters
                             dai.deploy = xdb
                             dai.port = 9990
                             dai.host = http://localhost
+                            # CORS: "*" = eXpress default (AllowAll, no impact on already-deployed apps).
+                            # Or comma-separated list of allowed origins (recommended in production):
                             dai.cors = *
 
                             # MCP (Model Context Protocol) — abc_* tools over /mcp (and /mcp/chat)
@@ -105,7 +107,7 @@ object Rote {
                             grpc.enabled = -
                             grpc.port = 9991
 
-                            # Parametros conector de base de datos
+                            # Database connector parameters
                             db.driver = 0
                             db.port = 9091
                             db.host = localhost
@@ -117,16 +119,15 @@ object Rote {
                             db.charset = UTF-8
                             db.export = -      # + enables /abc what=export to SQLite file
 
-                            # Parametros de autenticacion
+                            # Authentication parameters
                             auth.enabled = true
                             auth.type = BASIC
                             auth.basic.user = YWRtaW4=
                             auth.basic.pass = YWRtaW4=
                             
-                            # FILES feature — blob storage (RustFS/MinIO/AWS S3)
+                            # FILES — blob storage (RustFS/MinIO/AWS S3)
                             # file.enabled = + activates /file API, FILES sheet and /app/files UI.
-                            # With s3.endpoint set, presigned URLs point to that S3-compatible
-                            # service; without it, blobs live under <app.local>/xy/files (local mode).
+                            # With s3.endpoint set, presigned URLs point to that S3-compatible service.
                             file.enabled = -
                             file.ttl = 60
                             s3.endpoint = http://rustfs:9000
@@ -136,9 +137,20 @@ object Rote {
                             s3.secret_key =
                             
                             # OIDC / Keycloak / EntraID configuration
+                            # eXpress mode (default): without jwks or secret the JWT is simply decoded
+                            # Production: configure ONE of these two real validations:
+                            #   RS256 via JWKS (Keycloak/Entra ID) -> auth.oidc.jwks_url, or
+                            #   HS256 via shared secret (OnMind-UID) -> auth.jwt.secret
                             auth.oidc.url = http://localhost:8080
                             auth.oidc.realm = master
                             auth.oidc.client_id = onmind-xdb
+                            # auth.oidc.jwks_url = http://localhost:8080/realms/master/protocol/openid-connect/certs
+                            #   (KEYCLOAK/OIDC with realm: auto-derived from auth.oidc.url + realm;
+                            #    ENTRAID: requires explicit jwks_url, e.g.
+                            #    https://login.microsoftonline.com/<tenant>/discovery/v2.0/keys)
+                            # auth.jwt.secret = <same jwt.secret as OnMind-UID>
+                            # auth.jwt.issuer = http://localhost:8080
+                            # auth.jwt.audience = <client_id>  # expected aud (optional)
                             # auth.oidc.user_claim = sub
                             # auth.oidc.roles_claim = roles
 
@@ -151,7 +163,7 @@ object Rote {
                             # auth.otp.session_key = change-me-otp-session-key
                             # auth.otp.auto_register = true
 
-                            # Parametros de persistencia
+                            # Persistence parameters
                             kv.store = mvstore
                             kv.mvstore.name = xybox
                             kv.dynamodb.table = onmind-xdb
@@ -297,6 +309,25 @@ object Rote {
     fun isUIEnabled(config: Properties): Boolean {
         return config.getProperty("app.ui", "+") == "+"
     }
+
+    /**
+     * Parsea `dai.cors`.
+     * @return null = AllowAll (eXpress default: ausente, vacío o `"*"`),
+     *   o la lista de orígenes permitidos (URLs separadas por coma).
+     */
+    fun parseCorsOrigins(raw: String?): List<String>? {
+        if (raw.isNullOrBlank()) return null
+        if (raw.trim() == "*") return null
+        val origins = raw.split(",")
+            .map { it.trim().removeSuffix("/") }
+            .filter { it.isNotEmpty() }
+            .distinct()
+        return origins.ifEmpty { null }
+    }
+
+    /** Orígenes CORS desde la config (`dai.cors = *` por defecto). */
+    fun corsOrigins(config: Properties): List<String>? =
+        parseCorsOrigins(config.getProperty("dai.cors", "*"))
 
     fun welcome() =
             """<!doctype html>

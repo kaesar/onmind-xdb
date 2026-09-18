@@ -22,8 +22,31 @@ class OIDCPlug(
     /** HMAC shared secret for HS256 JWT verification (OnMind-UID default). */
     private val sharedSecret: String? = null,
     /** Expected `iss` claim (OnMind-UID `uid.issuer`). */
-    private val expectedIssuer: String? = null
+    private val expectedIssuer: String? = null,
+    /** Expected `aud` claim. Null = no audience check (eXpress default). */
+    private val expectedAudience: String? = null,
+    /**
+     * JWKS URL for RS256 verification (Keycloak, Entra ID, ...).
+     * If null and provider is KEYCLOAK (or OIDC with realm), it tries derived as
+     * `{serverUrl}/realms/{realm}/protocol/openid-connect/certs`.
+     */
+    private val jwksUrl: String? = null
 ) : AuthProvider {
+
+    companion object {
+        /** Derive the Keycloak certs endpoint, or null when it cannot be derived. */
+        fun defaultJwksUrl(serverUrl: String?, realm: String?, provider: String): String? {
+            if (serverUrl.isNullOrBlank() || realm.isNullOrBlank()) return null
+            if (!provider.equals("KEYCLOAK", ignoreCase = true) &&
+                !provider.equals("OIDC", ignoreCase = true)) return null
+            return serverUrl.trimEnd('/') + "/realms/" + realm.trim('/') + "/protocol/openid-connect/certs"
+        }
+    }
+
+    private val effectiveJwksUrl: String? =
+        jwksUrl?.takeIf { it.isNotBlank() } ?: defaultJwksUrl(serverUrl, realm, provider)
+
+    private var legacyWarningLogged = false
     
     private val json = JsonMapper.instance
 
@@ -45,12 +68,23 @@ class OIDCPlug(
         if (authHeader != null && authHeader.startsWith("Bearer ", ignoreCase = true)) {
             val token = authHeader.substring(7)
 
-            // When a shared secret is configured, verify signature/exp/iss before trusting the token.
-            val claims: Map<String, Any> = if (!sharedSecret.isNullOrEmpty()) {
-                JwtValidator.verify(token, sharedSecret, issuer = expectedIssuer, audience = null)
+            // Real verification when configured (JWKS RS256 first, then HS256 secret).
+            // Without either, keep the legacy eXpress behaviour (decode only).
+            val claims: Map<String, Any> = if (effectiveJwksUrl != null) {
+                JwksValidator.verify(token, effectiveJwksUrl, issuer = expectedIssuer, audience = expectedAudience)
+                    ?: return AuthResult.Failure("Invalid JWT signature, issuer, audience or expired token ($provider, JWKS)")
+            } else if (!sharedSecret.isNullOrEmpty()) {
+                JwtValidator.verify(token, sharedSecret, issuer = expectedIssuer, audience = expectedAudience)
                     ?: return AuthResult.Failure("Invalid JWT signature, issuer or expired token ($provider)")
             } else {
-                // Legacy: decode only (no signature verification). Prefer configuring a shared secret.
+                // Legacy: decode only (no signature verification). Prefer configuring
+                // auth.oidc.jwks_url (RS256) or auth.jwt.secret (HS256).
+                if (!legacyWarningLogged) {
+                    legacyWarningLogged = true
+                    println("[WARN] OIDCPlug($provider): no JWKS nor shared secret configured; " +
+                        "JWT signature is NOT verified (eXpress legacy mode). " +
+                        "Set auth.oidc.jwks_url or auth.jwt.secret in onmind.ini for production.")
+                }
                 try {
                     parseJwt(token)
                 } catch (e: Exception) {

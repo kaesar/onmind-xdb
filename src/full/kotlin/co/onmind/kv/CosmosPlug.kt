@@ -89,13 +89,15 @@ class CosmosPlug : KVStore {
     }
 
     override fun forEach(action: (String, String) -> Unit) {
-        val query = "SELECT c.key, c.value FROM c"
+        // "value" es palabra reservada en Cosmos DB SQL (SC1001): corchetes +
+        // alias explícitos. El contrato forEach(key, value) no cambia.
+        val query = "SELECT c.key AS k, c[\"value\"] AS v FROM c"
         val queryOptions = CosmosQueryRequestOptions()
 
         val results = container?.queryItems(query, queryOptions, Map::class.java)
         results?.forEach { item ->
-            val docKey = item["key"]?.toString()
-            val value = item["value"]?.toString()
+            val docKey = item["k"]?.toString()
+            val value = item["v"]?.toString()
             if (docKey != null && value != null) {
                 val internalKey = toInternalKey(docKey)
                 action(internalKey, value)

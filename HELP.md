@@ -849,6 +849,30 @@ auth.oidc.client_id = onmind-xdb
 # auth.oidc.roles_claim = roles   # opcional
 ```
 
+Validación real del JWT (recomendado en producción, opt-in para no impactar
+despliegues existentes). Sin configurar nada, XDB arranca en **modo eXpress**:
+el JWT se decodifica sin verificar firma (compatible hacia atrás). Para
+producción configura UNA de estas dos opciones:
+
+```ini
+# Opción A — RS256 via JWKS (Keycloak, Entra ID, cualquier IdP OIDC)
+# KEYCLOAK/OIDC con realm: se deriva solo desde auth.oidc.url + auth.oidc.realm.
+# ENTRAID: requiere jwks_url explícita.
+auth.oidc.jwks_url = https://auth.example.com/realms/master/protocol/openid-connect/certs
+# Entra ID, ejemplo:
+# auth.oidc.jwks_url = https://login.microsoftonline.com/<tenant>/discovery/v2.0/keys
+
+# Opción B — HS256 via secreto compartido (OnMind-UID)
+auth.jwt.secret = <mismo jwt.secret de UID>
+auth.jwt.issuer = http://localhost:8080   # uid.issuer (opcional pero recomendado)
+auth.jwt.audience = <client_id>            # aud esperado (opcional)
+```
+
+Prioridad en `OIDCPlug`: `jwks_url` (RS256) → `auth.jwt.secret` (HS256) →
+legado eXpress (solo decodifica, con aviso en log). El JWKS se descarga con
+`java.net.http` y se cachea en memoria 10 minutos (con reutilización del valor
+anterior si la descarga falla).
+
 ### Uso
 
 #### Acceder a la UI
@@ -880,7 +904,10 @@ Si inválido: 401 (API) o redirect a login (UI / OTP)
 - `OTPMailPlug`: Passwordless OTP por email + cookie de sesión firmada
 - `AutheliaPlug`: Lee headers Remote-User, Remote-Email, Remote-Groups
 - `CognitoPlug`: Valida JWT token de AWS Cognito
-- `OIDCPlug`: Valida JWT de proveedores OIDC (Keycloak, Entra ID, etc.)
+- `OIDCPlug`: Valida JWT de proveedores OIDC (Keycloak, Entra ID, etc.):
+  RS256 via JWKS (`auth.oidc.jwks_url`, auto-derivado en Keycloak), HS256 via
+  secreto compartido (`auth.jwt.secret`), o decodificación legado eXpress si no
+  se configura ninguno.
 
 ### Uso en el Código
 
@@ -908,6 +935,7 @@ auth.type = OIDC            # o COGNITO
 auth.oidc.client_id = xdb-client      # id del client en UID
 auth.jwt.secret = <mismo jwt.secret de UID>
 auth.jwt.issuer = http://localhost:8080   # uid.issuer
+# auth.jwt.audience = xdb-client      # aud esperado (opcional)
 ```
 
 Con `auth.type = COGNITO` se valida además que `token_use == access` y que el
@@ -1135,9 +1163,13 @@ java -jar build/libs/xdb-1.0.0-final2024-full.jar
 app.mode = production
 app.local = /Users/home/onmind/
 dai.port = 9990
+dai.cors = *  # eXpress default (AllowAll), sino lista separada por comas
 db.driver = 0  # 0=H2, 6=DuckDB
 kv.store = mvstore
 ```
+
+> **DAI** significa **Data Access Interface**, es decir para acceso desde app externa.  
+> Puedes usar, por ejemplo: `dai.cors = https://app.example.com, https://admin.example.com`
 
 ### Testing
 
