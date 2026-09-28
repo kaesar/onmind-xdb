@@ -172,6 +172,10 @@ object onmindxdb {
             return
         }
 
+        // CORS origins resolved here (policy needed below); status printed after the banner.
+        val corsOrigins = Rote.corsOrigins(cfg)
+        val corsPolicy = buildCorsPolicy(corsOrigins)
+
         print("Exposing api/db service ... ")
         val routesList = mutableListOf(
             "/" bind Method.GET to handleRoot(),
@@ -232,8 +236,8 @@ object onmindxdb {
             // CORS fuera del filtro auth: el propio filtro Cors responde 200 al preflight
             // OPTIONS y añade cabeceras a TODAS las respuestas (incluidos los 401), en vez
             // de que el navegador los enmascare como errores CORS.
-            // dai.cors = * (eXpress default) -> AllowAll; o lista separada por comas.
-            .then(Cors(buildCorsPolicy()))
+            // app.cors = * (eXpress default) -> AllowAll; o lista separada por comas.
+            .then(Cors(corsPolicy))
             .then(Filter { next -> { request ->
                 val path = request.uri.path
                 val isPublic = path in publicPaths || publicPrefixes.any { path.startsWith(it) }
@@ -256,6 +260,9 @@ object onmindxdb {
         } else {
             println("[  OK!  ] => http://127.0.0.1:${port}\n")
         }
+
+        if (corsOrigins == null) println("CORS => AllowAll (eXpress default, app.cors=*)")
+        else println("CORS => restricted to ${corsOrigins.joinToString(", ")}")
 
         if (fileEnabled) {
             val mode = if (fileService is FileStorage) "local" else "s3"
@@ -297,15 +304,8 @@ object onmindxdb {
         serve.block()
     }
 
-    private fun buildCorsPolicy(): CorsPolicy {
-        val origins = config?.let { Rote.corsOrigins(it) }
-        val originPolicy = if (origins == null) {
-            println("CORS => AllowAll (eXpress default, dai.cors=*)")
-            OriginPolicy.AllowAll()
-        } else {
-            println("CORS => restricted to ${origins.joinToString(", ")}")
-            OriginPolicy.AnyOf(origins)
-        }
+    private fun buildCorsPolicy(origins: List<String>?): CorsPolicy {
+        val originPolicy = if (origins == null) OriginPolicy.AllowAll() else OriginPolicy.AnyOf(origins)
         return CorsPolicy(
             originPolicy,
             listOf("Content-Type", "Cache-Control", "X-Request-Id", "Authorization"),

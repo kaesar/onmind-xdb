@@ -1162,14 +1162,60 @@ java -jar build/libs/xdb-1.0.0-final2024-full.jar
 # Ubicación: ~/onmind/onmind.ini (auto-generado)
 app.mode = production
 app.local = /Users/home/onmind/
-dai.port = 9990
-dai.cors = *  # eXpress default (AllowAll), sino lista separada por comas
+app.cors = *  # eXpress default (AllowAll), sino lista separada por comas
 db.driver = 0  # 0=H2, 6=DuckDB
+dai.port = 9990
 kv.store = mvstore
 ```
 
 > **DAI** significa **Data Access Interface**, es decir para acceso desde app externa.  
-> Puedes usar, por ejemplo: `dai.cors = https://app.example.com, https://admin.example.com`
+> Puedes usar, por ejemplo: `app.cors = https://app.example.com, https://admin.example.com`
+
+#### Variables de entorno en `onmind.ini`
+
+`onmind.ini` está pensado para configuración local simple (base de datos eXpress).
+Para despliegues en servidores, cualquier valor puede tomarse de una variable de
+entorno con el prefijo reservado `os.environ/` (similar a **LiteLLM** en sus `config.yaml`):
+
+```ini
+auth.jwt.secret = os.environ/XDB_JWT_SECRET
+auth.oidc.jwks_url = os.environ/XDB_JWKS_URL
+dai.port = os.environ/XDB_PORT
+```
+
+Comportamiento (`Rote.resolveEnvRefs`, aplicado al cargar en `Rote.getConfig`):
+- Solo se resuelven valores **completos** que empiezan por `os.environ/` (sensible a
+  mayúsculas). Todo lo demás —incluidos los defaults eXpress— pasa intacto.
+- La variable debe existir: si falta, el arranque falla con un error claro que nombra
+  la propiedad y la variable (fail-fast: evita, por ejemplo, arrancar con un JWT secret
+  vacío que degradaría OIDC a modo legado sin verificar firma).
+  Excepción: `app.cors` nunca tumba el servicio —ante variable
+  ausente avisa con `[WARN]` y asume `*` (AllowAll, el default eXpress).
+- El nombre debe tener forma `NOMBRE_DE_VARIABLE` (letras, dígitos, `_`).
+- Los valores resueltos **nunca se registran en logs** (solo los nombres de propiedad).
+
+Además, la ubicación del archivo se puede fijar con la variable `ONMIND_INI`
+(útil en contenedores; si apunta a un archivo inexistente, el arranque también falla):
+
+```bash
+docker run -d \
+  -v $(pwd)/onmind-server.ini:/etc/xdb/onmind.ini \
+  -e ONMIND_INI=/etc/xdb/onmind.ini \
+  -e XDB_JWT_SECRET="$XDB_JWT_SECRET" \
+  -e XDB_CORS="https://app.example.com" \
+  -p 9990:9990 onmind-xdb
+```
+
+con `onmind-server.ini` conteniendo, por ejemplo:
+
+```ini
+app.cors = os.environ/XDB_CORS
+auth.type = OIDC
+auth.oidc.client_id = onmind-xdb
+auth.jwt.secret = os.environ/XDB_JWT_SECRET
+```
+
+Sin `os.environ/` ni `ONMIND_INI`, todo funciona como antes (modo eXpress local).
 
 ### Testing
 

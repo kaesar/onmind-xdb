@@ -14,7 +14,7 @@ import java.util.Base64
 import java.util.Properties
 
 /**
- * Verifies RS256/JWKS validation (OIDCPlug real-JWT path) and dai.cors parsing.
+ * Verifies RS256/JWKS validation (OIDCPlug real-JWT path) and app.cors parsing.
  * eXpress default must keep working: no JWKS/secret -> legacy decode-only.
  */
 object JwksValidatorTest {
@@ -174,9 +174,9 @@ object JwksValidatorTest {
         check(Rote.parseCorsOrigins("https://a.example/") == listOf("https://a.example")) { "trailing slash" }
         // Properties wiring with default "*"
         check(Rote.corsOrigins(Properties()) == null) { "missing prop -> AllowAll" }
-        val props = Properties().apply { setProperty("dai.cors", "https://a.example,https://b.example") }
+        val props = Properties().apply { setProperty("app.cors", "https://a.example,https://b.example") }
         check(Rote.corsOrigins(props) == listOf("https://a.example", "https://b.example")) { "props wiring" }
-        println("ok: dai.cors parsing (AllowAll default + comma list)")
+        println("ok: app.cors parsing (AllowAll default + comma list)")
     }
 
     private fun testExpressLegacyFallback() {

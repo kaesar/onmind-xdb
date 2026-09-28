@@ -23,6 +23,12 @@ object Rote {
     var port = 9990
     var embedded = false
 
+    /** Prefix to take an `onmind.ini` value from an env var: `os.environ/NAME`. */
+    const val ENV_REF_PREFIX = "os.environ/"
+
+    /** Env var overriding the `onmind.ini` location (useful in containers/servers). */
+    const val CONFIG_FILE_ENV = "ONMIND_INI"
+
     /** Resolve dots and `..` segments in the app.local path. */
     fun normalize(path: String): String {
         val cleaned = path.replace("\\", "/").removeSuffix("/")
@@ -38,6 +44,19 @@ object Rote {
 
     fun getConfigFile(): String {
         try {
+            // 0. Explicit override for server/container deployments (eXpress default: unset).
+            val envFile = System.getenv(CONFIG_FILE_ENV)?.trim().takeUnless { it.isNullOrEmpty() }
+            if (envFile != null) {
+                if (!File(envFile).isFile()) {
+                    throw IllegalStateException(
+                        "$CONFIG_FILE_ENV points to missing file: $envFile. " +
+                            "Set it to an existing $fileName or unset it."
+                    )
+                }
+                file = envFile
+                println("$os $file --> Checked OK! ($CONFIG_FILE_ENV)")
+                return file
+            }
             // 1. Verificar archivo de configuracion en directorio inmediatamente anterior
             if (!File(file).isFile()) {
                 // 2. Verificar archivo de configuracion en directorio del usuario y subdirectorio
@@ -66,6 +85,9 @@ object Rote {
                         // System.exit(1)
                         val text =
                                 """
+                            # OnMind-XDB configuration (auto-generated, eXpress defaults).
+                            # Any value accepts os.environ/NAME (env var); ONMIND_INI overrides this file location.
+                            #   e.g. auth.jwt.secret = os.environ/XDB_JWT_SECRET
                             # Frontend service parameters for web applications
                             app.mode = production
                             app.local = ${file.replace(fileName,"")}
@@ -75,14 +97,13 @@ object Rote {
                             app.modality = 5
                             app.deploy = 0
                             app.ui = +
+                            # CORS: "*" = eXpress default (AllowAll); or comma-separated allowed origins.
+                            app.cors = *
 
                             # Data adapter service parameters
                             dai.deploy = xdb
                             dai.port = 9990
                             dai.host = http://localhost
-                            # CORS: "*" = eXpress default (AllowAll, no impact on already-deployed apps).
-                            # Or comma-separated list of allowed origins (recommended in production):
-                            dai.cors = *
 
                             # MCP (Model Context Protocol) — abc_* tools over /mcp (and /mcp/chat)
                             # mcp.enabled = +   # expose HTTP JSON-RPC at /mcp + chat panel in Dashboard
@@ -149,6 +170,8 @@ object Rote {
                             #    ENTRAID: requires explicit jwks_url, e.g.
                             #    https://login.microsoftonline.com/<tenant>/discovery/v2.0/keys)
                             # auth.jwt.secret = <same jwt.secret as OnMind-UID>
+                            # Server example (keeps the secret out of this file):
+                            # auth.jwt.secret = os.environ/XDB_JWT_SECRET
                             # auth.jwt.issuer = http://localhost:8080
                             # auth.jwt.audience = <client_id>  # expected aud (optional)
                             # auth.oidc.user_claim = sub
@@ -191,7 +214,50 @@ object Rote {
     }
 
     fun getConfig(file: String) =
-            Properties().apply { FileInputStream(file).use { fis -> load(fis) } }
+            Properties().apply {
+                FileInputStream(file).use { fis -> load(fis) }
+                resolveEnvRefs(this)
+            }
+
+    /**
+     * Resolve whole `os.environ/NAME` values from [env]; other values pass untouched.
+     * Missing vars fail fast, except `app.cors` (never breaks startup: warns, uses "*").
+     */
+    fun resolveEnvRefs(props: Properties, env: Map<String, String> = System.getenv()): Properties {
+        val resolved = mutableListOf<String>()
+        for (key in props.stringPropertyNames()) {
+            val raw = props.getProperty(key) ?: continue
+            val trimmed = raw.trim()
+            if (!trimmed.startsWith(ENV_REF_PREFIX)) continue
+            val name = trimmed.removePrefix(ENV_REF_PREFIX).trim()
+            if (name.isEmpty() || !name.matches(Regex("[A-Za-z_][A-Za-z0-9_]*"))) {
+                throw IllegalStateException(
+                    "onmind.ini: property '$key' has an invalid environment reference '$trimmed'. " +
+                        "Use the form $ENV_REF_PREFIX<VARIABLE_NAME>."
+                )
+            }
+            val value = env[name]
+            if (value == null) {
+                // app.cors never breaks startup: warn and assume "*" (AllowAll).
+                if (key == "app.cors") {
+                    println("[WARN] onmind.ini: '$key' references missing env var '$name'; using default '*'.")
+                    props.setProperty(key, "*")
+                    continue
+                }
+                throw IllegalStateException(
+                    "onmind.ini: property '$key' references missing environment variable '$name' " +
+                        "($ENV_REF_PREFIX$name). Set it or remove the reference."
+                )
+            }
+            props.setProperty(key, value)
+            resolved.add(key)
+        }
+        // Log property names only, never resolved (potentially secret) values.
+        if (resolved.isNotEmpty()) {
+            println("[env] resolved ${resolved.size} $ENV_REF_PREFIX reference(s): ${resolved.sorted().joinToString(", ")}")
+        }
+        return props
+    }
 
     fun getDataSource(config: Properties): HikariDataSource {
         port = (config.getProperty("dai.port") ?: "9000").toInt()
@@ -311,7 +377,7 @@ object Rote {
     }
 
     /**
-     * Parsea `dai.cors`.
+     * Parsea `app.cors`.
      * @return null = AllowAll (eXpress default: ausente, vacío o `"*"`),
      *   o la lista de orígenes permitidos (URLs separadas por coma).
      */
@@ -325,9 +391,9 @@ object Rote {
         return origins.ifEmpty { null }
     }
 
-    /** Orígenes CORS desde la config (`dai.cors = *` por defecto). */
+    /** Orígenes CORS desde la config (`app.cors = *` por defecto). */
     fun corsOrigins(config: Properties): List<String>? =
-        parseCorsOrigins(config.getProperty("dai.cors", "*"))
+        parseCorsOrigins(config.getProperty("app.cors"))
 
     fun welcome() =
             """<!doctype html>
