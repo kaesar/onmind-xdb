@@ -7,6 +7,16 @@ package co.onmind.trait
 interface AbstractDB {
     //fun mapQuery(rows: RowSet<Row>): List<Any>
 
+    /**
+     * Quote a value as an SQL string literal, escaping embedded single quotes.
+     *
+     * The ABC query language materializes in-memory SQL by interpolation (that is
+     * its documented behaviour, see HELP.md). Quoting VALUES here keeps legitimate
+     * data intact (apostrophes, names like "O'Hara", etc.) and neutralizes
+     * injection through record values without changing the express flow.
+     */
+    fun sqlLiteral(value: Any?): String = co.onmind.util.Sql.literal(value)
+
     //fun mapQueryOne(rows: RowSet<Row>): Any? = mapQuery(rows).first()
 
     //fun forQuery(xy: String, where: String?, order: String?, limit: Int?): Future<RowSet<Row>>

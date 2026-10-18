@@ -107,15 +107,17 @@ class AbcAPI(): AbstractAPI() {
         val body: AbcBody,
         val authUser: String = "anonymous"
     ) {
-        val prefix: String = if (body.from != "xyany") body.from.substring(2..4) else "any"
+        /** Table prefix (any|key|set|doc|kit). Guarded so a malformed `from` cannot crash us. */
+        val prefix: String = if (body.from.length >= 5) body.from.substring(2, 5).lowercase() else "any"
         val choice: String = body.call?.lowercase() ?: body.what.lowercase()
         val size: String = run {
             val limit = onmindxdb.queryLimit
-            if (body.size.toInt() > limit) limit.toString() else body.size
+            val asked = body.size.toIntOrNull()
+            if (asked == null || asked < 0 || asked > limit) limit.toString() else asked.toString()
         }
         val some: String? = run {
             val result = body.some
-            if (body.what != "invoke" && body.what != "list" && !result.isNullOrEmpty()) {
+            if (choice !in listOf("list", "export", "whoami", "signup", "signin") && !result.isNullOrEmpty()) {
                 if (listOf("xydot", "xykit", "xyone", "xykey").indexOf(body.from.lowercase()) < 0 && !result.contains("."))
                     result.uppercase() + ".SHEET"
                 else
@@ -126,58 +128,85 @@ class AbcAPI(): AbstractAPI() {
         }
     }
 
+    private val validOperations = listOf(
+        "find", "insert", "update", "delete", "create", "drop", "define",
+        "list", "export", "whoami", "signup", "signin"
+    )
+    private val validTables = listOf("xyany", "xzany", "xykit", "xykey", "xyset", "xydoc")
+    private val someRequiredOperations = listOf("find", "insert", "update", "delete", "create", "drop", "define")
+
     private fun validateRequest(context: RequestContext): Response? {
         val body = context.body
-        
-        if (body.what != "!") {
-            val validOperations = listOf("find", "insert", "update", "delete", "create", "drop", "define", "list", "invoke", "export")
-            if (body.what !in validOperations) {
-                return sendError("'WHAT' is wrong. Valid values are: ${validOperations.joinToString(", ")}")
+        val op = context.choice
+
+        if (op !in validOperations) {
+            return sendError("'WHAT' is wrong. Valid values are: ${validOperations.joinToString(", ")}")
+        }
+
+        // A real 'WHAT' and 'CALL' are mutually exclusive. 'CALL' is the alias of the
+        // operation when 'WHAT' is '!'; validating the resolved operation (instead of
+        // skipping validation when what="!") closes the former bypass.
+        if (body.what != "!" && !body.call.isNullOrEmpty()) {
+            return sendError("That kind of 'WHAT' can't be mixed with 'CALL'")
+        }
+
+        // 'FROM' selects the physical table. Whitelist it so it cannot smuggle in
+        // arbitrary SQL through the table name (find/insert/update/delete/create/drop).
+        if (body.from.lowercase() !in validTables) {
+            return sendError("'FROM' is wrong. Valid values are: ${validTables.joinToString(", ")}")
+        }
+
+        if (op in someRequiredOperations) {
+            if (context.some.isNullOrEmpty()) {
+                return sendError("'SOME' is missing. You must set it!")
             }
 
-            if (!body.call.isNullOrEmpty() && body.what != "invoke") {
-                return sendError("That kind of 'WHAT' can't be mixed with 'CALL'")
-            }
-
-            if (body.what != "invoke" && body.what != "list" && body.what != "export") {
-                if (context.some.isNullOrEmpty()) {
-                    return sendError("'SOME' is missing. You must set it!")
+            if (listOf("find", "insert", "update", "delete", "drop").contains(op) && body.from.lowercase() == "xyany") {
+                val query = "SELECT * FROM xykit WHERE kit01=${sqlLiteral(context.some)}"
+                val exists = xdb.forQuery(query)
+                if (exists?.size == 0) {
+                    return sendError("Does not exists the object: ${context.some}")
                 }
-
-                if (listOf("find", "insert", "update", "delete", "drop").contains(body.what) && body.from.lowercase() == "xyany") {
-                    val query = "SELECT * FROM xykit WHERE kit01='${context.some}'"
-                    val exists = xdb.forQuery(query)
-                    if (exists?.size == 0) {
-                        return sendError("Does not exists the object: ${context.some}")
-                    }
-                }
             }
+        }
 
-            if (body.what == "find" && !body.with.isNullOrEmpty()) {
+        if (op == "find") {
+            validateShow(body.show)?.let { return it }
+            if (!body.with.isNullOrEmpty()) {
                 validateWithFilter(body.with)?.let { return it }
             }
         }
         return null
     }
 
-    private fun validateWithFilter(with: String): Response? {
-        val likePattern = Pattern.compile(
-            "\\w+\\s+LIKE\\s+['\"][^'\"]*%[^'\"]*['\"]",
-            Pattern.CASE_INSENSITIVE
-        )
-        val validPrefix = Pattern.compile(
-            "\\w+\\s+LIKE\\s+['\"][^'%\"]+%'",
-            Pattern.CASE_INSENSITIVE
-        )
-        val matcher = likePattern.matcher(with)
-        while (matcher.find()) {
-            if (!validPrefix.matcher(matcher.group()).matches()) {
-                return sendError(
-                    "LIKE pattern '${matcher.group()}' is not allowed. " +
-                    "Only prefix patterns (LIKE 'value%') are supported for DynamoDB compatibility. " +
-                    "Examples: any03 LIKE 'lab%' — rejected: '%lab%', '%lab%', 'la%b'"
-                )
+    /**
+     * 'SHOW' is the projection list for `find`: column names, optional aliases and '*'.
+     * Anything else (functions, sub-selects, comments) is rejected so it can only
+     * select columns of the target table.
+     */
+    private fun validateShow(show: String?): Response? {
+        if (show.isNullOrEmpty() || show.trim() == "*") return null
+        val ident = "[A-Za-z_][A-Za-z0-9_]*"
+        val item = Pattern.compile("^\\s*($ident|\\*)(\\s+(as\\s+)?$ident)?\\s*$", Pattern.CASE_INSENSITIVE)
+        show.replace(";", ",").split(",").forEach {
+            if (!item.matcher(it).matches()) {
+                return sendError("'SHOW' is wrong. Only column names, aliases and '*' are allowed: '$it'")
             }
+        }
+        return null
+    }
+
+    /**
+     * 'WITH' is the free-form WHERE filter of the express language (`find`). It is
+     * validated against a restricted grammar (see [WithFilter]) so it can express
+     * simple conditions without smuggling arbitrary SQL.
+     */
+    private fun validateWithFilter(with: String): Response? {
+        WithFilter.validate(with)?.let { reason ->
+            return sendError(
+                "'WITH' is wrong ($reason). Use simple filters: " +
+                "any03 LIKE 'lab%' AND any02 = 'x'"
+            )
         }
         return null
     }
@@ -185,7 +214,7 @@ class AbcAPI(): AbstractAPI() {
     private fun handleFind(context: RequestContext): Response {
         val body = context.body
         val show = body.show?.replace(";", ",") ?: "*"
-        var query = "SELECT $show FROM ${body.from.lowercase()} WHERE ${context.prefix.lowercase()}xy='${context.some}' "
+        var query = "SELECT $show FROM ${body.from.lowercase()} WHERE ${context.prefix.lowercase()}xy=${sqlLiteral(context.some)} "
         
         if (!body.with.isNullOrEmpty()) {
             query += "AND ${body.with}"
@@ -324,13 +353,13 @@ class AbcAPI(): AbstractAPI() {
     }
 
     private fun getUpdatedRecord(context: RequestContext): Response {
-        val query = "SELECT * FROM ${context.body.from.lowercase()} WHERE id='${context.body.with}'"
+        val query = "SELECT * FROM ${context.body.from.lowercase()} WHERE id=${sqlLiteral(context.body.with)}"
         val rows = xdb.forQuery(query)
         if (rows.isNullOrEmpty()) {
             return sendError("Does not exists a record with that criteria", Status.NOT_FOUND, 0)
         }
         val row = rows[0]
-        savePoint(context.prefix, row)
+        savePoint(context.prefix, row, isNew = false)
         return sendSuccess(listOf(row))
     }
 
@@ -340,14 +369,14 @@ class AbcAPI(): AbstractAPI() {
             return sendError("'WITH' is missing. You must set it!")
         }
 
-        val selectQuery = "SELECT * FROM ${body.from.lowercase()} WHERE id='${body.with}'"
+        val selectQuery = "SELECT * FROM ${body.from.lowercase()} WHERE id=${sqlLiteral(body.with)}"
         val rows = xdb.forQuery(selectQuery)
         if (rows.isNullOrEmpty()) {
             return sendError("Does not exists a record with that criteria", Status.NOT_FOUND, 0)
         }
         val row = rows[0]
 
-        val deleteQuery = "DELETE FROM ${body.from.lowercase()} WHERE id='${body.with}'"
+        val deleteQuery = "DELETE FROM ${body.from.lowercase()} WHERE id=${sqlLiteral(body.with)}"
         xdb.forUpdate(deleteQuery)
         // Decrement memory counter after successful DELETE in H2
         CoherenceStore.decrementMemoryCount(context.prefix)
@@ -356,12 +385,12 @@ class AbcAPI(): AbstractAPI() {
         return sendSuccess(listOf(row))
     }
 
-    private fun savePoint(prefix: String, row: MutableMap<String, Any?>) {
+    private fun savePoint(prefix: String, row: MutableMap<String, Any?>, isNew: Boolean = true) {
         when (prefix) {
-            "key" -> xdb.savePointKey(row)
-            "set" -> xdb.savePointSet(row)
-            "doc" -> xdb.savePointDoc(row)
-            else -> xdb.savePointAny(row)
+            "key" -> xdb.savePointKey(row, isNew = isNew)
+            "set" -> xdb.savePointSet(row, isNew = isNew)
+            "doc" -> xdb.savePointDoc(row, isNew = isNew)
+            else -> xdb.savePointAny(row, isNew = isNew)
         }
     }
 
@@ -376,31 +405,43 @@ class AbcAPI(): AbstractAPI() {
             return sendError("Export requires an authenticated user")
         }
 
-        // Export is fire-and-forget: resolve the output file, kick off a
-        // background thread, and return 202 immediately. The client can read
-        // the file at the returned path once the export completes.
+        // Export is fire-and-forget on a single serialized thread: the output file is
+        // reserved up front and returned to the client, which can read it once done.
         val select = body.from.lowercase().trim()
         val filter = body.with
+        if (!filter.isNullOrEmpty()) {
+            WithFilter.validate(filter)?.let { reason ->
+                return sendError("'WITH' is wrong ($reason). Use simple filters: any02 = 'x'")
+            }
+        }
         val format = body.cast?.lowercase()?.trim() ?: "sqlite"
         if (format != "sqlite") {
             return sendError("Unsupported export format '$format'. Available: sqlite")
         }
 
         return try {
-            val outFile = xdb.resolveExportFile()
-            val filePath = outFile.absolutePath
-
-            Thread {
-                try {
-                    xdb.exportToSqlite(authUser, select, filter, format)
-                    Trace.infoWith("Export completed", "file" to filePath, "user" to authUser)
-                } catch (ex: Exception) {
-                    Trace.logError("Export failed", ex, mapOf("file" to filePath, "user" to authUser))
+            val outFile = xdb.submitExport(
+                user = authUser,
+                select = select,
+                filter = filter,
+                format = format,
+                onComplete = { result ->
+                    Trace.infoWith("Export completed", "file" to (result["file"]?.toString() ?: "unknown"), "user" to authUser)
+                },
+                onError = { ex ->
+                    Trace.logError("Export failed", ex, mapOf("user" to authUser))
                 }
-            }.start()
+            )
+
+            if (outFile == null) {
+                return sendError(
+                    "An export is already running. Try again when it finishes.",
+                    Status.CONFLICT, 0
+                )
+            }
 
             sendAccepted(mapOf(
-                "file" to filePath,
+                "file" to outFile.absolutePath,
                 "format" to format,
                 "status" to "running"
             ))
@@ -528,20 +569,20 @@ class AbcAPI(): AbstractAPI() {
         val code = "${name.uppercase()}.${scheme.uppercase()}"
         try {
             val prefix = kind.lowercase()
-            var query = "SELECT * FROM $from WHERE ${prefix}xy='$code' LIMIT 1"
+            var query = "SELECT * FROM $from WHERE ${prefix}xy=${sqlLiteral(code)} LIMIT 1"
             val res2 = xdb.forQuery(query)
             if (!res2.isNullOrEmpty()) {
                 return sendError("This action is not allowed if there is data")
             }
 
-            val selectQuery = "SELECT id FROM xykit WHERE kit01='$code'"
+            val selectQuery = "SELECT id FROM xykit WHERE kit01=${sqlLiteral(code)}"
             val rows = xdb.forQuery(selectQuery)
             if (rows.isNullOrEmpty()) {
                 return sendError("Sheet not found")
             }
             val id = rows[0]["id"] as String
             
-            query = "DELETE FROM xykit WHERE kit01='$code'"
+            query = "DELETE FROM xykit WHERE kit01=${sqlLiteral(code)}"
             val rowCount = xdb.forUpdate(query)
             // Decrement memory counter after successful DROP kit in H2
             CoherenceStore.decrementMemoryCount("kit")
@@ -576,14 +617,14 @@ class AbcAPI(): AbstractAPI() {
 
         val code = "${name.uppercase()}.${scheme.uppercase()}"
         try {
-            var query = "SELECT * FROM xykit WHERE kit01 = '$code'"
+            var query = "SELECT * FROM xykit WHERE kit01 = ${sqlLiteral(code)}"
             val rows = xdb.forQuery(query)
             val row = rows?.get(0) ?: mutableMapOf()
             row.put("kit05", spec)
             if (!title.isNullOrEmpty()) {
                 row.put("kit03", title)
             }
-            xdb.savePointKit(row)
+            xdb.savePointKit(row, isNew = false)
 
             val dbKit = DBKit()
             val id = row.get("id").toString()
@@ -600,7 +641,7 @@ class AbcAPI(): AbstractAPI() {
     fun handleList(body: AbcBody): Response {
         var scheme = body.with ?: "SHEET"
         try {
-            val query = "SELECT id, kit01 as code, kit02 as name, kit03 as title, kit04 as hint, kit05 as spec FROM xykit WHERE kitxy = '$scheme'"
+            val query = "SELECT id, kit01 as code, kit02 as name, kit03 as title, kit04 as hint, kit05 as spec FROM xykit WHERE kitxy = ${sqlLiteral(scheme)}"
             val rows = xdb.forQuery(query)
             rows?.forEach {
                 val inline = it.get("spec").toString()
@@ -739,7 +780,7 @@ class AbcAPI(): AbstractAPI() {
         }
 
         val code = "${name.uppercase()}.${scheme.uppercase()}"
-        val query = "SELECT * FROM xykey WHERE key01='$code'"
+        val query = "SELECT * FROM xykey WHERE key01=${sqlLiteral(code)}"
         val rows = xdb.forQuery(query)
 
         if (rows.isNullOrEmpty()) {

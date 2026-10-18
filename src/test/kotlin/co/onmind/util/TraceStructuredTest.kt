@@ -1,179 +1,129 @@
 package co.onmind.util
 
-import java.io.ByteArrayOutputStream
-import java.io.PrintStream
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import java.nio.file.Files
 import java.util.Properties
 
 /**
- * Test simple para verificar el logging estructurado en OnMind-XDB
- * No requiere frameworks externos, solo assertions básicas
+ * Verifies the structured logging in OnMind-XDB by writing to a temporary log
+ * file and inspecting its content (Trace buffers + flushes on shutdown).
+ * Mutates global state (CoherenceConfig, Trace), reset afterwards.
  */
-object TraceStructuredTest {
-    
-    @JvmStatic
-    fun main(args: Array<String>) {
-        println("=== OnMind-XDB Structured Logging Test ===")
-        
-        try {
-            testBasicStructuredLogging()
-            testHttpRequestLogging()
-            testDatabaseOperationLogging()
-            testCoherenceCheckLogging()
-            testErrorLogging()
-            testZeroOverheadWhenDisabled()
-            
-            println("All tests passed!")
-        } catch (e: Exception) {
-            println("Test failed: ${e.message}")
-            e.printStackTrace()
-        }
-    }
-    
-    private fun testBasicStructuredLogging() {
-        println("\n--- Test: Basic Structured Logging ---")
-        
-        val output = captureOutput {
-            setupLogging(2) // Debug completo
-            
-            Trace.infoWith("Test message", 
+class TraceStructuredTest {
+
+    @Test
+    fun basicStructuredLogging() {
+        val log = captureLog(level = 2) {
+            Trace.infoWith(
+                "Test message",
                 "string_field" to "hello",
                 "number_field" to 42,
                 "boolean_field" to true
             )
         }
-        
-        println("Output: $output")
-        assert(output.contains("Test message")) { "Should contain message" }
-        assert(output.contains("string_field=\"hello\"")) { "Should contain string field" }
-        assert(output.contains("number_field=42")) { "Should contain number field" }
-        assert(output.contains("boolean_field=true")) { "Should contain boolean field" }
-        
-        println("Basic structured logging works")
+        assertTrue(log.contains("Test message"), "Should contain message; log=$log")
+        assertTrue(log.contains("string_field=\"hello\""), "Should contain string field; log=$log")
+        assertTrue(log.contains("number_field=42"), "Should contain number field; log=$log")
+        assertTrue(log.contains("boolean_field=true"), "Should contain boolean field; log=$log")
     }
-    
-    private fun testHttpRequestLogging() {
-        println("\n--- Test: HTTP Request Logging ---")
-        
-        val output = captureOutput {
-            setupLogging(1) // Solo peticiones
-            
+
+    @Test
+    fun httpRequestLogging() {
+        val log = captureLog(level = 1) {
             Trace.logHttpRequest("POST", "/abc", 200, 150)
         }
-        
-        println("Output: $output")
-        assert(output.contains("HTTP request")) { "Should contain HTTP request" }
-        assert(output.contains("method=\"POST\"")) { "Should contain method" }
-        assert(output.contains("path=\"/abc\"")) { "Should contain path" }
-        assert(output.contains("status=200")) { "Should contain status" }
-        assert(output.contains("duration_ms=150")) { "Should contain duration" }
-        
-        println("HTTP request logging works")
+        assertTrue(log.contains("HTTP request"), "Should contain HTTP request; log=$log")
+        assertTrue(log.contains("method=\"POST\""), "Should contain method; log=$log")
+        assertTrue(log.contains("path=\"/abc\""), "Should contain path; log=$log")
+        assertTrue(log.contains("status=200"), "Should contain status; log=$log")
+        assertTrue(log.contains("duration_ms=150"), "Should contain duration; log=$log")
     }
-    
-    private fun testDatabaseOperationLogging() {
-        println("\n--- Test: Database Operation Logging ---")
-        
-        val output = captureOutput {
-            setupLogging(2) // Debug completo
-            
+
+    @Test
+    fun databaseOperationLogging() {
+        val log = captureLog(level = 2) {
             Trace.logDatabaseOperation("insert", "any", true, mapOf(
                 "table" to "xyany",
                 "records" to 5
             ))
         }
-        
-        println("Output: $output")
-        assert(output.contains("Database operation completed")) { "Should contain operation message" }
-        assert(output.contains("operation=\"insert\"")) { "Should contain operation" }
-        assert(output.contains("entity=\"any\"")) { "Should contain entity" }
-        assert(output.contains("success=true")) { "Should contain success" }
-        assert(output.contains("table=\"xyany\"")) { "Should contain table" }
-        assert(output.contains("records=5")) { "Should contain records" }
-        
-        println("Database operation logging works")
+        assertTrue(log.contains("Database operation completed"), "Should contain operation message; log=$log")
+        assertTrue(log.contains("operation=\"insert\""), "Should contain operation; log=$log")
+        assertTrue(log.contains("entity=\"any\""), "Should contain entity; log=$log")
+        assertTrue(log.contains("success=true"), "Should contain success; log=$log")
+        assertTrue(log.contains("table=\"xyany\""), "Should contain table; log=$log")
+        assertTrue(log.contains("records=5"), "Should contain records; log=$log")
     }
-    
-    private fun testCoherenceCheckLogging() {
-        println("\n--- Test: Coherence Check Logging ---")
-        
-        val output = captureOutput {
-            setupLogging(2) // Debug completo
-            
+
+    @Test
+    fun coherenceCheckLogging() {
+        val log = captureLog(level = 2) {
             Trace.logCoherenceCheck("any", 150, 150, true)
         }
-        
-        println("Output: $output")
-        assert(output.contains("Coherence check OK")) { "Should contain coherence message" }
-        assert(output.contains("entity=\"any\"")) { "Should contain entity" }
-        assert(output.contains("memory_count=150")) { "Should contain memory count" }
-        assert(output.contains("disk_count=150")) { "Should contain disk count" }
-        assert(output.contains("coherent=true")) { "Should contain coherent status" }
-        
-        println("Coherence check logging works")
+        assertTrue(log.contains("Coherence check OK"), "Should contain coherence message; log=$log")
+        assertTrue(log.contains("entity=\"any\""), "Should contain entity; log=$log")
+        assertTrue(log.contains("memory_count=150"), "Should contain memory count; log=$log")
+        assertTrue(log.contains("disk_count=150"), "Should contain disk count; log=$log")
+        assertTrue(log.contains("coherent=true"), "Should contain coherent status; log=$log")
     }
-    
-    private fun testErrorLogging() {
-        println("\n--- Test: Error Logging with Context ---")
-        
-        val output = captureOutput {
-            setupLogging(1) // Peticiones y errores
-            
+
+    @Test
+    fun errorLogging() {
+        val log = captureLog(level = 1) {
             val exception = RuntimeException("Test error")
             Trace.logError("Operation failed", exception, mapOf(
                 "operation" to "test",
                 "retry_count" to 3
             ))
         }
-        
-        println("Output: $output")
-        assert(output.contains("Operation failed")) { "Should contain error message" }
-        assert(output.contains("operation=\"test\"")) { "Should contain operation" }
-        assert(output.contains("retry_count=3")) { "Should contain retry count" }
-        assert(output.contains("exception=\"RuntimeException\"")) { "Should contain exception type" }
-        assert(output.contains("error_message=\"Test error\"")) { "Should contain error message" }
-        
-        println("Error logging with context works")
+        assertTrue(log.contains("Operation failed"), "Should contain error message; log=$log")
+        assertTrue(log.contains("operation=\"test\""), "Should contain operation; log=$log")
+        assertTrue(log.contains("retry_count=3"), "Should contain retry count; log=$log")
+        assertTrue(log.contains("exception=\"RuntimeException\""), "Should contain exception type; log=$log")
+        assertTrue(log.contains("error_message=\"Test error\""), "Should contain error message; log=$log")
     }
-    
-    private fun testZeroOverheadWhenDisabled() {
-        println("\n--- Test: Zero Overhead When Disabled ---")
-        
-        val output = captureOutput {
-            setupLogging(0) // Desactivado
-            
+
+    @Test
+    fun zeroOverheadWhenDisabled() {
+        val log = captureLog(level = 0) {
             // Estos no deberían producir salida
             Trace.infoWith("This should not appear", "key" to "value")
             Trace.logHttpRequest("GET", "/test", 200)
             Trace.logCoherenceCheck("any", 100, 100, true)
         }
-        
-        println("Output: '$output'")
-        assert(output.isEmpty() || output.isBlank()) { "Should have no output when disabled" }
-        
-        println("Zero overhead when disabled works")
+        assertTrue(log.isBlank(), "Should have no output when disabled; log=$log")
     }
-    
-    private fun setupLogging(level: Int) {
-        // Configurar CoherenceConfig
-        val config = Properties()
-        config.setProperty("app.logger", level.toString())
-        config.setProperty("db.check", if (level > 0) "+" else "-")
-        CoherenceConfig.init(config)
-        
-        // Inicializar Trace sin archivo (solo consola)
-        Trace.init("", 0) // Forzar modo consola
-    }
-    
-    private fun captureOutput(block: () -> Unit): String {
-        val originalOut = System.out
-        val outputStream = ByteArrayOutputStream()
-        
+
+    /** Runs [block] with logging at [level] into a temp file and returns the file content. */
+    private fun captureLog(level: Int, block: () -> Unit): String {
+        val file = Files.createTempFile("xdb-trace", ".log").toFile()
+        file.delete()
+        CoherenceConfig.init(Properties().apply {
+            setProperty("app.logger", level.toString())
+            setProperty("db.check", if (level > 0) "+" else "-")
+        })
+        Trace.init(file.absolutePath, level)
         return try {
-            System.setOut(PrintStream(outputStream))
             block()
-            outputStream.toString().trim()
+            Trace.shutdown()
+            if (file.exists()) file.readText() else ""
         } finally {
-            System.setOut(originalOut)
+            file.delete()
+        }
+    }
+
+    companion object {
+        @JvmStatic
+        @AfterAll
+        fun resetGlobalState() {
+            // Restore zero-overhead defaults so other test classes are unaffected.
+            CoherenceConfig.init(Properties().apply {
+                setProperty("app.logger", "0")
+                setProperty("db.check", "-")
+            })
+            Trace.init("", 0)
         }
     }
 }

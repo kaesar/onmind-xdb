@@ -1,6 +1,7 @@
 package co.onmind.app
 
 import co.onmind.db.RDB
+import co.onmind.util.ConfigSecrets
 import co.onmind.util.JsonMapper
 import co.onmind.util.Rote
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -83,6 +84,10 @@ class AppUI {
         }
         val sheetLens = PathLens.of("sheet")
         val sheet = sheetLens(req)
+        // The sheet code goes into SQL; restrict it to the characters a real code uses.
+        if (!sheet.matches(Regex("^[A-Za-z0-9_.-]+$"))) {
+            return Response(Status.BAD_REQUEST).body("Invalid sheet name")
+        }
         val code = "${sheet.uppercase()}.SHEET"
         
         val kitQuery = "SELECT * FROM xykit WHERE kit01='$code'"
@@ -202,7 +207,9 @@ class AppUI {
             val content = File(configFile).readText()
             val json = ObjectMapper().createObjectNode()
             json.put("path", configFile)
-            json.put("content", content)
+            // Never ship secret values to the browser: they are masked (see ConfigSecrets).
+            json.put("content", ConfigSecrets.mask(content))
+            json.put("secretsMasked", true)
             Response(Status.OK).body(json.toString()).header("Content-Type", "application/json")
         } catch (e: Exception) {
             val error = ObjectMapper().createObjectNode()
@@ -218,8 +225,11 @@ class AppUI {
         }
         return try {
             val body = ObjectMapper().readTree(request.bodyString())
-            val content = body.get("content")?.asText() ?: ""
+            val incoming = body.get("content")?.asText() ?: ""
             val configFile = Rote.getConfigFile()
+            // Masked placeholders keep the stored secret; anything else is written as typed.
+            val current = if (File(configFile).isFile()) File(configFile).readText() else ""
+            val content = ConfigSecrets.restore(incoming, current)
             File(configFile).writeText(content)
             val json = ObjectMapper().createObjectNode()
             json.put("ok", true)

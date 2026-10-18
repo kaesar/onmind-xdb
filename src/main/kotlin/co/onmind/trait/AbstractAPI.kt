@@ -11,6 +11,9 @@ import java.util.UUID
 
 open class AbstractAPI() {
 
+    /** Quote a value for the express SQL query language (see [co.onmind.util.Sql]). */
+    fun sqlLiteral(value: Any?): String = co.onmind.util.Sql.literal(value)
+
     val mapper = JsonMapper.instance
     val apiSend: BiDiBodyLens<AbcBack> = Body.auto<AbcBack>().toLens()
 

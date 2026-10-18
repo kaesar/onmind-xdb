@@ -44,7 +44,7 @@ Utiliza una base de datos embebida (H2) que ejecuta SQL internamente en memoria 
 - AppUI.kt: Rutas UI (/app/*, /app/data, /app/users, /app/settings, /app/sheets)
 - trait/AuthProvider.kt: Interfaz de autenticación (Strategy pattern)
 - auth/*Plug.kt: BasicAuthPlug (default), AutheliaPlug, CognitoPlug, OIDCPlug, NoAuthPlug
-- Agroal: Connection pool (max_pool_size=10, query_limit=1200)
+- HikariCP: Connection pool (max_pool_size=10, query_limit=1200)
 - kv/*Plug.kt: MVStorePlug (default), DynamoPlug, CosmosPlug
 
 **Componentes Principales Frontend**
@@ -84,10 +84,13 @@ RDB.savePoint → KVStore (MVStore/DynamoDB/CosmosDB)
 - list: Listar sheets por esquema
 - export: Volcar H2 a SQLite portable (`db.export = +`, requiere auth; alineado con WDB `handleExport`)
 
-**Rendimiento mínimo estimado**
-- Startup: ~2s (JVM), ~10ms (GraalVM Native)
-- Memory: ~150MB (JVM), ~20MB (Native)
-- Queries: 10000 ops/s (con Agroal pool)
+**Rendimiento (orientativo)**
+- Startup: ~0.6-0.8 s (JVM, fat JAR); ~10ms (GraalVM Native, estimado)
+- Memory: ~135 MB (JVM); ~20MB (Native, estimado)
+- Queries: ~3000 ops/s (H2 en memoria, con resultados grandes)
+- HTTP: ~12000 req/s en endpoints ligeros
+
+> Valores JVM medidos en Apple Silicon (M-series) con JDK 25 (varían según hardware y tamaño de la consulta).
 
 ---
 
@@ -109,7 +112,7 @@ La primera vez que inicies el software, se requiere dar permisos y se crea una c
 ### Instalación para Desarrollo
 
 #### Prerrequisitos
-- JDK 17 o superior
+- JDK 25 o superior
 - Gradle 8.x o superior
 
 #### Compilar desde Código Fuente
@@ -127,7 +130,7 @@ cd xdb
 
 # O crear JAR ejecutable
 ./gradlew shadowJar
-java -jar build/libs/xdb-1.0.0-final2024-full.jar
+java -jar build/libs/onmind-xdb-1.0.0-full.jar
 ```
 
 ---
@@ -140,11 +143,13 @@ java -jar build/libs/xdb-1.0.0-final2024-full.jar
 ./gradlew run
 ```
 
-El servidor se iniciará en el puerto 9990 (configurable en `onmind.ini`)
+El servidor se iniciará en el puerto 9990 (configurable con `dai.port` en `onmind.ini`).
+Escucha en todas las interfaces de red (Jetty no fija host); para restringir el acceso usa
+firewall/segmentación de red o un reverse proxy.
 
 ### 2. Acceder a la Interfaz de Administración
 
-Abrir el navegador en: `http://localhost:9990/_/`
+Abrir el navegador en: `http://localhost:9990/app/`
 
 ### 3. Usar la API
 
@@ -166,7 +171,7 @@ curl -X POST http://localhost:9990/abc \
 ### 4. Probar la API
 
 ```bash
-./test-api.sh
+./scripts/test-mcp.sh   # smoke tests de MCP/API (requiere el servidor en 9990)
 ```
 
 ---
@@ -231,17 +236,17 @@ curl -X POST http://localhost:9990/abc \
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                      http4k Server                          │
-│                     (SunHttp/Netty)                         │
+│                        (Jetty)                              │
 └────────────┬────────────────────────────┬───────────────────┘
              │                            │
              ▼                            ▼
 ┌────────────────────────┐    ┌──────────────────────────────┐
 │      API Routes        │    │       UI Routes              │
-│      /abc (POST)       │    │       /_/ (GET)              │
-│      /abc (GET)        │    │       /_/data (GET)          │
-│      /swagger (GET)    │    │       /_/users (GET)         │
-└──────────┬─────────────┘    │       /_/settings (GET)      │
-           │                  │       /_/sheets (GET)        │
+│      /abc (POST)       │    │       /app/ (GET)            │
+│      /abc (GET)        │    │       /app/data (GET)        │
+│      /swagger (GET)    │    │       /app/users (GET)       │
+└──────────┬─────────────┘    │       /app/settings (GET)    │
+           │                  │       /app/sheets (GET)      │
            ▼                  └──────────┬───────────────────┘
 ┌────────────────────────┐               │
 │      AbcAPI.kt         │               ▼
@@ -296,12 +301,14 @@ curl -X POST http://localhost:9990/abc \
 
 | Ruta | Descripción | Entidad |
 |------|-------------|---------|
-| `/_/` | Dashboard principal | - |
-| `/_/data` | Lista de colecciones de datos | `any` |
-| `/_/data/{sheet}` | Vista de registros de una colección | `any` |
-| `/_/users` | Lista de usuarios y roles | `key` |
-| `/_/settings` | Lista de configuraciones | `set` |
-| `/_/sheets` | Lista de definiciones de sheets | `kit` |
+| `/app/` | Dashboard principal | - |
+| `/app/data` | Lista de colecciones de datos | `any` |
+| `/app/data/{sheet}` | Vista de registros de una colección | `any` |
+| `/app/users` | Lista de usuarios y roles | `key` |
+| `/app/settings` | Lista de configuraciones | `set` |
+| `/app/sheets` | Lista de definiciones de sheets | `kit` |
+| `/app/files` | Interfaz de archivos (solo si `file.enabled=+`) | `any` |
+| `/app/config` | Ver/editar `onmind.ini` (secretos enmascarados) | - |
 
 ### Características Actuales
 - Ver colecciones de datos
@@ -350,6 +357,28 @@ curl -X POST http://localhost:9990/abc \
 | `whoami` | Info del sistema | Obtener info del servidor |
 | `export` | Volcar a SQLite | Volcado completo o por entidad (WDB parity: `from`/`with`/`cast`) |
 
+#### Filtros `with` (mini-lenguaje)
+
+El campo `with` de `find` es el **filtro WHERE** del lenguaje de consulta eXpress.
+Acepta una gramática plana y segura (no SQL arbitrario):
+
+```text
+filtro    := condición ( (AND | OR) condición )*
+condición := columna OP valor
+OP        := = | != | <> | < | > | <= | >= | LIKE | NOT LIKE
+valor     := 'texto' | "texto" | número | columna | NULL | TRUE | FALSE
+```
+
+- `LIKE` solo admite **prefijos** (`LIKE 'lab%'`), por compatibilidad con DynamoDB.
+- Se rechaza lo que no encaje en la gramática: `UNION`, `SELECT`, subconsultas,
+  paréntesis, `;` y comentarios (`--`, `/* */`).
+
+Ejemplos válidos:
+```json
+{ "what": "find", "from": "xyany", "some": "PRODUCTS.SHEET",
+  "with": "any03 LIKE 'lab%' AND any04 > 10" }
+```
+
 ### Endpoints
 
 #### API Endpoints
@@ -364,19 +393,22 @@ GET  /swagger             # Documentación API (modo dev)
 GET  /api/store/coherence        # Estadísticas de coherencia
 POST /api/store/coherence/verify # Verificación completa de coherencia
 POST /api/store/coherence/sync   # Sincronización forzada desde disco
-GET  /api/store/health           # Estado de salud del sistema
+GET  /health           # Estado de salud del sistema
 GET  /api/trace/stats            # Estadísticas de logging
 ```
 
 #### UI Endpoints
 ```
-GET  /                    # Redirect a /_/
-GET  /_/                  # Dashboard
-GET  /_/data              # Lista de colecciones de datos
-GET  /_/data/{sheet}      # Vista de registros de datos
-GET  /_/users             # Lista de usuarios
-GET  /_/settings          # Lista de configuraciones
-GET  /_/sheets            # Lista de sheets
+GET  /                    # Redirect a /app/
+GET  /app/                  # Dashboard
+GET  /app/data              # Lista de colecciones de datos
+GET  /app/data/{sheet}      # Vista de registros de datos
+GET  /app/users             # Lista de usuarios
+GET  /app/settings          # Lista de configuraciones
+GET  /app/sheets            # Lista de sheets
+GET  /app/files             # Interfaz de archivos (si file.enabled=+)
+GET  /app/config            # Configuración (secretos enmascarados)
+POST /app/config            # Guardar configuración (conserva secretos sin tocar)
 ```
 
 ---
@@ -569,7 +601,7 @@ Fuerza una sincronización completa desde el almacenamiento persistente hacia la
 2. `resyncCounters()` - Full-scan único para hidratar contadores
 3. `verifyCoherence()` - Validación final
 
-#### GET /api/store/health
+#### GET /health
 
 Proporciona un estado de salud completo del sistema.
 
@@ -581,7 +613,7 @@ Obtiene estadísticas específicas del sistema de logging y trace.
 
 #### Verificar Estado del Sistema
 ```bash
-curl -s http://localhost:9990/api/store/health | jq .
+curl -s http://localhost:9990/health | jq .
 ```
 
 #### Obtener Estadísticas de Coherencia
@@ -638,7 +670,7 @@ app.logger = 2    # Logging completo
 db.check = +      # Verificaciones automáticas activas
 ```
 
-**Nota:** Los endpoints de monitoreo (`/api/store/coherence`, `/api/store/coherence/verify`, `/api/store/coherence/sync`, `/api/store/health`, `/api/trace/stats`) están **siempre disponibles** independientemente de la configuración, permitiendo verificaciones bajo demanda sin impacto en el rendimiento.
+**Nota:** Los endpoints de monitoreo (`/api/store/coherence`, `/api/store/coherence/verify`, `/api/store/coherence/sync`, `/health`, `/api/trace/stats`) están **siempre disponibles** independientemente de la configuración, permitiendo verificaciones bajo demanda sin impacto en el rendimiento.
 
 ### Detalles de Implementación
 
@@ -762,6 +794,21 @@ OnMind-XDB usa **autenticación básica HTTP por defecto** configurada desde `on
 - **Contraseña por defecto**: `admin`
 - **Tipo**: HTTP Basic Authentication
 
+Con BASIC y OTP Mail **XDB autentica por sí mismo** (self-auth): no hay proxy ni
+token externo. Los modos de **delegación** (A/B, más abajo) sólo aplican cuando
+la identidad la emite un IdP o un proxy externo.
+
+> **Alcance actual — autenticación sí, autorización por roles (RBAC) no.**
+> OnMind-XDB implementa **autenticación** (¿quién eres?) y **almacenamiento** de
+> usuarios/roles en `xykey`, pero **no implementa autorización por roles**: el
+> campo `AuthUser.roles` se captura (p. ej. desde los claims `groups`/`roles` del
+> IdP o de `Remote-Groups` en Authelia) y se muestra en la UI, pero **ninguna
+> operación ni endpoint lo verifica**. El modelo es *todo o nada*: una vez
+> autenticado, cualquier usuario puede ejecutar cualquier operación habilitada
+> por la configuración (p. ej. `mcp.write=+`, `db.export=+`), sin distinción de
+> rol. La autorización real, si se necesita, debe hacerse en un sistema externo
+> (proxy/IdP) o implementarse en XDB (**pendiente**).
+
 ### Proveedores Soportados
 
 1. **Basic** (Default) - Autenticación HTTP Basic
@@ -769,6 +816,24 @@ OnMind-XDB usa **autenticación básica HTTP por defecto** configurada desde `on
 3. **Authelia** - Autenticación corporativa con headers
 4. **AWS Cognito** - Autenticación cloud con JWT
 5. **OIDC / Keycloak / Entra ID** - Autenticación estándar con JWT (OIDC)
+
+### ¿Quién autentica? XDB propio vs. delegación externa
+
+La clave para no confundir "modalidad de XDB" con "delegación externa" es
+`auth.type`:
+
+| `auth.type` | Quién autentica | Naturaleza |
+|---|---|---|
+| `BASIC` *(default)* | **XDB** (usuario/contraseña propios) | **Self-auth** — no hay modos A/B |
+| `OTPMAIL` | **XDB** (código por email + cookie de sesión propia) | **Self-auth** — no hay modos A/B |
+| `OIDC` / `KEYCLOAK` / `ENTRAID` / `COGNITO` | IdP externo (xid/uid/Keycloak/Entra/Cognito); **XDB verifica** el token | **Delegación — Modo A** |
+| `AUTHELIA` | Proxy / forward-auth; XDB **confía** en `Remote-User` | **Delegación — Modo B** |
+| `auth.enabled = false` | nadie | Sin autenticación |
+
+> En **local** el default es `BASIC`: XDB autentica por sí mismo y **ningún modo
+> A/B interviene**. `auth.oidc.trust_headers` sólo tiene efecto con
+> `OIDC`/`KEYCLOAK`/`ENTRAID`; con BASIC/OTP se ignora. El detalle de A vs. B
+> está en *Dos modos de delegación de identidad*.
 
 ### Configuración en onmind.ini
 
@@ -873,6 +938,68 @@ legado eXpress (solo decodifica, con aviso en log). El JWKS se descarga con
 `java.net.http` y se cachea en memoria 10 minutos (con reutilización del valor
 anterior si la descarga falla).
 
+#### Dos modos de delegación de identidad
+
+XDB puede delegar la identidad en un sistema externo de **dos formas distintas
+que no son equivalentes**. La diferencia clave: en **A** XDB **verifica** el
+token; en **B** XDB **confía** en la cabecera que le pasa un proxy.
+
+| | **Modo A — Verificar el token** (recomendado) | **Modo B — Confiar en el proxy** |
+|---|---|---|
+| Quién autentica | Un IdP externo emite; **XDB verifica** | Un reverse proxy / forward-auth |
+| XDB verifica firma | **Sí**: JWKS (RS256) o secreto (HS256) | **No** |
+| Cabecera de entrada | `Authorization: Bearer <JWT>` | `X-Auth-User` / `X-Proxy-User` (`Remote-User` en Authelia) |
+| Config | `auth.type = OIDC`/`KEYCLOAK`/`ENTRAID`/`COGNITO` + `auth.oidc.jwks_url` o `auth.jwt.secret` | `auth.oidc.trust_headers = +` |
+| Requisito de red | XDB puede exponerse con TLS | XDB **sólo** alcanzable a través del proxy |
+| Cuándo usarlo | El cliente ya tiene el token (apps, APIs, SPAs) | Login web con sesión gestionada en el gateway |
+
+```
+MODO A — delegación CON verificación (el IdP emite, XDB comprueba)
+
+  Cliente ──1. login──────────────► IdP (xid/uid/Keycloak/Entra/Cognito)
+     ▲                              │
+     │ 2. access_token (JWT)        │ 3. JWKS: claves públicas
+     │                              ▼
+     └──4. Authorization: Bearer ──►┌───────────────────────────────┐
+                                    │ OnMind-XDB                    │
+                                    │ OIDCPlug verifica:            │
+                                    │  firma + iss + aud + exp      │
+                                    │ → inyecta X-Auth-User         │
+                                    │ auth.oidc.trust_headers = -   │
+                                    └───────────────────────────────┘
+
+MODO B — delegación POR CONFIANZA (el proxy decide, XDB cree la cabecera)
+
+  Cliente ──1. login──► Reverse proxy / forward-auth ◄── IdP / sesión
+   (nav.)                 (nginx+oauth2-proxy, Traefik,
+     ▲                     Cloudflare Access, Authelia)
+     │                         │
+     │ 2. sesión               │ 3. cabeceras X-Auth-User / Remote-User
+     │                         ▼
+     └──────────────────►┌───────────────────────────────────────────┐
+                         │ OnMind-XDB  (NO alcanzable directo)       │
+                         │ → confía en la cabecera, NO verifica JWT  │
+                         │ auth.oidc.trust_headers = +               │
+                         └───────────────────────────────────────────┘
+```
+
+**Regla de oro:** si un cliente puede llegar a XDB sin pasar por el proxy, la
+cabecera es falsificable → usa **modo A**. Confiar en cabeceras (modo B) es
+legítimo **sólo** si XDB está aislado detrás del proxy.
+
+```ini
+# Modo A (default): verificar el token del IdP
+auth.type = OIDC
+auth.oidc.jwks_url = os.environ/XDB_JWKS_URL   # RS256 (derivado solo en Keycloak)
+# auth.jwt.secret = os.environ/XDB_JWT_SECRET  # o HS256 (OnMind-UID)
+
+# Modo B: confiar en las cabeceras del proxy (XDB aislado, no expuesto directo)
+auth.oidc.trust_headers = +
+```
+
+> **Authelia** es **modo B por diseño**: `auth.type = AUTHELIA` lee `Remote-User`
+> del forward-auth; ahí la integración *es* el proxy y no hay verificación de token.
+
 ### Uso
 
 #### Acceder a la UI
@@ -885,6 +1012,18 @@ Editar `~/onmind/onmind.ini`:
 auth.basic.user = miusuario
 auth.basic.pass = mipassword
 ```
+
+#### Editor de configuración en la UI
+
+Desde **Settings → Service Configuration** se puede ver y editar el `onmind.ini`.
+Los **valores secretos** (`auth.basic.pass`, `db.password`, `auth.jwt.secret`,
+`s3.access_key`, `s3.secret_key`, `auth.otp.smtp_pass`, `auth.otp.session_key`,
+`kv.cosmosdb.key`) se muestran enmascarados como `********`. Al guardar:
+
+- si dejas el `********` **sin tocar**, se conserva el valor almacenado;
+- si escribes un valor nuevo, se guarda ese valor.
+
+Así los secretos nunca viajan al navegador y un guardado normal no los borra.
 
 ### Arquitectura de Autenticación
 
@@ -907,7 +1046,9 @@ Si inválido: 401 (API) o redirect a login (UI / OTP)
 - `OIDCPlug`: Valida JWT de proveedores OIDC (Keycloak, Entra ID, etc.):
   RS256 via JWKS (`auth.oidc.jwks_url`, auto-derivado en Keycloak), HS256 via
   secreto compartido (`auth.jwt.secret`), o decodificación legado eXpress si no
-  se configura ninguno.
+  se configura ninguno. La identidad por cabeceras de proxy (`X-Auth-User`) es
+  opt-in con `auth.oidc.trust_headers = +` (ver *Dos modos de delegación de
+  identidad*).
 
 ### Uso en el Código
 
@@ -949,30 +1090,36 @@ Con `auth.type = COGNITO` se valida además que `token_use == access` y que el
 4. Inyecta `X-Auth-User`, `X-Auth-Email`, `X-Auth-Roles` (grupos) en el request.
 
 Los roles/grupos se toman de los claims `cognito:groups`, `groups` o `roles`
-(ver `OIDCPlug.extractRoles`).
+(ver `OIDCPlug.extractRoles`). Son **solo informativos**: XDB los guarda en
+`AuthUser.roles` pero **no aplica RBAC** (ver la nota de alcance en
+*Autenticación y Autorización*).
 
 ---
 
-## Connection Pool con Agroal
+## Connection Pool con HikariCP
 
 ### Beneficios
 
-OnMind-XDB usa **Agroal** como connection pool para mejorar el rendimiento:
+**OnMind-XDB** usa **HikariCP** como connection pool para mejorar el rendimiento:
 
 **Ventajas:**
-- **Múltiples conexiones concurrentes**: 10 usuarios simultáneos sin bloqueos
+- **Múltiples conexiones concurrentes**: hasta `max_pool_size` usuarios simultáneos sin bloqueos
 - **Respuestas más eficientes**: 5-10x más rápido que conexiones directas
 - **Reutilización de conexiones**: ~1-5ms vs ~50-100ms crear nueva
-- **Gestión automática**: `.use {}` cierra conexiones automáticamente
-- **Ligero**: Solo 120KB, ideal para uso embebido con OnMind-XDB
+- **Gestión automática**: cerrar la conexión (`.use {}`) la devuelve al pool
+- **Ligero**: un único JAR sin dependencias extra, ideal para uso embebido con OnMind-XDB
 
 ### Configuración
 
 ```properties
 # onmind.ini
-db.max_pool_size = 10    # Máximo de conexiones concurrentes
+db.max_pool_size = 10    # Máximo de conexiones concurrentes (1..1000)
 db.query_limit = 1200    # Límite de registros por query
 ```
+
+**Parámetros del pool (fijos):** `poolName = XDB-Pool`, `minimumIdle = 2`,
+`connectionTimeout = 5s`. El driver y el `jdbcUrl` se derivan de `db.driver`
+(H2 en memoria por defecto).
 
 **Recomendaciones:**
 - Desarrollo: `max_pool_size = 5`
@@ -1012,7 +1159,7 @@ Las estadísticas están **siempre disponibles bajo demanda** via API:
 - `GET /api/store/coherence` - Estadísticas actuales
 - `POST /api/store/coherence/verify` - Verificación manual
 - `POST /api/store/coherence/sync` - Sincronización forzada
-- `GET /api/store/health` - Estado del sistema
+- `GET /health` - Estado del sistema
 - `GET /api/trace/stats` - Estadísticas de logging
 
 **No requieren configuración** y no impactan el rendimiento de operaciones normales.
@@ -1108,7 +1255,7 @@ curl -X POST http://localhost:9990/api/store/coherence/verify
 curl -X POST http://localhost:9990/api/store/coherence/sync
 
 # Estado de salud del sistema
-curl http://localhost:9990/api/store/health
+curl http://localhost:9990/health
 
 # Estadísticas de trace
 curl http://localhost:9990/api/trace/stats
@@ -1120,7 +1267,7 @@ Para probar las funcionalidades de coherencia:
 
 ```bash
 # Ejecutar script de pruebas
-./test-coherence.sh
+./scripts/test-coherence.sh
 ```
 
 ---
@@ -1142,17 +1289,19 @@ Para probar las funcionalidades de coherencia:
 # Limpiar build
 ./gradlew clean
 
-# Ejecutar tests
+# Tests (JUnit 5)
 ./gradlew test
 
 # Generar templates JTE
 ./gradlew generateJte
 
 # Ejecutar JAR
-java -jar build/libs/xdb-1.0.0-final2024-full.jar
+java -jar build/libs/onmind-xdb-1.0.0-full.jar
 
-# Probar API
-./test-api.sh
+# Probar API / MCP / export (servidor en 9990)
+./scripts/test-mcp.sh
+./scripts/test-coherence.sh
+./scripts/test-export.sh   # requiere db.export = +
 ```
 
 ### Configuración
@@ -1163,7 +1312,7 @@ java -jar build/libs/xdb-1.0.0-final2024-full.jar
 app.mode = production
 app.local = /Users/home/onmind/
 app.cors = *  # eXpress default (AllowAll), sino lista separada por comas
-db.driver = 0  # 0=H2, 6=DuckDB
+db.driver = 0  # 0=H2 en memoria (default)
 dai.port = 9990
 kv.store = mvstore
 ```
@@ -1224,6 +1373,19 @@ Sin `os.environ/` ni `ONMIND_INI`, todo funciona como antes (modo eXpress local)
 2. Ejecutar: `./gradlew run`
 3. Abrir: `http://localhost:9990/app/`
 
+#### Tests Unitarios (JUnit 5)
+
+```bash
+./gradlew test
+```
+
+El reporte HTML queda en `build/reports/tests/test/index.html`.
+
+La suite cubre: seguridad (SQL, auth, secretos, filtro `with`), validación
+JWT/JWKS, resolución `os.environ`, logging estructurado y servidor MCP. El test
+de interoperabilidad con OnMind-UID se **salta** automáticamente si no están
+definidas las variables `UID_JWT_SECRET`/`UID_ACCESS_TOKEN`.
+
 ---
 
 ## Perfiles de Build (full / lite)
@@ -1238,7 +1400,7 @@ OnMind-XDB se compila en dos perfiles controlados por la propiedad `buildProfile
 | **lite** | `./gradlew shadowJar -PbuildProfile=lite` | H2, MVStore solamente |
 
 - **full**: perfil por defecto; incluye todos los backends de persistencia cloud y transporte gRPC.
-- **lite**: pensado para GraalVM native image y despliegues ligeros; excluye gRPC/Netty, DynamoDB, Azure Cosmos y RocksDB (~12 MB menos en el JAR fat).
+- **lite**: pensado para GraalVM native image y despliegues ligeros; excluye gRPC/Netty, DynamoDB, Azure Cosmos y RocksDB (JAR fat ~84 MB frente a los ~201 MB del perfil **full**).
 
 ### Código exclusivo de full (`src/full/kotlin`)
 
@@ -1275,7 +1437,7 @@ Si se configura `kv.store=rocksdb` (o dynamodb/cosmosdb) en el perfil **lite**, 
 ./gradlew nativeCompile -PbuildProfile=lite
 ```
 
-El binario nativo resultante arranca en ~10-12 ms (vs ~180 ms del JVM). El camino recomendado: **lite** para native image, **full** para JVM/fat JAR con backends cloud.
+El binario nativo resultante arranca en ~10-12 ms (vs ~0.6-0.8 s del JVM). El camino recomendado: **lite** para native image, **full** para JVM/fat JAR con backends cloud.
 
 ---
 
@@ -1332,7 +1494,7 @@ Stdio (`--mcp`): transporte recomendado para Claude Desktop, Cursor, etc.
   - `AbcMcpChat` — Interfaz HTTP `/mcp/chat` para el Dashboard.
   - `AbcMcpLlm` — Cliente Ollama opcional (OmniCoder u otro modelo) para planner LLM.
 - Reutiliza `AbcAPI`, Jackson (`JsonMapper.instance`) y el mismo filtro de autenticación.
-- Impacto en el `.jar` fat: **~33 KB comprimidos** (prácticamente cero comparado con los ~94 MB totales). No hay reactor, no hay MCP Java SDK.
+- Impacto en el `.jar` fat: **~50 KB comprimidos** (prácticamente cero comparado con el JAR fat: ~201 MB full / ~84 MB lite). No hay reactor, no hay MCP Java SDK.
 
 ### Arquitectura MCP en XDB
 
@@ -1449,7 +1611,7 @@ grpc.port   = 9991  # puerto dedicado (independiente del HTTP 9990)
 O al arrancar:
 
 ```bash
-java -jar onmind-xdb-1.0.0-early2026-full.jar --grpc
+java -jar onmind-xdb-1.0.0-full.jar --grpc
 ```
 
 ### Servicios expuestos
@@ -1485,4 +1647,4 @@ El `.proto` fuente vive en `src/main/proto/abc.proto`; los artefactos generados 
 ---
 
 **Última actualización**: 2026  
-**Versión**: 1.0.0-RC
+**Versión**: 1.0.0

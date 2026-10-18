@@ -30,7 +30,16 @@ class OIDCPlug(
      * If null and provider is KEYCLOAK (or OIDC with realm), it tries derived as
      * `{serverUrl}/realms/{realm}/protocol/openid-connect/certs`.
      */
-    private val jwksUrl: String? = null
+    private val jwksUrl: String? = null,
+    /**
+     * Accept the identity from proxy headers (X-Auth-User / X-Proxy-User).
+     *
+     * This is ONLY safe when XDB sits behind a trusted reverse proxy that strips
+     * and rewrites those headers. When XDB authenticates by itself (express/local
+     * or direct exposure) any client can forge them, so this is opt-in via
+     * `auth.oidc.trust_headers = +` and defaults to false (verify the Bearer token).
+     */
+    private val trustProxyHeaders: Boolean = false
 ) : AuthProvider {
 
     companion object {
@@ -51,16 +60,18 @@ class OIDCPlug(
     private val json = JsonMapper.instance
 
     override fun authenticate(request: Request): AuthResult {
-        // 1. Intentar obtener identidad desde cabeceras (Proxy mode)
-        val remoteUser = request.header("X-Auth-User") ?: request.header("X-Proxy-User")
-        if (remoteUser != null) {
-            val email = request.header("X-Auth-Email") ?: request.header("X-Proxy-Email") ?: remoteUser
-            val name = request.header("X-Auth-Name") ?: request.header("X-Proxy-Name") ?: remoteUser
-            val roles = request.header("X-Auth-Roles")?.split(",") ?: emptyList()
-            
-            return AuthResult.Success(
-                AuthUser(id = remoteUser, email = email, name = name, roles = roles)
-            )
+        // 1. Identidad desde cabeceras (proxy mode) — solo si se habilitó explícitamente.
+        if (trustProxyHeaders) {
+            val remoteUser = request.header("X-Auth-User") ?: request.header("X-Proxy-User")
+            if (remoteUser != null) {
+                val email = request.header("X-Auth-Email") ?: request.header("X-Proxy-Email") ?: remoteUser
+                val name = request.header("X-Auth-Name") ?: request.header("X-Proxy-Name") ?: remoteUser
+                val roles = request.header("X-Auth-Roles")?.split(",") ?: emptyList()
+
+                return AuthResult.Success(
+                    AuthUser(id = remoteUser, email = email, name = name, roles = roles)
+                )
+            }
         }
 
         // 2. Intentar obtener desde Bearer Token (JWT mode)

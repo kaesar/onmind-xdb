@@ -4,9 +4,9 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile
 import java.nio.file.Path
 
 val javaVersion = "25"
-val kotlinVersion = "2.4.10"
-val http4kVersion = "6.57.1.0"
-val jacksonVersion = "2.18.3"
+val kotlinVersion = "2.4.21"
+val http4kVersion = "6.61.0.0"
+val jacksonVersion = "2.22.3"
 val grpcVersion = "1.69.1"
 val protobufVersion = "3.25.5"
 
@@ -16,7 +16,7 @@ val buildProfile = project.findProperty("buildProfile")?.toString() ?: "full"
 val isLite = buildProfile == "lite"
 
 plugins {
-    kotlin("jvm") version "2.4.10"
+    kotlin("jvm") version "2.4.21"
     id("com.gradleup.shadow") version "9.6.1"
     id("org.graalvm.buildtools.native") version "1.1.8"
     id("gg.jte.gradle") version "3.2.4"
@@ -39,7 +39,7 @@ dependencies {
     implementation("org.http4k:http4k-format-jackson:$http4kVersion")
     implementation("gg.jte:jte:3.2.4")
     implementation("gg.jte:jte-kotlin:3.2.4")
-    implementation("com.h2database:h2:2.4.240")
+    implementation("com.h2database:h2:2.5.252")
     implementation("commons-dbutils:commons-dbutils:1.8.1")
     implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
@@ -87,6 +87,10 @@ dependencies {
         implementation("com.google.protobuf:protobuf-java:$protobufVersion")
         compileOnly("javax.annotation:javax.annotation-api:1.3.2")
     }
+
+    // Tests — run by the standard `./gradlew test` task (JUnit 5).
+    testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.12.2")
 }
 
 // Protobuf/gRPC compilation (only in full profile)
@@ -135,7 +139,7 @@ if (!isLite) {
 }
 
 group = "co.onmind"
-version = "1.0.0-early2026"
+version = "1.0.0"
 
 application {
     mainClass.set("onmindxdb")
@@ -174,13 +178,13 @@ tasks.named("compileKotlin") {
 
 tasks.withType<KotlinJvmCompile>().configureEach {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
     }
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    sourceCompatibility = JavaVersion.VERSION_21.toString()
-    targetCompatibility = JavaVersion.VERSION_21.toString()
+    sourceCompatibility = JavaVersion.VERSION_25.toString()
+    targetCompatibility = JavaVersion.VERSION_25.toString()
 }
 
 jte {
@@ -189,10 +193,9 @@ jte {
     contentType.set(gg.jte.ContentType.Html)
 }
 
-// Test sources are standalone `main`-based runners (no JUnit @Test methods),
-// executed manually. Keep `./gradlew build` green when Gradle finds no tests.
+// Tests run with the standard `./gradlew test` task (JUnit 5).
 tasks.withType<Test>().configureEach {
-    failOnNoDiscoveredTests = false
+    useJUnitPlatform()
 }
 
 val jar = tasks.named("jar", Jar::class) {

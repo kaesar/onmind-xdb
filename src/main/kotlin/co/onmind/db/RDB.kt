@@ -144,7 +144,7 @@ class RDB() {
         }
     }
 
-    fun savePointKit(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
+    fun savePointKit(map: MutableMap<String, Any?>, forceDelete: Boolean = false, isNew: Boolean = true) {
         val store = getStore()
         try {
             val row = XYKit(
@@ -181,8 +181,9 @@ class RDB() {
             store.put(key, jsonValue)
             store.commit()
             
-            // Increment disk counter and verify coherence (zero overhead if disabled)
-            CoherenceStore.incrementDiskCount("kit")
+            // Increment disk counter and verify coherence (zero overhead if disabled).
+            // Only on INSERT: an UPDATE overwrites the same key and must not count again.
+            if (isNew) CoherenceStore.incrementDiskCount("kit")
             CoherenceStore.verifyCoherenceQuick("kit")
         }
         catch (e: Exception) {
@@ -190,7 +191,7 @@ class RDB() {
         }
     }
 
-    fun savePointKey(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
+    fun savePointKey(map: MutableMap<String, Any?>, forceDelete: Boolean = false, isNew: Boolean = true) {
         val store = getStore()
         try {
             val row = XYKey(
@@ -236,7 +237,7 @@ class RDB() {
             store.commit()
             
             // Increment disk counter and verify coherence (zero overhead if disabled)
-            CoherenceStore.incrementDiskCount("key")
+            if (isNew) CoherenceStore.incrementDiskCount("key")
             CoherenceStore.verifyCoherenceQuick("key")
         }
         catch (e: Exception) {
@@ -244,7 +245,7 @@ class RDB() {
         }
     }
 
-    fun savePointSet(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
+    fun savePointSet(map: MutableMap<String, Any?>, forceDelete: Boolean = false, isNew: Boolean = true) {
         val store = getStore()
         try {
             val row = XYSet(
@@ -293,7 +294,7 @@ class RDB() {
             store.commit()
             
             // Increment disk counter and verify coherence (zero overhead if disabled)
-            CoherenceStore.incrementDiskCount("set")
+            if (isNew) CoherenceStore.incrementDiskCount("set")
             CoherenceStore.verifyCoherenceQuick("set")
         }
         catch (e: Exception) {
@@ -301,7 +302,7 @@ class RDB() {
         }
     }
 
-    fun savePointAny(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
+    fun savePointAny(map: MutableMap<String, Any?>, forceDelete: Boolean = false, isNew: Boolean = true) {
         val store = getStore()
         try {
             val row = XYAny(
@@ -388,7 +389,7 @@ class RDB() {
             store.commit()
             
             // Increment disk counter and verify coherence (zero overhead if disabled)
-            CoherenceStore.incrementDiskCount("any")
+            if (isNew) CoherenceStore.incrementDiskCount("any")
             CoherenceStore.verifyCoherenceQuick("any")
         }
         catch (e: Exception) {
@@ -396,7 +397,7 @@ class RDB() {
         }
     }
 
-    fun savePointDoc(map: MutableMap<String, Any?>, forceDelete: Boolean = false) {
+    fun savePointDoc(map: MutableMap<String, Any?>, forceDelete: Boolean = false, isNew: Boolean = true) {
         val store = getStore()
         try {
             val row = XYDoc(
@@ -431,7 +432,7 @@ class RDB() {
             store.commit()
             
             // Increment disk counter and verify coherence (zero overhead if disabled)
-            CoherenceStore.incrementDiskCount("doc")
+            if (isNew) CoherenceStore.incrementDiskCount("doc")
             CoherenceStore.verifyCoherenceQuick("doc")
         }
         catch (e: Exception) {
@@ -493,8 +494,11 @@ class RDB() {
     )
 
     /**
-     * Resolves the next available export file path under `<app.local>/xy/export/`.
-     * Same-day re-exports get a `_N` suffix to avoid clobbering.
+     * Reserves the next available export file under `<app.local>/xy/export/`.
+     *
+     * The file is created atomically (createNewFile) so two concurrent exports can
+     * never resolve the same path: whoever creates it owns it, the other gets a
+     * `_N` suffix. Same-day re-exports therefore never clobber each other.
      */
     fun resolveExportFile(): java.io.File {
         val dataDir = java.io.File(onmindxdb.dbfile).parentFile
@@ -502,28 +506,82 @@ class RDB() {
         if (!exportDir.exists()) exportDir.mkdirs()
 
         val stamp = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE)
-        var file = java.io.File(exportDir, "export${stamp}.db")
-        var i = 1
-        while (file.exists() && file.length() > 0L) {
-            file = java.io.File(exportDir, "export${stamp}_${i}.db")
+        var i = 0
+        while (true) {
+            val name = if (i == 0) "export${stamp}.db" else "export${stamp}_${i}.db"
+            val file = java.io.File(exportDir, name)
+            try {
+                if (file.createNewFile()) return file
+            } catch (ex: Exception) {
+                // Non-atomic FS: only fall back when the path is genuinely free.
+                if (!file.exists()) return file
+            }
             i++
         }
-        return file
+    }
+
+    private val exportExecutor: java.util.concurrent.ExecutorService =
+        java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+            Thread(r, "xdb-export").apply { isDaemon = true }
+        }
+
+    private val exportBusy = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Runs an export on ONE background thread, serializing all exports and reserving
+     * the output file up front, so the path returned to the caller is exactly the one
+     * written (no TOCTOU between resolving and exporting).
+     *
+     * Returns the reserved file, or null when an export is already running.
+     */
+    fun submitExport(
+        user: String,
+        select: String?,
+        filter: String?,
+        format: String,
+        onComplete: (Map<String, Any?>) -> Unit,
+        onError: (Exception) -> Unit
+    ): java.io.File? {
+        if (!exportBusy.compareAndSet(false, true)) return null
+        val outFile = try {
+            resolveExportFile()
+        } catch (ex: Exception) {
+            exportBusy.set(false)
+            onError(ex)
+            return null
+        }
+        exportExecutor.submit {
+            try {
+                onComplete(exportToSqlite(user, select, filter, format, outFile))
+            } catch (ex: Exception) {
+                onError(ex)
+            } finally {
+                exportBusy.set(false)
+            }
+        }
+        return outFile
     }
 
     /**
      * export (contract: from, with, cast) with SQLite as the supported format.
      * - select (from): null/""/"*"/"xyany" ⇒ full dump of all tables (XDB default);
      *       xykit/xykey/xyset/xydoc ⇒ that single table.
-     * - filter (with): optional raw WHERE clause, applied tolerantly to every exported table.
+     * - filter (with): optional WHERE clause, applied tolerantly to every exported
+     *       table. Validated by callers against the restricted grammar (WithFilter).
      * - format (cast): currently only "sqlite" (XDB priority); others error.
      * - user: auth user performing the export.
+     * - outFile: reserved destination; resolved on demand for direct/CLI use.
      */
-    fun exportToSqlite(user: String, select: String?, filter: String?, format: String): Map<String, Any?> {
+    fun exportToSqlite(
+        user: String,
+        select: String?,
+        filter: String?,
+        format: String,
+        outFile: java.io.File = resolveExportFile()
+    ): Map<String, Any?> {
         val start = System.currentTimeMillis()
         Class.forName("org.sqlite.JDBC")
 
-        val outFile = resolveExportFile()
         val sqliteUrl = "jdbc:sqlite:${outFile.absolutePath}"
         val sqliteConn: Connection = DriverManager.getConnection(sqliteUrl)
         try {

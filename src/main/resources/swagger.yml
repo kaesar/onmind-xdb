@@ -5,7 +5,7 @@ info:
     Fast No-SQL in-memory Database with simple query language.
     
     **OnMind-XDB** provides a unified endpoint `/abc` that handles all database operations through a flexible body structure.
-  version: 1.0.0-final2024
+  version: 1.0.0
   contact:
     name: Cesar Andres Arcila
     url: https://onmind.co

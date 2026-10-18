@@ -52,6 +52,9 @@ class FileAPI(private val service: FileService, private val ttl: Duration = Dura
 
     private fun authUser(req: Request): String = req.header("X-Auth-User") ?: "anonymous"
 
+    /** Quote a value for the express SQL query language (escapes embedded quotes). */
+    private fun lit(value: String?): String = "'" + (value ?: "").replace("'", "''") + "'"
+
     private fun requireWrite(req: Request): Response? =
         if (authUser(req) == "anonymous") jsonError("file:write required", Status.FORBIDDEN) else null
 
@@ -202,10 +205,10 @@ class FileAPI(private val service: FileService, private val ttl: Duration = Dura
         val any02 = name ?: (row["any02"]?.toString() ?: "")
         // any01 is UNIQUE: keep the row id suffix like FileMeta.insert does.
         val any01 = "${any02.uppercase()}~FILES~$id"
-        var sets = "any02='$any02', any01='$any01'"
-        if (tags != null) sets += ", any03='$tags'"
-        xdb.forUpdate("UPDATE xyany SET $sets WHERE id='$id'")
-        xdb.savePointAny(row)
+        var sets = "any02=${lit(any02)}, any01=${lit(any01)}"
+        if (tags != null) sets += ", any03=${lit(tags)}"
+        xdb.forUpdate("UPDATE xyany SET $sets WHERE id=${lit(id)}")
+        xdb.savePointAny(row, isNew = false)
         val updated = FileMeta.findById(id)
         return json(mapOf("ok" to true, "file" to (updated?.let { FileRow.toView(it) } ?: emptyMap<String, Any?>())))
     }
@@ -218,15 +221,16 @@ class FileAPI(private val service: FileService, private val ttl: Duration = Dura
         val from = req.query("from")
         val to = req.query("to")
         val q = req.query("q")
-        val limit = req.query("limit")?.toIntOrNull() ?: onmindxdb.queryLimit
+        val limit = (req.query("limit")?.toIntOrNull() ?: onmindxdb.queryLimit)
+            .coerceIn(0, onmindxdb.queryLimit)
 
         val clauses = mutableListOf<String>()
-        if (!mime.isNullOrBlank()) clauses.add("any15 LIKE '${mime}%'")
-        if (!user.isNullOrBlank()) clauses.add("anyby = '$user'")
-        if (!tags.isNullOrBlank()) clauses.add("any03 LIKE '%$tags%'")
-        if (!from.isNullOrBlank()) clauses.add("anyat >= '$from'")
-        if (!to.isNullOrBlank()) clauses.add("anyat <= '$to'")
-        if (!q.isNullOrBlank()) clauses.add("(any02 LIKE '%$q%' OR any01 LIKE '%$q%')")
+        if (!mime.isNullOrBlank()) clauses.add("any15 LIKE ${lit("$mime%")}")
+        if (!user.isNullOrBlank()) clauses.add("anyby = ${lit(user)}")
+        if (!tags.isNullOrBlank()) clauses.add("any03 LIKE ${lit("%$tags%")}")
+        if (!from.isNullOrBlank()) clauses.add("anyat >= ${lit(from)}")
+        if (!to.isNullOrBlank()) clauses.add("anyat <= ${lit(to)}")
+        if (!q.isNullOrBlank()) clauses.add("(any02 LIKE ${lit("%$q%")} OR any01 LIKE ${lit("%$q%")})")
         val where = if (clauses.isEmpty()) null else clauses.joinToString(" AND ")
 
         val rows = FileMeta.list(where)

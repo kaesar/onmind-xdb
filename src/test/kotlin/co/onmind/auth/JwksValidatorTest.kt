@@ -3,6 +3,7 @@ package co.onmind.auth
 import co.onmind.util.JsonMapper
 import co.onmind.util.Rote
 import com.sun.net.httpserver.HttpServer
+import org.junit.jupiter.api.Test
 import java.math.BigInteger
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
@@ -17,31 +18,10 @@ import java.util.Properties
  * Verifies RS256/JWKS validation (OIDCPlug real-JWT path) and app.cors parsing.
  * eXpress default must keep working: no JWKS/secret -> legacy decode-only.
  */
-object JwksValidatorTest {
+class JwksValidatorTest {
 
     private val json = JsonMapper.instance
-    private const val KID = "test-key-1"
-
-    @JvmStatic
-    fun main(args: Array<String>) {
-        println("=== JwksValidator Test ===")
-        try {
-            testRs256Roundtrip()
-            testTamperedRejected()
-            testExpiredRejected()
-            testWrongIssuerRejected()
-            testAudienceCheck()
-            testFetchFromUrl()
-            testKeycloakDerivation()
-            testCorsParsing()
-            testExpressLegacyFallback()
-            println("All JwksValidator tests passed!")
-        } catch (e: Exception) {
-            println("\nJwksValidator test failed: ${e.message}")
-            e.printStackTrace()
-            kotlin.system.exitProcess(1)
-        }
-    }
+    private val kid = "test-key-1"
 
     private data class Fixture(
         val jwksJson: String,
@@ -55,8 +35,8 @@ object JwksValidatorTest {
         val pub = kp.public as RSAPublicKey
         val n = base64UrlUnsigned(pub.modulus)
         val e = base64UrlUnsigned(pub.publicExponent)
-        val jwksJson = """{"keys":[{"kty":"RSA","kid":"$KID","use":"sig","alg":"RS256","n":"$n","e":"$e"}]}"""
-        return Fixture(jwksJson) { claims -> signRs256(kp.private, claims, KID) }
+        val jwksJson = """{"keys":[{"kty":"RSA","kid":"$kid","use":"sig","alg":"RS256","n":"$n","e":"$e"}]}"""
+        return Fixture(jwksJson) { claims -> signRs256(kp.private, claims, kid) }
     }
 
     private fun baseClaims(expOffsetSeconds: Long = 3600): Map<String, Any> = mapOf(
@@ -67,7 +47,8 @@ object JwksValidatorTest {
         "exp" to Instant.now().plusSeconds(expOffsetSeconds).epochSecond
     )
 
-    private fun testRs256Roundtrip() {
+    @Test
+    fun rs256Roundtrip() {
         val f = fixture()
         val token = f.sign(baseClaims())
         val claims = JwksValidator.verifyWithJwksJson(
@@ -76,11 +57,11 @@ object JwksValidatorTest {
             audience = "onmind-xdb"
         )
         check(claims != null) { "valid RS256 token should verify" }
-        check(claims!!["sub"] == "alice")
-        println("ok: RS256 roundtrip verified sub=${claims["sub"]}")
+        check(claims["sub"] == "alice")
     }
 
-    private fun testTamperedRejected() {
+    @Test
+    fun tamperedRejected() {
         val f = fixture()
         val token = f.sign(baseClaims())
         val parts = token.split(".")
@@ -90,17 +71,17 @@ object JwksValidatorTest {
         val tampered = "${parts[0]}.$tamperedPayload.${parts[2]}"
         val claims = JwksValidator.verifyWithJwksJson(tampered, f.jwksJson)
         check(claims == null) { "tampered payload must be rejected" }
-        println("ok: tampered payload rejected")
     }
 
-    private fun testExpiredRejected() {
+    @Test
+    fun expiredRejected() {
         val f = fixture()
         val token = f.sign(baseClaims(expOffsetSeconds = -60))
         check(JwksValidator.verifyWithJwksJson(token, f.jwksJson) == null) { "expired must be rejected" }
-        println("ok: expired token rejected")
     }
 
-    private fun testWrongIssuerRejected() {
+    @Test
+    fun wrongIssuerRejected() {
         val f = fixture()
         val token = f.sign(baseClaims())
         val bad = JwksValidator.verifyWithJwksJson(
@@ -109,10 +90,10 @@ object JwksValidatorTest {
         check(bad == null) { "wrong issuer must be rejected" }
         val none = JwksValidator.verifyWithJwksJson(token, f.jwksJson)
         check(none != null) { "no issuer constraint should verify" }
-        println("ok: issuer check enforced only when configured")
     }
 
-    private fun testAudienceCheck() {
+    @Test
+    fun audienceCheck() {
         val f = fixture()
         val token = f.sign(baseClaims())
         check(JwksValidator.verifyWithJwksJson(token, f.jwksJson, audience = "other") == null) {
@@ -121,10 +102,10 @@ object JwksValidatorTest {
         check(JwksValidator.verifyWithJwksJson(token, f.jwksJson, audience = "onmind-xdb") != null) {
             "matching audience should verify"
         }
-        println("ok: audience check enforced only when configured")
     }
 
-    private fun testFetchFromUrl() {
+    @Test
+    fun fetchFromUrl() {
         val f = fixture()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/certs") { exchange ->
@@ -140,15 +121,15 @@ object JwksValidatorTest {
             val token = f.sign(baseClaims())
             val claims = JwksValidator.verify(token, url)
             check(claims != null) { "JWKS fetched over HTTP should verify" }
-            check(claims!!["sub"] == "alice")
-            println("ok: JWKS fetched from $url and verified")
+            check(claims["sub"] == "alice")
         } finally {
             server.stop(0)
             JwksValidator.clearCache()
         }
     }
 
-    private fun testKeycloakDerivation() {
+    @Test
+    fun keycloakDerivation() {
         val derived = OIDCPlug.defaultJwksUrl("http://localhost:8080/", "master", "KEYCLOAK")
         check(derived == "http://localhost:8080/realms/master/protocol/openid-connect/certs") {
             "unexpected derivation: $derived"
@@ -159,10 +140,10 @@ object JwksValidatorTest {
         check(OIDCPlug.defaultJwksUrl(null, "master", "KEYCLOAK") == null) {
             "missing serverUrl must not derive"
         }
-        println("ok: Keycloak JWKS URL derived: $derived")
     }
 
-    private fun testCorsParsing() {
+    @Test
+    fun corsParsing() {
         // eXpress defaults -> AllowAll (null)
         check(Rote.parseCorsOrigins(null) == null) { "null -> AllowAll" }
         check(Rote.parseCorsOrigins("") == null) { "empty -> AllowAll" }
@@ -176,10 +157,10 @@ object JwksValidatorTest {
         check(Rote.corsOrigins(Properties()) == null) { "missing prop -> AllowAll" }
         val props = Properties().apply { setProperty("app.cors", "https://a.example,https://b.example") }
         check(Rote.corsOrigins(props) == listOf("https://a.example", "https://b.example")) { "props wiring" }
-        println("ok: app.cors parsing (AllowAll default + comma list)")
     }
 
-    private fun testExpressLegacyFallback() {
+    @Test
+    fun expressLegacyFallback() {
         // No JWKS, no secret -> legacy decode-only keeps working (backward compat).
         val plug = OIDCPlug(clientId = "onmind-xdb")
         val payload = base64Url(json.writeValueAsString(baseClaims()))
@@ -188,8 +169,7 @@ object JwksValidatorTest {
             .header("Authorization", "Bearer $token")
         val result = plug.authenticate(request)
         check(result is co.onmind.trait.AuthResult.Success) { "legacy fallback must accept, got $result" }
-        check((result as co.onmind.trait.AuthResult.Success).user.id == "alice")
-        println("ok: eXpress legacy fallback (no JWKS/secret) still decodes")
+        check(result.user.id == "alice")
     }
 
     private fun signRs256(privateKey: java.security.PrivateKey, claims: Map<String, Any>, kid: String?): String {

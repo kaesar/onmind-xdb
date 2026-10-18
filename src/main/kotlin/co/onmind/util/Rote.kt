@@ -4,7 +4,6 @@ package co.onmind.util
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
 import java.io.File
-import java.io.FileInputStream
 import java.sql.Connection
 import java.sql.DriverManager
 import java.sql.SQLException
@@ -40,6 +39,18 @@ object Rote {
             } else stack.addLast(p)
         }
         return stack.joinToString("/")
+    }
+
+    /**
+     * Reads an integer property tolerantly (eXpress contract): a missing key, a
+     * malformed value, or one out of [range] — including a trailing inline
+     * `# comment` that `java.util.Properties` keeps in the value — falls back to
+     * [default] instead of aborting startup with a NumberFormatException.
+     */
+    fun intProp(config: Properties, key: String, default: Int, range: IntRange? = null): Int {
+        val raw = config.getProperty(key)?.substringBefore('#')?.trim() ?: return default
+        val value = raw.toIntOrNull() ?: return default
+        return if (range == null || value in range) value else default
     }
 
     fun getConfigFile(): String {
@@ -176,6 +187,10 @@ object Rote {
                             # auth.jwt.audience = <client_id>  # expected aud (optional)
                             # auth.oidc.user_claim = sub
                             # auth.oidc.roles_claim = roles
+                            # Proxy mode: accept the identity from X-Auth-User/X-Proxy-User.
+                            # Enable ONLY behind a reverse proxy that strips those headers;
+                            # otherwise leave disabled (default) so the Bearer JWT is verified.
+                            # auth.oidc.trust_headers = +
 
                             # OTP Mail (passwordless) — set auth.type = OTPMAIL to enable
                             # auth.otp.smtp_host = localhost
@@ -215,9 +230,54 @@ object Rote {
 
     fun getConfig(file: String) =
             Properties().apply {
-                FileInputStream(file).use { fis -> load(fis) }
+                // Java Properties only treats '#' at line start as a comment; a
+                // trailing `# note` stays glued to the value. Strip it first.
+                val raw = String(File(file).readBytes(), Charsets.ISO_8859_1)
+                load(sanitizeIni(raw).reader())
                 resolveEnvRefs(this)
             }
+
+    /**
+     * Removes inline `#` comments from ini text so they never become part of a
+     * value (`db.export = +   # note` -> `+`). A `#` is dropped only when it is
+     * preceded by whitespace and is not inside quotes, so values that legitimately
+     * contain `#` (passwords, `http://host/page#frag`) survive untouched. Lines
+     * that continue a previous one via a trailing `\` are left as-is.
+     *
+     * The text is decoded as ISO-8859-1 to match the byte-for-char semantics of
+     * the previous `Properties.load(InputStream)`.
+     */
+    private fun sanitizeIni(raw: String): String {
+        val out = StringBuilder()
+        var continued = false
+        for (line in raw.lineSequence()) {
+            val clean = if (continued) line else stripInlineComment(line)
+            out.append(clean).append('\n')
+            continued = oddTrailingBackslashes(clean)
+        }
+        return out.toString()
+    }
+
+    private fun stripInlineComment(line: String): String {
+        var quote: Char? = null
+        for (i in line.indices) {
+            val c = line[i]
+            when {
+                quote != null -> if (c == quote) quote = null
+                c == '"' || c == '\'' -> quote = c
+                c == '#' && i > 0 && line[i - 1].isWhitespace() -> return line.substring(0, i).trimEnd()
+            }
+        }
+        return line
+    }
+
+    /** True when the line ends with an odd number of backslashes (Properties line continuation). */
+    private fun oddTrailingBackslashes(line: String): Boolean {
+        var n = 0
+        var i = line.length - 1
+        while (i >= 0 && line[i] == '\\') { n++; i-- }
+        return n % 2 == 1
+    }
 
     /**
      * Resolve whole `os.environ/NAME` values from [env]; other values pass untouched.
@@ -260,8 +320,8 @@ object Rote {
     }
 
     fun getDataSource(config: Properties): HikariDataSource {
-        port = (config.getProperty("dai.port") ?: "9000").toInt()
-        val maxPoolSize = (config.getProperty("db.max_pool_size") ?: "10").toInt()
+        port = intProp(config, "dai.port", 9990, 1..65535)
+        val maxPoolSize = intProp(config, "db.max_pool_size", 10, 1..1000)
         path = config.getProperty("app.local")
         var driver = config.getProperty("db.driver")
         var boxUrl: String
@@ -316,7 +376,7 @@ object Rote {
 
     @Deprecated("Use getDataSource instead")
     fun getDB(config: Properties): Connection {
-        port = (config.getProperty("dai.port") ?: "9000").toInt()
+        port = intProp(config, "dai.port", 9990, 1..65535)
         val host = config.getProperty("dai.host")
         val dbHost = config.getProperty("db.host")
         var dbPort = config.getProperty("db.port")

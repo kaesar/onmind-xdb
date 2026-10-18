@@ -12,6 +12,7 @@ import org.http4k.core.Request
 import org.http4k.core.Response
 import org.http4k.core.Status
 import org.http4k.core.cookie.Cookie
+import org.http4k.core.cookie.SameSite
 import org.http4k.core.cookie.cookie
 import org.http4k.core.cookie.cookies
 import org.http4k.core.cookie.invalidateCookie
@@ -155,8 +156,11 @@ class OTPMailPlug(
             sendOtpEmail(email, code)
             println("OTP email sent to $email")
         } catch (e: Exception) {
-            // Dev-friendly: still show verify page; code is in logs (and on page for localhost SMTP)
-            println("OTP email send failed (verify page still shown): ${e.message} — code for $email: $code")
+            // Dev-friendly: still show the verify page. The code only reaches the log
+            // (and the page) when a localhost SMTP is used; never leak it elsewhere.
+            val isDevHost = smtpHost == "localhost" || smtpHost == "127.0.0.1"
+            val detail = if (isDevHost) " — code for $email: $code" else ""
+            println("OTP email send failed (verify page still shown): ${e.message}$detail")
         }
 
         val codeHint = if (smtpHost == "localhost" || smtpHost == "127.0.0.1") {
@@ -274,7 +278,8 @@ class OTPMailPlug(
             value = value,
             maxAge = SESSION_MAX_AGE_SECONDS,
             path = "/",
-            httpOnly = true
+            httpOnly = true,
+            sameSite = SameSite.Lax
         )
     }
 

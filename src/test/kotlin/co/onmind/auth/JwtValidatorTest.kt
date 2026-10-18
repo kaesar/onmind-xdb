@@ -1,39 +1,20 @@
 package co.onmind.auth
 
 import co.onmind.util.JsonMapper
+import org.junit.jupiter.api.Test
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 import java.time.Instant
 import java.util.Base64
 
-/**
- * Verifies the HS256 JWT validator used for OnMind-UID resource-server auth.
- * Run: cd xdb && JAVA_HOME=<jdk25> ./gradlew -q compileKotlin compileTestKotlin classes && \
- *   kotlin -cp build/classes/kotlin/main:...  (or via your preferred runner)
- */
-object JwtValidatorTest {
+/** Verifies the HS256 JWT validator used for OnMind-UID resource-server auth. */
+class JwtValidatorTest {
 
-    private const val SECRET = "test-shared-secret"
+    private val secret = "test-shared-secret"
 
-    @JvmStatic
-    fun main(args: Array<String>) {
-        println("=== JwtValidator Test ===")
-        try {
-            testValidToken()
-            testBadSignature()
-            testExpiredToken()
-            testWrongIssuer()
-            println("All JwtValidator tests passed!")
-        } catch (e: Exception) {
-            println("\nJwtValidator test failed: ${e.message}")
-            e.printStackTrace()
-            kotlin.system.exitProcess(1)
-        }
-    }
-
-    private fun testValidToken() {
+    @Test
+    fun validToken() {
         val claims = mapOf(
             "iss" to "http://localhost:8080",
             "sub" to "alice",
@@ -45,38 +26,37 @@ object JwtValidatorTest {
             "exp" to (Instant.now().plusSeconds(3600).epochSecond)
         )
         val token = sign(claims)
-        val result = JwtValidator.verify(token, SECRET, issuer = "http://localhost:8080", audience = "xdb-client")
+        val result = JwtValidator.verify(token, secret, issuer = "http://localhost:8080", audience = "xdb-client")
         check(result != null) { "should validate" }
-        check(result!!["username"] == "alice")
+        check(result["username"] == "alice")
         check((result["cognito:groups"] as? List<*>)?.size == 2)
-        println("ok: valid token verified, groups=${result["cognito:groups"]}")
     }
 
-    private fun testBadSignature() {
+    @Test
+    fun badSignatureRejected() {
         val claims = mapOf("iss" to "http://localhost:8080", "exp" to Instant.now().plusSeconds(3600).epochSecond)
         val token = sign(claims, overrideSecret = "other-secret")
-        val result = JwtValidator.verify(token, SECRET)
+        val result = JwtValidator.verify(token, secret)
         check(result == null) { "should reject bad signature" }
-        println("ok: bad signature rejected")
     }
 
-    private fun testExpiredToken() {
+    @Test
+    fun expiredTokenRejected() {
         val claims = mapOf("exp" to Instant.now().minusSeconds(60).epochSecond)
         val token = sign(claims)
-        val result = JwtValidator.verify(token, SECRET)
+        val result = JwtValidator.verify(token, secret)
         check(result == null) { "should reject expired token" }
-        println("ok: expired token rejected")
     }
 
-    private fun testWrongIssuer() {
+    @Test
+    fun wrongIssuerRejected() {
         val claims = mapOf("iss" to "http://evil.example", "exp" to Instant.now().plusSeconds(3600).epochSecond)
         val token = sign(claims)
-        val result = JwtValidator.verify(token, SECRET, issuer = "http://localhost:8080")
+        val result = JwtValidator.verify(token, secret, issuer = "http://localhost:8080")
         check(result == null) { "should reject wrong issuer" }
-        println("ok: wrong issuer rejected")
     }
 
-    private fun sign(claims: Map<String, Any>, overrideSecret: String = SECRET): String {
+    private fun sign(claims: Map<String, Any>, overrideSecret: String = secret): String {
         val header = base64Url("""{"alg":"HS256","typ":"JWT"}""")
         val payload = base64Url(JsonMapper.instance.writeValueAsString(claims))
         val signingInput = "$header.$payload"

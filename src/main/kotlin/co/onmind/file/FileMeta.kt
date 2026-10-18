@@ -9,6 +9,9 @@ object FileMeta {
 
     private val xdb = RDB()
 
+    /** Quote a value for the express SQL query language (escapes embedded quotes). */
+    private fun lit(value: String?): String = "'" + (value ?: "").replace("'", "''") + "'"
+
     private fun sheetExists(): Boolean {
         val rows = xdb.forQuery("SELECT id FROM xykit WHERE kit01='FILES.SHEET'")
         return !rows.isNullOrEmpty()
@@ -74,7 +77,7 @@ object FileMeta {
     }
 
     fun findById(id: String): MutableMap<String, Any?>? {
-        val rows = xdb.forQuery("SELECT * FROM xyany WHERE id='$id' AND anyxy='${FILES_SHEET}'")
+        val rows = xdb.forQuery("SELECT * FROM xyany WHERE id=${lit(id)} AND anyxy='${FILES_SHEET}'")
         return rows?.firstOrNull()
     }
 
@@ -86,7 +89,7 @@ object FileMeta {
 
     fun delete(id: String): Boolean {
         return try {
-            xdb.forUpdate("DELETE FROM xyany WHERE id='$id' AND anyxy='${FILES_SHEET}'")
+            xdb.forUpdate("DELETE FROM xyany WHERE id=${lit(id)} AND anyxy='${FILES_SHEET}'")
             co.onmind.util.CoherenceStore.decrementMemoryCount("any")
             xdb.movePoint(id, "any")
             true

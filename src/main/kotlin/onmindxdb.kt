@@ -52,7 +52,7 @@ object onmindxdb {
     var queryLimit = 1200
     var exportEnabled = false
     var config: Properties? = null
-    val version = "0.9.0"
+    val version = "1.0.0"
     var uiEnabled = true
     /** When true, UI shows a logout link (not NoAuth; only strategies with a real logout URL). */
     var uiShowLogout: Boolean = false
@@ -67,7 +67,7 @@ object onmindxdb {
         val filex = Rote.getConfigFile()
         val cfg = Rote.getConfig(filex)
         config = cfg
-        queryLimit = cfg.getProperty("db.query_limit", "1200").toIntOrNull() ?: 1200
+        queryLimit = Rote.intProp(cfg, "db.query_limit", 1200, 1..1_000_000)
         exportEnabled = cfg.getProperty("db.export", "-") == "+"
         dataSource = Rote.getDataSource(cfg)
         dbc = dataSource?.connection
@@ -148,7 +148,7 @@ object onmindxdb {
         val mcpLlm = cfg.getProperty("mcp.llm", "-")
         val mcpLlmUrl = cfg.getProperty("mcp.llm.url", "http://127.0.0.1:11434")
         val mcpLlmModel = cfg.getProperty("mcp.llm.model", "carstenuhlig/omnicoder-9b:latest")
-        val mcpLlmTimeout = cfg.getProperty("mcp.llm.timeout", "120").toLongOrNull() ?: 120L
+        val mcpLlmTimeout = Rote.intProp(cfg, "mcp.llm.timeout", 120, 1..86400).toLong()
 
         val mcpTools = AbcMcpTools(abc, writeEnabled = mcpWrite)
         val mcpServer = if (mcpEnabled || mcpStdio) AbcMcpServer(mcpTools) else null
@@ -162,7 +162,7 @@ object onmindxdb {
         val grpcEnabled = try {
             args.contains("--grpc") || cfg.getProperty("grpc.enabled", "-") == "+"
         } catch (_: Exception) { false }
-        val grpcPort = cfg.getProperty("grpc.port", "9991").toIntOrNull() ?: 9991
+        val grpcPort = Rote.intProp(cfg, "grpc.port", 9991, 1..65535)
         var grpcServer: Any? = null  // Use Any? to avoid class not found in lite profile
 
         // MCP-only stdio mode: no Jetty (for Claude Desktop / Cursor / agent hosts).

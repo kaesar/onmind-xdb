@@ -171,7 +171,7 @@ class DBKey(): AbstractDB {
         map.forEach { (k, v) ->
             if (v != null) {
                 mapColumns += "$k,"
-                mapValues += if (!fakeStrings.contains(k)) "'${v as String}'," else "${v},"
+                mapValues += if (!fakeStrings.contains(k)) "${sqlLiteral(v)}," else "${v},"
             }
         }
 
@@ -184,10 +184,10 @@ class DBKey(): AbstractDB {
         map.forEach { (k, v) ->
             if (v != null) {
                 query += "$k="
-                query += if (!fakeStrings.contains(k)) "'${v as String}'," else "${v},"
+                query += if (!fakeStrings.contains(k)) "${sqlLiteral(v)}," else "${v},"
             }
         }
-        query = "${query.dropLast(1)} WHERE id='$with'"
+        query = "${query.dropLast(1)} WHERE id=${sqlLiteral(with)}"
         return query
     }
 }

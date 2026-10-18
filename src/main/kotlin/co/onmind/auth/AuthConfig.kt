@@ -30,6 +30,11 @@ data class AuthConfig(
     val oidcRolesClaim: String? = null,
     /** Explicit JWKS URL for RS256 verification (Keycloak, Entra ID, ...). */
     val oidcJwksUrl: String? = null,
+    /**
+     * Trust the identity in proxy headers (X-Auth-User / X-Proxy-User).
+     * Off by default: only enable when XDB is behind a trusted reverse proxy.
+     */
+    val oidcTrustHeaders: Boolean = false,
     val otpSmtpHost: String = "localhost",
     val otpSmtpPort: String = "1025",
     val otpSmtpUser: String = "",
@@ -60,7 +65,8 @@ data class AuthConfig(
             sharedSecret = jwtSharedSecret,
             expectedIssuer = jwtIssuer,
             expectedAudience = jwtAudience,
-            jwksUrl = oidcJwksUrl
+            jwksUrl = oidcJwksUrl,
+            trustProxyHeaders = oidcTrustHeaders
         )
         type == AuthType.ENTRAID -> OIDCPlug(
             serverUrl = oidcUrl,
@@ -72,7 +78,8 @@ data class AuthConfig(
             sharedSecret = jwtSharedSecret,
             expectedIssuer = jwtIssuer,
             expectedAudience = jwtAudience,
-            jwksUrl = oidcJwksUrl
+            jwksUrl = oidcJwksUrl,
+            trustProxyHeaders = oidcTrustHeaders
         )
         type == AuthType.OIDC -> OIDCPlug(
             serverUrl = oidcUrl,
@@ -85,7 +92,8 @@ data class AuthConfig(
             sharedSecret = jwtSharedSecret,
             expectedIssuer = jwtIssuer,
             expectedAudience = jwtAudience,
-            jwksUrl = oidcJwksUrl
+            jwksUrl = oidcJwksUrl,
+            trustProxyHeaders = oidcTrustHeaders
         )
         type == AuthType.OTPMAIL -> OTPMailPlug(
             smtpHost = otpSmtpHost,
@@ -135,6 +143,7 @@ data class AuthConfig(
                 oidcEmailClaim = config.getProperty("auth.oidc.email_claim"),
                 oidcRolesClaim = config.getProperty("auth.oidc.roles_claim"),
                 oidcJwksUrl = config.getProperty("auth.oidc.jwks_url") ?: config.getProperty("auth.keycloak.jwks_url"),
+                oidcTrustHeaders = config.getProperty("auth.oidc.trust_headers", "-") == "+",
                 otpSmtpHost = config.getProperty("auth.otp.smtp_host", "localhost"),
                 otpSmtpPort = config.getProperty("auth.otp.smtp_port", "1025"),
                 otpSmtpUser = config.getProperty("auth.otp.smtp_user", ""),
