@@ -137,6 +137,28 @@ class SecurityChecksTest {
     }
 
     @Test
+    fun `boolean flags use the eXpress +- convention and stay tolerant`() {
+        // Canonical form: + = true, - = false.
+        assertTrue(Rote.boolProp(props("db.export" to "+"), "db.export", false), "+ is true")
+        assertFalse(Rote.boolProp(props("db.export" to "-"), "db.export", false), "- is false")
+        // Tolerant aliases (so older/other spellings keep working).
+        assertTrue(Rote.boolProp(props("db.export" to "true"), "db.export", false), "true alias")
+        assertFalse(Rote.boolProp(props("db.export" to "false"), "db.export", false), "false alias")
+        assertTrue(Rote.boolProp(props("db.export" to "ON"), "db.export", false), "case-insensitive alias")
+        // Inline comment and whitespace.
+        assertTrue(Rote.boolProp(props("db.export" to " +  # export"), "db.export", false), "inline # comment")
+        assertFalse(Rote.boolProp(props("db.export" to " - "), "db.export", false), "spaces trimmed")
+        // Missing / unknown value falls back to the provided default.
+        assertTrue(Rote.boolProp(java.util.Properties(), "auth.enabled", true), "missing -> default")
+        assertFalse(Rote.boolProp(props("x" to "maybe"), "x", false), "unknown -> default")
+        // `auth.enabled` must stay true for both the canonical and the legacy spelling.
+        assertTrue(Rote.boolProp(props("auth.enabled" to "+"), "auth.enabled", true), "auth + is true")
+        assertTrue(Rote.boolProp(props("auth.enabled" to "true"), "auth.enabled", true), "auth true is true")
+        assertFalse(Rote.boolProp(props("auth.enabled" to "-"), "auth.enabled", true), "auth - is false")
+        assertFalse(Rote.boolProp(props("auth.enabled" to "false"), "auth.enabled", true), "auth false is false")
+    }
+
+    @Test
     fun `onmind ini ignores inline comments but keeps '#' inside values`() {
         val iniFile = java.io.File.createTempFile("xdb-ini", ".ini")
         try {

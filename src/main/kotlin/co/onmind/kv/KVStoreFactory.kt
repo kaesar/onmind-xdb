@@ -2,6 +2,7 @@ package co.onmind.kv
 
 import co.onmind.trait.KVStore
 import co.onmind.kv.MVStorePlug
+import co.onmind.util.Rote
 import java.util.*
 
 object KVStoreFactory {
@@ -19,7 +20,9 @@ object KVStoreFactory {
                         .getDeclaredConstructor().newInstance() as KVStore
                     val tableName = config.getProperty("kv.dynamodb.table", "onmind-xdb")
                     val region = config.getProperty("kv.dynamodb.region", "us-east-1")
-                    instance.init(tableName, region)
+                    val autocreate = Rote.boolProp(config, "kv.dynamodb.autocreate", false)
+                    val conditional = Rote.boolProp(config, "kv.dynamodb.conditional", false)
+                    instance.init(tableName, region, autocreate, conditional)
                     instance
                 } catch (e: ClassNotFoundException) {
                     throw IllegalArgumentException("DynamoDB support not available (lite profile)")

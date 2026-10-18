@@ -20,9 +20,8 @@ object CoherenceConfig {
             else -> loggerValue.toIntOrNull() ?: 0
         }
         
-        // Parse db.check (símbolo)
-        val checkValue = config.getProperty("db.check", "-")
-        checkEnabled = checkValue == "+"
+        // Parse db.check (símbolo `+`/`-`)
+        checkEnabled = Rote.boolProp(config, "db.check", false)
     }
     
     // Métodos inline para cero overhead cuando está desactivado

@@ -53,6 +53,22 @@ object Rote {
         return if (range == null || value in range) value else default
     }
 
+    /**
+     * Reads a boolean property in the eXpress convention: `+` = true, `-` = false.
+     * For robustness it also accepts `true`/`false`, `yes`/`no`, `on`/`off` and
+     * `1`/`0` (case-insensitive), and strips a trailing inline `# comment`.
+     * Any other or missing value falls back to [default]. This is the single
+     * parser used for every boolean flag, so no flag needs one spelling or the other.
+     */
+    fun boolProp(config: Properties, key: String, default: Boolean): Boolean {
+        val raw = config.getProperty(key)?.substringBefore('#')?.trim()?.lowercase() ?: return default
+        return when (raw) {
+            "+", "true", "yes", "on", "1" -> true
+            "-", "false", "no", "off", "0" -> false
+            else -> default
+        }
+    }
+
     fun getConfigFile(): String {
         try {
             // 0. Explicit override for server/container deployments (eXpress default: unset).
@@ -152,7 +168,7 @@ object Rote {
                             db.export = -      # + enables /abc what=export to SQLite file
 
                             # Authentication parameters
-                            auth.enabled = true
+                            auth.enabled = +
                             auth.type = BASIC
                             auth.basic.user = YWRtaW4=
                             auth.basic.pass = YWRtaW4=
@@ -199,13 +215,15 @@ object Rote {
                             # auth.otp.smtp_pass =
                             # auth.otp.from = xdb@localhost
                             # auth.otp.session_key = change-me-otp-session-key
-                            # auth.otp.auto_register = true
+                            # auth.otp.auto_register = +
 
                             # Persistence parameters
                             kv.store = mvstore
                             kv.mvstore.name = xybox
                             kv.dynamodb.table = onmind-xdb
                             kv.dynamodb.region = us-east-1
+                            kv.dynamodb.autocreate = -
+                            kv.dynamodb.conditional = -
                         """.trimIndent()
                         try {
                             File(file.replace(fileName, "")).mkdir()
@@ -433,7 +451,7 @@ object Rote {
     fun getConnection(dataSource: HikariDataSource): Connection = dataSource.connection
 
     fun isUIEnabled(config: Properties): Boolean {
-        return config.getProperty("app.ui", "+") == "+"
+        return boolProp(config, "app.ui", true)
     }
 
     /**

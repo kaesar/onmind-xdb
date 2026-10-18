@@ -437,7 +437,14 @@ kv.mvstore.name = xybox
 kv.store = dynamodb
 kv.dynamodb.table = onmind-xdb
 kv.dynamodb.region = us-east-1
+kv.dynamodb.autocreate = -   # + crea la tabla si no existe (requiere permiso CreateTable)
+kv.dynamodb.conditional = -  # + escritura optimista "newest wins" (atributo Version)
 ```
+
+- **Tabla**: se espera una tabla con clave de partición de tipo string en el atributo `Key` y el JSON en `Value`. Con `autocreate = +` se crea con billing *on-demand* si falta; si no, se falla con un mensaje claro indicando el nombre de la tabla.
+- **Escrituras**: se agrupan y se envían con `BatchWriteItem` (hasta 25 por request) reintentando `UnprocessedItems`, de modo que un lote no pierde datos en silencio. `commit()` vuelca el búfer.
+- **Concurrencia**: por defecto el último escritor gana (sobrescritura atómica por ítem). Con `conditional = +` se usa `Version` + `PutItem` condicional, por lo que una escritura más antigua no pisa a una más nueva (asume relojes razonablemente sincronizados).
+- **Límite**: un ítem > 400 KB se rechaza con `IllegalArgumentException` antes de llamar a AWS.
 
 #### Azure Cosmos DB
 ```ini
@@ -828,7 +835,7 @@ La clave para no confundir "modalidad de XDB" con "delegación externa" es
 | `OTPMAIL` | **XDB** (código por email + cookie de sesión propia) | **Self-auth** — no hay modos A/B |
 | `OIDC` / `KEYCLOAK` / `ENTRAID` / `COGNITO` | IdP externo (xid/uid/Keycloak/Entra/Cognito); **XDB verifica** el token | **Delegación — Modo A** |
 | `AUTHELIA` | Proxy / forward-auth; XDB **confía** en `Remote-User` | **Delegación — Modo B** |
-| `auth.enabled = false` | nadie | Sin autenticación |
+| `auth.enabled = -` | nadie | Sin autenticación |
 
 > En **local** el default es `BASIC`: XDB autentica por sí mismo y **ningún modo
 > A/B interviene**. `auth.oidc.trust_headers` sólo tiene efecto con
@@ -840,7 +847,7 @@ La clave para no confundir "modalidad de XDB" con "delegación externa" es
 #### Autenticación Básica (Default)
 ```ini
 # Habilitada por defecto (credenciales en Base64)
-auth.enabled = true
+auth.enabled = +
 auth.type = BASIC
 auth.basic.user = YWRtaW4=  # admin en Base64
 auth.basic.pass = YWRtaW4=  # admin en Base64
@@ -848,7 +855,7 @@ auth.basic.pass = YWRtaW4=  # admin en Base64
 
 #### OTP Mail (passwordless, recomendado sin IdP externo)
 ```ini
-auth.enabled = true
+auth.enabled = +
 auth.type = OTPMAIL
 auth.otp.smtp_host = localhost
 auth.otp.smtp_port = 1025
@@ -856,7 +863,7 @@ auth.otp.smtp_user =
 auth.otp.smtp_pass =
 auth.otp.from = xdb@localhost
 auth.otp.session_key = change-me-otp-session-key
-auth.otp.auto_register = true
+auth.otp.auto_register = +
 ```
 
 Flujo:
@@ -864,7 +871,7 @@ Flujo:
 2. Ingresa email → XDB genera código de 6 dígitos (TTL 5 min, máx. 3 intentos)
 3. Código enviado por SMTP; en `localhost`/`127.0.0.1` se muestra también en pantalla (dev mode)
 4. Verificación OK → cookie firmada `xdb-otp-session` (7 días) e inyección de `X-Auth-User`
-5. Auto-registro en `xykey` (`key02` = email) si `auth.otp.auto_register = true`
+5. Auto-registro en `xykey` (`key02` = email) si `auth.otp.auto_register = +`
 
 Mailpit (desarrollo):
 ```bash
@@ -888,12 +895,12 @@ Rutas públicas OTP:
 
 #### Sin Autenticación
 ```ini
-auth.enabled = false
+auth.enabled = -
 ```
 
 #### Con Authelia
 ```ini
-auth.enabled = true
+auth.enabled = +
 auth.type = AUTHELIA
 auth.authelia.url = https://auth.example.com
 ```
@@ -905,7 +912,7 @@ auth.cognito.client_id = xxxxxxxxxxxxxxxxxxxxxxxxxx
 
 #### Con OIDC / Keycloak / Entra ID
 ```ini
-auth.enabled = true
+auth.enabled = +
 auth.type = KEYCLOAK  # o ENTRAID, o OIDC
 auth.oidc.url = https://auth.example.com/realms/master
 auth.oidc.realm = master
@@ -1071,7 +1078,7 @@ verificar firma (modo legado, no recomendado en producción).
 
 ```properties
 # onmind.ini (XDB)
-auth.enabled = true
+auth.enabled = +
 auth.type = OIDC            # o COGNITO
 auth.oidc.client_id = xdb-client      # id del client en UID
 auth.jwt.secret = <mismo jwt.secret de UID>
@@ -1317,6 +1324,12 @@ dai.port = 9990
 kv.store = mvstore
 ```
 
+> **Convención booleana**: las banderas se escriben con `+` (activado) y `-`
+> (desactivado) — p. ej. `db.export = +`, `auth.enabled = +`,
+> `kv.dynamodb.conditional = -`. Por compatibilidad también se aceptan
+> `true`/`false`, `yes`/`no`, `on`/`off` y `1`/`0`, pero la forma canónica
+> (y la que genera `onmind.ini`) es `+`/`-`.
+
 > **DAI** significa **Data Access Interface**, es decir para acceso desde app externa.  
 > Puedes usar, por ejemplo: `app.cors = https://app.example.com, https://admin.example.com`
 
@@ -1427,6 +1440,7 @@ kv.store = mvstore    # default
 kv.store = rocksdb    # requiere full profile
 kv.store = dynamodb   # requiere full profile
 kv.store = cosmosdb   # requiere full profile
+# DynamoDB opcional: kv.dynamodb.autocreate = +  |  kv.dynamodb.conditional = +
 ```
 
 Si se configura `kv.store=rocksdb` (o dynamodb/cosmosdb) en el perfil **lite**, se lanza un error claro: `"RocksDB support not available (lite profile)"` (y análogo para cada backend no incluido).

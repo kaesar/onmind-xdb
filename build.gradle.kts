@@ -7,6 +7,7 @@ val javaVersion = "25"
 val kotlinVersion = "2.4.21"
 val http4kVersion = "6.61.0.0"
 val jacksonVersion = "2.22.3"
+val awsSdkVersion = "2.56.0"
 val grpcVersion = "1.69.1"
 val protobufVersion = "3.25.5"
 
@@ -49,31 +50,33 @@ dependencies {
 
     // Optional cloud/DB backends (excluded in lite profile)
     if (!isLite) {
-        implementation("software.amazon.awssdk:dynamodb:2.42.17")
+        implementation("software.amazon.awssdk:dynamodb:$awsSdkVersion")
         // FILES feature (RustFS/MinIO/AWS S3): the S3Presigner lives inside the
         // s3 artifact itself; aws-crt is optional and excluded (SigV4-only impl).
-        implementation("software.amazon.awssdk:s3:2.44.7") {
+        // Both AWS artifacts share the same release train, so they use one version.
+        implementation("software.amazon.awssdk:s3:$awsSdkVersion") {
             exclude(group = "software.amazon.awssdk.crt", module = "aws-crt")
         }
         implementation("com.azure:azure-cosmos:4.78.0")
         implementation("org.rocksdb:rocksdbjni:10.5.1")
         //implementation("org.duckdb:duckdb_jdbc:1.5.0.0")  // ENABLE THIS JUST FOR JAR VERSION
-        // DynamoDB pulls netty-nio-client 2.44.7, whose aws-sdk-java-pom parent
-        // resolves netty to 4.1.133.Final; the local cache has 4.1.132.Final
-        // plus the exact runtime set, so force it to keep offline builds green.
-        // (4.1.132 and 4.1.133 are functionally equivalent for these clients.)
+        // DynamoDB pulls netty-nio-client, whose aws-sdk-java-pom parent resolves
+        // netty to the version the SDK is tested against; azure-core-http-netty
+        // and reactor-netty request older ones. Pin the shared netty modules to
+        // the SDK's version so resolution is deterministic and offline builds stay
+        // green (the whole 4.1.x line is API-compatible for these clients).
         configurations.all {
             resolutionStrategy {
                 force(
-                    "io.netty:netty-common:4.1.132.Final",
-                    "io.netty:netty-buffer:4.1.132.Final",
-                    "io.netty:netty-transport:4.1.132.Final",
-                    "io.netty:netty-resolver:4.1.132.Final",
-                    "io.netty:netty-codec:4.1.132.Final",
-                    "io.netty:netty-codec-http:4.1.132.Final",
-                    "io.netty:netty-codec-http2:4.1.132.Final",
-                    "io.netty:netty-handler:4.1.132.Final",
-                    "io.netty:netty-transport-classes-epoll:4.1.132.Final"
+                    "io.netty:netty-common:4.1.138.Final",
+                    "io.netty:netty-buffer:4.1.138.Final",
+                    "io.netty:netty-transport:4.1.138.Final",
+                    "io.netty:netty-resolver:4.1.138.Final",
+                    "io.netty:netty-codec:4.1.138.Final",
+                    "io.netty:netty-codec-http:4.1.138.Final",
+                    "io.netty:netty-codec-http2:4.1.138.Final",
+                    "io.netty:netty-handler:4.1.138.Final",
+                    "io.netty:netty-transport-classes-epoll:4.1.138.Final"
                 )
             }
         }
@@ -120,6 +123,9 @@ if (!isLite) {
                 kotlin.srcDir("build/generated/source/proto/main/java")
                 kotlin.srcDir("build/generated/source/proto/main/grpc")
                 kotlin.srcDir("src/full/kotlin")
+            }
+            test {
+                kotlin.srcDir("src/full/test/kotlin")
             }
         }
     }

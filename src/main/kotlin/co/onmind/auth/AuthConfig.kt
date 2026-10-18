@@ -1,6 +1,7 @@
 package co.onmind.auth
 
 import co.onmind.trait.AuthProvider
+import co.onmind.util.Rote
 import java.util.Properties
 
 enum class AuthType {
@@ -109,7 +110,7 @@ data class AuthConfig(
     
     companion object {
         fun fromConfig(config: Properties): AuthConfig {
-            val enabled = config.getProperty("auth.enabled", "true") == "true"
+            val enabled = Rote.boolProp(config, "auth.enabled", true)
             val typeStr = config.getProperty("auth.type", "BASIC").uppercase()
             val type = try { AuthType.valueOf(typeStr) } catch(e: Exception) { AuthType.BASIC }
             
@@ -143,14 +144,14 @@ data class AuthConfig(
                 oidcEmailClaim = config.getProperty("auth.oidc.email_claim"),
                 oidcRolesClaim = config.getProperty("auth.oidc.roles_claim"),
                 oidcJwksUrl = config.getProperty("auth.oidc.jwks_url") ?: config.getProperty("auth.keycloak.jwks_url"),
-                oidcTrustHeaders = config.getProperty("auth.oidc.trust_headers", "-") == "+",
+                oidcTrustHeaders = Rote.boolProp(config, "auth.oidc.trust_headers", false),
                 otpSmtpHost = config.getProperty("auth.otp.smtp_host", "localhost"),
                 otpSmtpPort = config.getProperty("auth.otp.smtp_port", "1025"),
                 otpSmtpUser = config.getProperty("auth.otp.smtp_user", ""),
                 otpSmtpPass = config.getProperty("auth.otp.smtp_pass", ""),
                 otpFromEmail = config.getProperty("auth.otp.from", "xdb@localhost"),
                 otpSessionKey = config.getProperty("auth.otp.session_key", "change-me-otp-session-key"),
-                otpAutoRegister = config.getProperty("auth.otp.auto_register", "true") == "true"
+                otpAutoRegister = Rote.boolProp(config, "auth.otp.auto_register", true)
             )
         }
     }

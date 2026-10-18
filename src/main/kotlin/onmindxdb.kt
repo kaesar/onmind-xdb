@@ -68,7 +68,7 @@ object onmindxdb {
         val cfg = Rote.getConfig(filex)
         config = cfg
         queryLimit = Rote.intProp(cfg, "db.query_limit", 1200, 1..1_000_000)
-        exportEnabled = cfg.getProperty("db.export", "-") == "+"
+        exportEnabled = Rote.boolProp(cfg, "db.export", false)
         dataSource = Rote.getDataSource(cfg)
         dbc = dataSource?.connection
         dbfile = cfg.getProperty("app.local") + "xy/xybox.xdb"
@@ -95,7 +95,7 @@ object onmindxdb {
 
         val appMode = cfg.getProperty("app.mode", "production")
         val enableSwagger = appMode != "production"
-        uiEnabled = cfg.getProperty("app.ui", "+") == "+"
+        uiEnabled = Rote.boolProp(cfg, "app.ui", true)
         
         val authConfig = AuthConfig.fromConfig(cfg)
         val authProvider = authConfig.createProvider()
@@ -114,7 +114,7 @@ object onmindxdb {
         uiLogoutUrl = logoutUrl.orEmpty()
 
         // FILES feature: blob storage (S3/RustFS/MinIO) + metadata sheet FILES.
-        fileEnabled = cfg.getProperty("file.enabled", "-") == "+"
+        fileEnabled = Rote.boolProp(cfg, "file.enabled", false)
         fileTTL = java.time.Duration.ofMinutes(
             cfg.getProperty("file.ttl", "60").toLongOrNull() ?: 60L
         )
@@ -142,9 +142,9 @@ object onmindxdb {
             FileMeta.ensureSheet("system")
         }
         
-        val mcpEnabled = cfg.getProperty("mcp.enabled", "-") == "+"
-        val mcpWrite = cfg.getProperty("mcp.write", "-") == "+"
-        val mcpStdio = args.contains("--mcp") || cfg.getProperty("mcp.stdio", "-") == "+"
+        val mcpEnabled = Rote.boolProp(cfg, "mcp.enabled", false)
+        val mcpWrite = Rote.boolProp(cfg, "mcp.write", false)
+        val mcpStdio = args.contains("--mcp") || Rote.boolProp(cfg, "mcp.stdio", false)
         val mcpLlm = cfg.getProperty("mcp.llm", "-")
         val mcpLlmUrl = cfg.getProperty("mcp.llm.url", "http://127.0.0.1:11434")
         val mcpLlmModel = cfg.getProperty("mcp.llm.model", "carstenuhlig/omnicoder-9b:latest")
@@ -160,7 +160,7 @@ object onmindxdb {
         // Optional gRPC on a dedicated Netty port (default 9991). Shares AbcAPI.dispatch core.
         // In lite profile, gRPC classes are not available - skip gracefully
         val grpcEnabled = try {
-            args.contains("--grpc") || cfg.getProperty("grpc.enabled", "-") == "+"
+            args.contains("--grpc") || Rote.boolProp(cfg, "grpc.enabled", false)
         } catch (_: Exception) { false }
         val grpcPort = Rote.intProp(cfg, "grpc.port", 9991, 1..65535)
         var grpcServer: Any? = null  // Use Any? to avoid class not found in lite profile

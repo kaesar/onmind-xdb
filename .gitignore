@@ -7,6 +7,7 @@
 /app/
 bin/
 build/
+cdk/
 jte-classes/
 old-http4k.zip
 old-dce.zip
