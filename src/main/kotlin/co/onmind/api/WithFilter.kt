@@ -13,7 +13,8 @@ package co.onmind.api
  *     OP        := = | != | <> | < | > | <= | >= | LIKE | NOT LIKE
  *     value     := 'string' | "string" | number | column | NULL | TRUE | FALSE
  *
- * `LIKE` keeps the DynamoDB-compatible rule: only prefix patterns (`LIKE 'value%'`).
+ * `LIKE` accepts the standard SQL pattern syntax (`value%`, `%value`, `%value%`,
+ * multi-wildcard, ...); H2 evaluates it directly.
  */
 object WithFilter {
 
@@ -33,7 +34,6 @@ object WithFilter {
     private val IDENT = Regex("[A-Za-z_][A-Za-z0-9_]*")
     private val NUMBER = Regex("-?\\d+(?:\\.\\d+)?")
     private val OPERATORS = setOf("=", "!=", "<>", "<", ">", "<=", ">=")
-    private val PREFIX_LIKE = Regex("[^%]+%")
     private val BOOLEANS = setOf("NULL", "TRUE", "FALSE")
 
     // SQL keywords that must never appear as a bare column/value atom.
@@ -113,10 +113,6 @@ object WithFilter {
             val token = tokens.getOrNull(i) ?: throw ParseException("LIKE on '$column' requires a quoted pattern")
             if (!isQuoted(token)) throw ParseException("LIKE on '$column' requires a quoted pattern")
             i++
-            val inner = unquote(token)
-            if (inner.contains('%') && !PREFIX_LIKE.matches(inner)) {
-                throw ParseException("LIKE '$token' not allowed; only prefix patterns (LIKE 'value%') are supported")
-            }
         }
 
         private fun value() {

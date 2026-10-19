@@ -327,20 +327,27 @@ El campo `with` de `find` es el **filtro WHERE** del lenguaje de consulta eXpres
 Acepta una gramática plana y segura (no SQL arbitrario):
 
 ```text
-filtro    := condición ( (AND | OR) condición )*
-condición := columna OP valor
-OP        := = | != | <> | < | > | <= | >= | LIKE | NOT LIKE
-valor     := 'texto' | "texto" | número | columna | NULL | TRUE | FALSE
+filtro    –> condición ( (AND | OR) condición )
+condición –> columna OPERADOR valor
+OPERADOR  –> = | != | <> | < | > | <= | >= | LIKE | NOT LIKE
+valor     –> 'texto' | "texto" | número | columna | NULL | TRUE | FALSE
 ```
 
-- `LIKE` solo admite **prefijos** (`LIKE 'lab%'`), por compatibilidad con DynamoDB.
+- `LIKE` admite los patrones **SQL** habituales: exacto, prefijo (`LIKE 'lab%'`),
+  sufijo (`LIKE '%lab'`), contenido (`LIKE '%lab%'`) y comodines múltiples
+  (`LIKE '%a%b%'`).
 - Se rechaza lo que no encaje en la gramática: `UNION`, `SELECT`, subconsultas,
   paréntesis, `;` y comentarios (`--`, `/* */`).
 
 Ejemplos válidos:
+
 ```json
-{ "what": "find", "from": "xyany", "some": "PRODUCTS.SHEET",
-  "with": "any03 LIKE 'lab%' AND any04 > 10" }
+{
+  "what": "find",
+  "from": "xyany",
+  "some": "PRODUCTS.SHEET",
+  "with": "any03 LIKE 'lab%' AND any04 > 10"
+}
 ```
 
 ### Endpoints
