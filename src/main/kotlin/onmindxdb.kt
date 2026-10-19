@@ -103,7 +103,7 @@ object onmindxdb {
 
         // Logout link: only when auth is enabled and the strategy has a real server-side logout.
         // NoAuth → hidden. BASIC → hidden (browser caches credentials; no clean logout).
-        // OTPMAIL → /auth/otpmail/logout. OIDC/Cognito/Authelia → no in-app logout yet.
+        // OTPMAIL → /auth/otpmail/logout. OIDC/Cognito/PROXY → no in-app logout yet.
         val logoutUrl = if (authConfig.enabled) {
             when (authConfig.type) {
                 AuthType.OTPMAIL -> "/auth/otpmail/logout"

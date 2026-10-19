@@ -39,6 +39,9 @@ import software.amazon.awssdk.services.dynamodb.model.WriteRequest
  */
 class DynamoPlug : KVStore {
 
+    /** Writes are buffered in `pending`; `commit()` sends one BatchWriteItem, so it can be amortized. */
+    override val supportsGroupCommit: Boolean = true
+
     private companion object {
         const val ITEM_LIMIT_BYTES = 400_000          // DynamoDB hard limit is 400 KB per item
         const val BATCH_MAX = 25                      // BatchWriteItem: at most 25 requests

@@ -5,7 +5,9 @@ import co.onmind.util.Rote
 import java.util.Properties
 
 enum class AuthType {
-    BASIC, AUTHELIA, COGNITO, KEYCLOAK, ENTRAID, OIDC, OTPMAIL
+    BASIC, PROXY, COGNITO, KEYCLOAK, ENTRAID, OIDC, OTPMAIL,
+    /** Alias heredado de [PROXY]: forward-auth por cabeceras de proxy, sin Authelia. */
+    AUTHELIA
 }
 
 data class AuthConfig(
@@ -13,7 +15,6 @@ data class AuthConfig(
     val type: AuthType = AuthType.BASIC,
     val basicUser: String = "admin",
     val basicPass: String = "admin",
-    val autheliaUrl: String? = null,
     val cognitoRegion: String? = null,
     val cognitoUserPoolId: String? = null,
     val cognitoClientId: String? = null,
@@ -47,7 +48,7 @@ data class AuthConfig(
     fun createProvider(): AuthProvider = when {
         !enabled -> NoAuthPlug()
         type == AuthType.BASIC -> BasicAuthPlug(basicUser, basicPass)
-        type == AuthType.AUTHELIA -> AutheliaPlug(autheliaUrl ?: error("auth.authelia.url required"))
+        type == AuthType.AUTHELIA || type == AuthType.PROXY -> ProxyHeadersPlug()
         type == AuthType.COGNITO -> CognitoPlug(
             cognitoRegion ?: error("auth.cognito.region required"),
             cognitoUserPoolId ?: error("auth.cognito.user_pool_id required"),
@@ -130,7 +131,6 @@ data class AuthConfig(
                 type = type,
                 basicUser = basicUser,
                 basicPass = basicPass,
-                autheliaUrl = config.getProperty("auth.authelia.url"),
                 cognitoRegion = config.getProperty("auth.cognito.region"),
                 cognitoUserPoolId = config.getProperty("auth.cognito.user_pool_id"),
                 cognitoClientId = config.getProperty("auth.cognito.client_id"),

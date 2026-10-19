@@ -43,7 +43,7 @@ Utiliza una base de datos embebida (H2) que ejecuta SQL internamente en memoria 
 - RDB.kt: Gestión dual storage (H2 + MVStore), savePoint/movePoint
 - AppUI.kt: Rutas UI (/app/*, /app/data, /app/users, /app/settings, /app/sheets)
 - trait/AuthProvider.kt: Interfaz de autenticación (Strategy pattern)
-- auth/*Plug.kt: BasicAuthPlug (default), AutheliaPlug, CognitoPlug, OIDCPlug, NoAuthPlug
+- auth/*Plug.kt: BasicAuthPlug (default), ProxyHeadersPlug, CognitoPlug, OIDCPlug, NoAuthPlug
 - HikariCP: Connection pool (max_pool_size=10, query_limit=1200)
 - kv/*Plug.kt: MVStorePlug (default), DynamoPlug, CosmosPlug
 
@@ -66,13 +66,18 @@ db.query_limit=1200
 auth.enabled=true
 auth.type=BASIC
 kv.store=mvstore
+kv.durability=sync  # sync (default) | group | async
 ```
 
 **Flujo de Datos**
-```
-Request → AuthProvider.filter() → Routes
-AbcAPI → RDB.forQuery/forUpdate (H2)
-RDB.savePoint → KVStore (MVStore/DynamoDB/CosmosDB)
+
+```mermaid
+flowchart LR
+    Req[Request] --> Auth[AuthProvider.filter]
+    Auth --> Routes[Routes]
+    Routes --> Abc[AbcAPI]
+    Abc -->|forQuery / forUpdate| H2[(H2 en memoria)]
+    Abc -->|savePoint| KV[(KVStore<br/>MVStore · DynamoDB · CosmosDB)]
 ```
 
 **Operaciones API**
@@ -82,11 +87,11 @@ RDB.savePoint → KVStore (MVStore/DynamoDB/CosmosDB)
 - drop: Eliminar sheet (valida sin datos, elimina de H2 y KVStore por id)
 - define: Actualizar spec de sheet (mapeo de datos)
 - list: Listar sheets por esquema
-- export: Volcar H2 a SQLite portable (`db.export = +`, requiere auth; alineado con WDB `handleExport`)
+- export: Volcar H2 a SQLite portable (`db.export = +`, requiere auth, alineado con WDB `handleExport`)
 
 **Rendimiento (orientativo)**
-- Startup: ~0.6-0.8 s (JVM, fat JAR); ~10ms (GraalVM Native, estimado)
-- Memory: ~135 MB (JVM); ~20MB (Native, estimado)
+- Startup: ~0.6-0.8 s (JVM, fat JAR). ~10ms (GraalVM Native, estimado)
+- Memory: ~135 MB (JVM). ~20MB (Native, estimado)
 - Queries: ~3000 ops/s (H2 en memoria, con resultados grandes)
 - HTTP: ~12000 req/s en endpoints ligeros
 
@@ -144,7 +149,7 @@ java -jar build/libs/onmind-xdb-1.0.0-full.jar
 ```
 
 El servidor se iniciará en el puerto 9990 (configurable con `dai.port` en `onmind.ini`).
-Escucha en todas las interfaces de red (Jetty no fija host); para restringir el acceso usa
+Escucha en todas las interfaces de red (Jetty no fija host). Para restringir el acceso usa
 firewall/segmentación de red o un reverse proxy.
 
 ### 2. Acceder a la Interfaz de Administración
@@ -195,7 +200,7 @@ curl -X POST http://localhost:9990/abc \
 │   │       │   ├── AuthConfig.kt           # Configuración de auth
 │   │       │   ├── BasicAuthPlug.kt        # HTTP Basic Auth
 │   │       │   ├── NoAuthPlug.kt           # Sin autenticación
-│   │       │   ├── AutheliaPlug.kt         # Authelia provider
+│   │       │   ├── ProxyHeadersPlug.kt    # Forward-auth (proxy headers)
 │   │       │   └── CognitoPlug.kt          # AWS Cognito provider
 │   │       ├── db/                         # Operaciones de base de datos
 │   │       ├── io/                         # Modelos I/O (DTO's)
@@ -227,63 +232,22 @@ curl -X POST http://localhost:9990/abc \
 
 ### Arquitectura
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         Browser                             │
-│                    http://localhost:9990                    │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      http4k Server                          │
-│                        (Jetty)                              │
-└────────────┬────────────────────────────┬───────────────────┘
-             │                            │
-             ▼                            ▼
-┌────────────────────────┐    ┌──────────────────────────────┐
-│      API Routes        │    │       UI Routes              │
-│      /abc (POST)       │    │       /app/ (GET)            │
-│      /abc (GET)        │    │       /app/data (GET)        │
-│      /swagger (GET)    │    │       /app/users (GET)       │
-└──────────┬─────────────┘    │       /app/settings (GET)    │
-           │                  │       /app/sheets (GET)      │
-           ▼                  └──────────┬───────────────────┘
-┌────────────────────────┐               │
-│      AbcAPI.kt         │               ▼
-│   - find()             │    ┌──────────────────────────────┐
-│   - insert()           │    │       AppUI.kt               │
-│   - update()           │    │   - dashboard()              │
-│   - delete()           │    │   - dataList()               │
-│   - create()           │    │   - dataView()               │
-│   - drop()             │    │   - usersList()              │
-│   - list()             │    │   - settingsList()           │
-│   - define()           │    │   - sheetsList()             │
-└──────────┬─────────────┘    └──────────┬───────────────────┘
-           │                             │
-           │                             ▼
-           │                  ┌──────────────────────────────┐
-           │                  │   KTE - Java Template Engine │
-           │                  │   - layout.kte               │
-           │                  │   - dashboard.kte            │
-           │                  │   - data-*.kte               │
-           │                  │   - users-list.kte           │
-           │                  └──────────────────────────────┘
-           │
-           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                         RDB.kt                              │
-│                   Database Operations                       │
-└────────────┬────────────────────────────┬───────────────────┘
-             │                            │
-             ▼                            ▼
-┌────────────────────────┐    ┌──────────────────────────────┐
-│   H2 Database          │    │    MVStore (Persistence)     │
-│   (In-Memory)          │    │    Key-Value Store           │
-│   - xyany (data)       │    │    - savePointAny()          │
-│   - xykey (users)      │    │    - savePointKey()          │
-│   - xyset (settings)   │    │    - savePointSet()          │
-│   - xykit (sheets)     │    │    - savePointKit()          │
-└────────────────────────┘    └──────────────────────────────┘
+```mermaid
+flowchart TB
+    Browser["Browser<br/>http://localhost:9990"] --> Server["http4k Server · Jetty"]
+
+    Server --> API["API Routes<br/>/abc (POST/GET) · /swagger (GET)"]
+    Server --> UI["UI Routes<br/>/app/ · /app/data · /app/users<br/>/app/settings · /app/sheets"]
+
+    API --> AbcAPI["AbcAPI.kt<br/>find · insert · update · delete<br/>create · drop · list · define"]
+    UI --> AppUI["AppUI.kt<br/>dashboard · dataList · dataView<br/>usersList · settingsList · sheetsList"]
+
+    AppUI --> KTE["KTE — Java Template Engine<br/>layout · dashboard · data-*<br/>users-list · settings-list · sheets-list"]
+
+    AbcAPI --> RDB["RDB.kt — Database Operations"]
+
+    RDB --> H2[("H2 Database (In-Memory)<br/>xyany (data) · xykey (users)<br/>xyset (settings) · xykit (sheets)")]
+    RDB --> MV[("KVStore (Persistence)<br/>MVStore · DynamoDB · CosmosDB<br/>savePointAny / Key / Set / Kit")]
 ```
 
 ---
@@ -430,6 +394,7 @@ OnMind-XDB es agnóstico al almacenamiento de persistencia (KVStore). Soporta m�
 ```ini
 kv.store = mvstore
 kv.mvstore.name = xybox
+kv.durability = sync    # sync (default) | group | async
 ```
 
 #### AWS DynamoDB
@@ -441,8 +406,8 @@ kv.dynamodb.autocreate = -   # + crea la tabla si no existe (requiere permiso Cr
 kv.dynamodb.conditional = -  # + escritura optimista "newest wins" (atributo Version)
 ```
 
-- **Tabla**: se espera una tabla con clave de partición de tipo string en el atributo `Key` y el JSON en `Value`. Con `autocreate = +` se crea con billing *on-demand* si falta; si no, se falla con un mensaje claro indicando el nombre de la tabla.
-- **Escrituras**: se agrupan y se envían con `BatchWriteItem` (hasta 25 por request) reintentando `UnprocessedItems`, de modo que un lote no pierde datos en silencio. `commit()` vuelca el búfer.
+- **Tabla**: se espera una tabla con clave de partición de tipo string en el atributo `Key` y el JSON en `Value`. Con `autocreate = +` se crea con billing *on-demand* si falta. Si no, se falla con un mensaje claro indicando el nombre de la tabla.
+- **Escrituras**: se agrupan y se envían con `BatchWriteItem` (hasta 25 por request) reintentando `UnprocessedItems`, de modo que un lote no pierde datos en silencio. `commit()` vuelca el búfer. Con `kv.durability = group` (o `async`) los `commit()` concurrentes se amortizan (ver *Política de durabilidad*).
 - **Concurrencia**: por defecto el último escritor gana (sobrescritura atómica por ítem). Con `conditional = +` se usa `Version` + `PutItem` condicional, por lo que una escritura más antigua no pisa a una más nueva (asume relojes razonablemente sincronizados).
 - **Límite**: un ítem > 400 KB se rechaza con `IllegalArgumentException` antes de llamar a AWS.
 
@@ -453,6 +418,37 @@ kv.cosmosdb.endpoint = https://your-account.documents.azure.com:443/
 kv.cosmosdb.key = your-primary-key
 kv.cosmosdb.database = onmindxdb
 kv.cosmosdb.container = kvstore
+```
+
+### Política de durabilidad (`kv.durability`)
+
+Controla **cómo** se confirma una escritura en el KVStore. Aplica a los motores que **agrupan en memoria y vuelcan en `commit()`** (MVStore y DynamoDB), en los demás (RocksDB, Cosmos DB) se ignora y se usa `sync`.
+
+```ini
+kv.durability = sync    # sync (default) | group | async
+```
+
+| Valor | Comportamiento | Durabilidad | Latencia |
+|-------|----------------|-------------|----------|
+| `sync` *(default)* | Cada escritura hace su propio `commit()` antes de responder. | Durable (RPO = 0) | 1 flush / 1 request por escritura |
+| `group` | Los escritores **concurrentes** comparten **un** `commit()`, la respuesta sigue esperando ese commit. | **Durable (RPO = 0)** | +hasta ~5 ms por escritura, el costo del commit se amortiza |
+| `async` | Se responde **antes** del `commit()` (write-behind), el volcado ocurre en background. | **No durable (RPO > 0)** | La más baja |
+
+**Notas:**
+
+- **Capacidad**: solo se agrupa si el backend lo declara (`supportsGroupCommit`) —
+  hoy **MVStore** y **DynamoDB**. Con cualquier otro motor se avisa por consola y
+  se usa `sync`: `kv.durability=group ignored: CosmosPlug does not support group-commit (using sync)`.
+- **Opt-in**: el default `sync` no cambia, `group`/`async` se activan de forma explícita.
+- **Cuándo conviene `group`**: con **escritores concurrentes** y, sobre todo, en
+  **DynamoDB**, donde convierte N `BatchWriteItem` en ~1 (hasta 25 ítems por request).
+  Con un **único escritor en serie** no hay nada que agrupar y solo suma la ventana
+  (~5 ms): en ese caso `sync` es mejor.
+- **`async`** asume el riesgo: ante un cierre abrupto (crash/corte de energía) se
+  pueden perder las escrituras aún no volcadas. Úsalo solo si `RPO > 0` es aceptable.
+- **`forEach()` / hidratación**: fuerza un volcado antes de leer el store completo,
+  para que un reinicio nunca vea datos a medio confirmar.
+
 #### Configuración de exportación (SQLite)
 
 OnMind-XDB puede volcar la base de datos en memoria (H2) a un archivo **SQLite** portable. El dump incluye las 5 tablas (`xykit`, `xykey`, `xyset`, `xyany`, `xydoc`) con su DDL original (tipos, PK, UNIQUE, defaults).
@@ -464,13 +460,13 @@ db.export = +
 
 **Contrato (alineado con WDB `handleExport`):**
 
-La operación es `what=export` sobre `POST /abc`. Acepta los campos `from`, `with`, `cast` (mismos que WDB), con SQLite como formato prioritario. **Es fire-and-forget**: retorna 202 inmediatamente con la ruta del archivo; el volcado se ejecuta en background y el archivo queda disponible en esa ruta al completarse.
+La operación es `what=export` sobre `POST /abc`. Acepta los campos `from`, `with`, `cast` (mismos que WDB), con SQLite como formato prioritario. **Es fire-and-forget**: retorna 202 inmediatamente con la ruta del archivo, el volcado se ejecuta en background y el archivo queda disponible en esa ruta al completarse.
 
 | Campo | Descripción | Default |
 |-------|-------------|---------|
 | `from` | Entidad a exportar. `"*"` o omitido = volcado completo (5 tablas). Valor único: `xykit`/`xykey`/`xyset`/`xydoc` = solo esa tabla. | `*` (ALL) |
 | `with` | Filtro WHERE applied tolerantly a todas las tablas exportadas. Si una tabla no tiene la columna referenciada, se exporta completa (sin filtro). | `null` |
-| `cast` | Formato de salida. Solo `"sqlite"` soportado; otros valores retornan error 400. | `"sqlite"` |
+| `cast` | Formato de salida. Solo `"sqlite"` soportado, otros valores retornan error 400. | `"sqlite"` |
 
 **Ejemplos:**
 
@@ -485,7 +481,7 @@ curl -u admin:admin -X POST http://localhost:9990/abc \
   -H "Content-Type: application/json" \
   -d '{ "what": "export", "from": "xyany", "user": "admin" }'
 
-# Volcado completo con filtro tolerante (solo xyany filtrado; xykit/xykey/... exportados completos)
+# Volcado completo con filtro tolerante (solo xyany filtrado, xykit/xykey/... exportados completos)
 curl -u admin:admin -X POST http://localhost:9990/abc \
   -H "Content-Type: application/json" \
   -d '{ "what": "export", "with": "any02 = '\''producto-1'\''", "user": "admin" }'
@@ -518,16 +514,16 @@ OnMind-XDB implementa un **sistema de coherencia optimizado** entre la base de d
 
 El sistema utiliza **contadores incrementales en memoria (O(1))** para evitar full-scans del KVStore en cada verificación:
 
-```
-┌─────────────────┐     Incremental Counters        ┌──────────────────┐
-│   H2 (Memory)   │ ◄─────────────────────────────► │   KVStore (Disk) │
-│  - SQL queries  │   memoryCounts[entity]          │  - MVStore       │
-│  - Fast reads   │   diskCounts[entity]            │  - DynamoDB      │
-│                 │                                 │  - CosmosDB      │
-└─────────────────┘                                 └──────────────────┘
-         │                                                   │
-         └────────── CoherenceStore (lock.read) ─────────────┘
-                    Atomic O(1) verification
+```mermaid
+flowchart LR
+    H2["H2 (Memory)<br/>SQL queries · fast reads"]
+    KV["KVStore (Disk)<br/>MVStore · DynamoDB · CosmosDB"]
+    CS["CoherenceStore · lock.read<br/>memoryCounts[entity] / diskCounts[entity]<br/>verificación atómica O(1)"]
+
+    H2 -->|memoryCounts| KV
+    KV -->|diskCounts| H2
+    H2 --> CS
+    KV --> CS
 ```
 
 **Optimizaciones clave:**
@@ -805,22 +801,15 @@ Con BASIC y OTP Mail **XDB autentica por sí mismo** (self-auth): no hay proxy n
 token externo. Los modos de **delegación** (A/B, más abajo) sólo aplican cuando
 la identidad la emite un IdP o un proxy externo.
 
-> **Alcance actual — autenticación sí, autorización por roles (RBAC) no.**
-> OnMind-XDB implementa **autenticación** (¿quién eres?) y **almacenamiento** de
-> usuarios/roles en `xykey`, pero **no implementa autorización por roles**: el
-> campo `AuthUser.roles` se captura (p. ej. desde los claims `groups`/`roles` del
-> IdP o de `Remote-Groups` en Authelia) y se muestra en la UI, pero **ninguna
-> operación ni endpoint lo verifica**. El modelo es *todo o nada*: una vez
-> autenticado, cualquier usuario puede ejecutar cualquier operación habilitada
-> por la configuración (p. ej. `mcp.write=+`, `db.export=+`), sin distinción de
-> rol. La autorización real, si se necesita, debe hacerse en un sistema externo
-> (proxy/IdP) o implementarse en XDB (**pendiente**).
+> **Alcance actual — autenticación sí, autorización por roles (RBAC) No.**
+> **XDB** autentica y **almacena** usuarios/roles en `xykey`, pero **no verifica roles**: `AuthUser.roles` se captura (claims `groups`/`roles` del IdP, `X-Auth-Roles` del proxy) y se muestra en la UI, pero ninguna operación lo comprueba.  
+> Si necesitas autorización real, hazla en un proxy/IdP externo.
 
 ### Proveedores Soportados
 
 1. **Basic** (Default) - Autenticación HTTP Basic
 2. **OTP Mail** - Passwordless con código de un solo uso por email
-3. **Authelia** - Autenticación corporativa con headers
+3. **Proxy (forward-auth)** - Cabeceras de proxy (`X-Auth-User`/`X-Proxy-User`), mismo mecanismo que WDB
 4. **AWS Cognito** - Autenticación cloud con JWT
 5. **OIDC / Keycloak / Entra ID** - Autenticación estándar con JWT (OIDC)
 
@@ -833,14 +822,11 @@ La clave para no confundir "modalidad de XDB" con "delegación externa" es
 |---|---|---|
 | `BASIC` *(default)* | **XDB** (usuario/contraseña propios) | **Self-auth** — no hay modos A/B |
 | `OTPMAIL` | **XDB** (código por email + cookie de sesión propia) | **Self-auth** — no hay modos A/B |
-| `OIDC` / `KEYCLOAK` / `ENTRAID` / `COGNITO` | IdP externo (xid/uid/Keycloak/Entra/Cognito); **XDB verifica** el token | **Delegación — Modo A** |
-| `AUTHELIA` | Proxy / forward-auth; XDB **confía** en `Remote-User` | **Delegación — Modo B** |
+| `OIDC` / `KEYCLOAK` / `ENTRAID` / `COGNITO` | IdP externo (xid/uid/Keycloak/Entra/Cognito). **XDB verifica** el token | **Delegación — Modo A** |
+| `PROXY` *(antes `AUTHELIA`)* | Proxy / forward-auth. **XDB confía** en `X-Auth-User` / `X-Proxy-User` | **Delegación — Modo B** |
 | `auth.enabled = -` | nadie | Sin autenticación |
 
-> En **local** el default es `BASIC`: XDB autentica por sí mismo y **ningún modo
-> A/B interviene**. `auth.oidc.trust_headers` sólo tiene efecto con
-> `OIDC`/`KEYCLOAK`/`ENTRAID`; con BASIC/OTP se ignora. El detalle de A vs. B
-> está en *Dos modos de delegación de identidad*.
+> En **local** el default es `BASIC`: **XDB** autentica por sí mismo y **ningún modo modo (A/B) interviene**. `auth.oidc.trust_headers` sólo tiene efecto con `OIDC`/`KEYCLOAK`/`ENTRAID`/`PROXY`, con `BASIC/OTP` se ignora. El detalle de A vs. B está en *Dos modos de delegación de identidad*.
 
 ### Configuración en onmind.ini
 
@@ -869,7 +855,7 @@ auth.otp.auto_register = +
 Flujo:
 1. Usuario visita `/app/` sin sesión → redirect a `/auth/otpmail/login`
 2. Ingresa email → XDB genera código de 6 dígitos (TTL 5 min, máx. 3 intentos)
-3. Código enviado por SMTP; en `localhost`/`127.0.0.1` se muestra también en pantalla (dev mode)
+3. Código enviado por SMTP. En `localhost`/`127.0.0.1` se muestra también en pantalla (dev mode)
 4. Verificación OK → cookie firmada `xdb-otp-session` (7 días) e inyección de `X-Auth-User`
 5. Auto-registro en `xykey` (`key02` = email) si `auth.otp.auto_register = +`
 
@@ -898,11 +884,10 @@ Rutas públicas OTP:
 auth.enabled = -
 ```
 
-#### Con Authelia
+#### Con proxy / forward-auth (antes "Con Authelia")
 ```ini
 auth.enabled = +
-auth.type = AUTHELIA
-auth.authelia.url = https://auth.example.com
+auth.type = PROXY      # o el alias heredado AUTHELIA
 ```
 
 #### Con AWS Cognito
@@ -947,47 +932,45 @@ anterior si la descarga falla).
 
 #### Dos modos de delegación de identidad
 
-XDB puede delegar la identidad en un sistema externo de **dos formas distintas
-que no son equivalentes**. La diferencia clave: en **A** XDB **verifica** el
-token; en **B** XDB **confía** en la cabecera que le pasa un proxy.
+XDB puede delegar la identidad en un sistema externo de **dos formas distintas que no son equivalentes**. La diferencia clave: en **A** XDB **verifica** el token. En **B** XDB **confía** en la cabecera que le pasa un proxy.
 
 | | **Modo A — Verificar el token** (recomendado) | **Modo B — Confiar en el proxy** |
 |---|---|---|
-| Quién autentica | Un IdP externo emite; **XDB verifica** | Un reverse proxy / forward-auth |
+| Quién autentica | Un IdP externo emite. **XDB verifica** | Un reverse proxy / forward-auth |
 | XDB verifica firma | **Sí**: JWKS (RS256) o secreto (HS256) | **No** |
-| Cabecera de entrada | `Authorization: Bearer <JWT>` | `X-Auth-User` / `X-Proxy-User` (`Remote-User` en Authelia) |
+| Cabecera de entrada | `Authorization: Bearer <JWT>` | `X-Auth-User` / `X-Proxy-User` |
 | Config | `auth.type = OIDC`/`KEYCLOAK`/`ENTRAID`/`COGNITO` + `auth.oidc.jwks_url` o `auth.jwt.secret` | `auth.oidc.trust_headers = +` |
 | Requisito de red | XDB puede exponerse con TLS | XDB **sólo** alcanzable a través del proxy |
 | Cuándo usarlo | El cliente ya tiene el token (apps, APIs, SPAs) | Login web con sesión gestionada en el gateway |
 
+**Modo A — verificar el token** (el IdP emite, XDB comprueba)
+
+```mermaid
+sequenceDiagram
+    participant C as Cliente
+    participant IdP as IdP externo
+    participant X as OnMind-XDB
+    C->>IdP: 1. login
+    IdP-->>C: 2. access_token (JWT)
+    IdP-->>X: 3. JWKS — claves públicas
+    C->>X: 4. Authorization: Bearer JWT
+    Note over X: OIDCPlug verifica firma + iss + aud + exp<br/>e inyecta X-Auth-User<br/>auth.oidc.trust_headers = -
 ```
-MODO A — delegación CON verificación (el IdP emite, XDB comprueba)
 
-  Cliente ──1. login──────────────► IdP (xid/uid/Keycloak/Entra/Cognito)
-     ▲                              │
-     │ 2. access_token (JWT)        │ 3. JWKS: claves públicas
-     │                              ▼
-     └──4. Authorization: Bearer ──►┌───────────────────────────────┐
-                                    │ OnMind-XDB                    │
-                                    │ OIDCPlug verifica:            │
-                                    │  firma + iss + aud + exp      │
-                                    │ → inyecta X-Auth-User         │
-                                    │ auth.oidc.trust_headers = -   │
-                                    └───────────────────────────────┘
+**Modo B — confiar en el proxy** (el proxy decide, XDB cree la cabecera)
 
-MODO B — delegación POR CONFIANZA (el proxy decide, XDB cree la cabecera)
-
-  Cliente ──1. login──► Reverse proxy / forward-auth ◄── IdP / sesión
-   (nav.)                 (nginx+oauth2-proxy, Traefik,
-     ▲                     Cloudflare Access, Authelia)
-     │                         │
-     │ 2. sesión               │ 3. cabeceras X-Auth-User / Remote-User
-     │                         ▼
-     └──────────────────►┌───────────────────────────────────────────┐
-                         │ OnMind-XDB  (NO alcanzable directo)       │
-                         │ → confía en la cabecera, NO verifica JWT  │
-                         │ auth.oidc.trust_headers = +               │
-                         └───────────────────────────────────────────┘
+```mermaid
+sequenceDiagram
+    participant C as Cliente / navegador
+    participant P as Reverse proxy / forward-auth
+    participant IdP as IdP / sesión
+    participant X as OnMind-XDB
+    C->>P: 1. login
+    P->>IdP: valida la sesión
+    IdP-->>P: sesión válida
+    P->>X: 2. cabeceras X-Auth-User / X-Proxy-User
+    Note over P: nginx+oauth2-proxy · Traefik<br/>Cloudflare Access · Authelia
+    Note over X: NO verifica el JWT: confía en la cabecera<br/>XDB debe ser NO alcanzable directo<br/>auth.oidc.trust_headers = +
 ```
 
 **Regla de oro:** si un cliente puede llegar a XDB sin pasar por el proxy, la
@@ -1004,8 +987,7 @@ auth.oidc.jwks_url = os.environ/XDB_JWKS_URL   # RS256 (derivado solo en Keycloa
 auth.oidc.trust_headers = +
 ```
 
-> **Authelia** es **modo B por diseño**: `auth.type = AUTHELIA` lee `Remote-User`
-> del forward-auth; ahí la integración *es* el proxy y no hay verificación de token.
+> **Proxy (forward-auth)** es **modo B por diseño**: `auth.type = PROXY` (alias heredado `AUTHELIA`) lee `X-Auth-User` / `X-Proxy-User` del forward-auth — el mismo mecanismo genérico de WDB, sin depender de Authelia. Ahí la integración *es* el proxy y no hay verificación de token.
 
 ### Uso
 
@@ -1027,20 +1009,20 @@ Los **valores secretos** (`auth.basic.pass`, `db.password`, `auth.jwt.secret`,
 `s3.access_key`, `s3.secret_key`, `auth.otp.smtp_pass`, `auth.otp.session_key`,
 `kv.cosmosdb.key`) se muestran enmascarados como `********`. Al guardar:
 
-- si dejas el `********` **sin tocar**, se conserva el valor almacenado;
+- si dejas el `********` **sin tocar**, se conserva el valor almacenado.
 - si escribes un valor nuevo, se guarda ese valor.
 
 Así los secretos nunca viajan al navegador y un guardado normal no los borra.
 
 ### Arquitectura de Autenticación
 
-```
-Request → AuthProvider.filter()
-    ↓
-Valida credenciales / sesión / JWT según auth.type
-    ↓
-Si válido: Agrega X-Auth-User header → Routes
-Si inválido: 401 (API) o redirect a login (UI / OTP)
+```mermaid
+flowchart TB
+    Req[Request] --> F[AuthProvider.filter]
+    F --> V{Valida credenciales / sesión / JWT<br/>según auth.type}
+    V -->|válido| OK[Agrega X-Auth-User header]
+    OK --> R[Routes]
+    V -->|inválido| E[401 en API<br/>o redirect a login en UI / OTP]
 ```
 
 **Proveedores disponibles (Strategy pattern):**
@@ -1048,7 +1030,7 @@ Si inválido: 401 (API) o redirect a login (UI / OTP)
 - `NoAuthPlug`: Sin autenticación (cuando auth.enabled=false)
 - `BasicAuthPlug`: Valida usuario/contraseña con HTTP Basic Auth
 - `OTPMailPlug`: Passwordless OTP por email + cookie de sesión firmada
-- `AutheliaPlug`: Lee headers Remote-User, Remote-Email, Remote-Groups
+- `ProxyHeadersPlug`: Lee cabeceras de proxy X-Auth-User/X-Proxy-User (+ X-Auth-Email/Name/Roles)
 - `CognitoPlug`: Valida JWT token de AWS Cognito
 - `OIDCPlug`: Valida JWT de proveedores OIDC (Keycloak, Entra ID, etc.):
   RS256 via JWKS (`auth.oidc.jwks_url`, auto-derivado en Keycloak), HS256 via
@@ -1322,6 +1304,7 @@ app.cors = *  # eXpress default (AllowAll), sino lista separada por comas
 db.driver = 0  # 0=H2 en memoria (default)
 dai.port = 9990
 kv.store = mvstore
+kv.durability = sync  # sync (default) | group | async
 ```
 
 > **Convención booleana**: las banderas se escriben con `+` (activado) y `-`
@@ -1356,8 +1339,7 @@ Comportamiento (`Rote.resolveEnvRefs`, aplicado al cargar en `Rote.getConfig`):
 - El nombre debe tener forma `NOMBRE_DE_VARIABLE` (letras, dígitos, `_`).
 - Los valores resueltos **nunca se registran en logs** (solo los nombres de propiedad).
 
-Además, la ubicación del archivo se puede fijar con la variable `ONMIND_INI`
-(útil en contenedores; si apunta a un archivo inexistente, el arranque también falla):
+Además, la ubicación del archivo se puede fijar con la variable `ONMIND_INI` (útil en contenedores. Si apunta a un archivo inexistente, el arranque también falla):
 
 ```bash
 docker run -d \
@@ -1401,6 +1383,71 @@ definidas las variables `UID_JWT_SECRET`/`UID_ACCESS_TOKEN`.
 
 ---
 
+## Referencia de Parámetros (`onmind.ini`)
+
+Resumen de las claves más usadas. Las banderas booleanas usan `+` (activado) /
+`-` (desactivado). Cualquier valor acepta `os.environ/VAR` (ver *Variables de
+entorno en `onmind.ini`*).
+
+### Servicio y base de datos
+
+| Parámetro | Default | Descripción |
+|-----------|---------|-------------|
+| `app.mode` | `production` | Modo de la aplicación. |
+| `app.local` | `~/onmind/` | Carpeta de datos (`xy/`, `export/`, logs). |
+| `app.base` | `/app` | Prefijo de la UI. |
+| `app.ui` | `+` | Habilita la UI web (`/app/*`). |
+| `app.cors` | `*` | `*` = AllowAll, o lista de orígenes separada por comas. |
+| `app.logger` | `-` | `0`/`-` sin log · `1` peticiones · `2` depuración (+coherencia). |
+| `dai.port` | `9990` | Puerto HTTP. |
+| `dai.host` | `http://localhost` | Host público (DAI). |
+| `db.driver` | `0` | `0` = H2 en memoria (default). `6` = DuckDB. |
+| `db.max_pool_size` | `10` | Conexiones HikariCP (1..1000). |
+| `db.query_limit` | `1200` | Máximo de filas por consulta. |
+| `db.check` | `-` | Verificación de coherencia en escrituras. |
+| `db.export` | `-` | Habilita `what=export` (volcado a SQLite). |
+
+### Autenticación
+
+| Parámetro | Default | Descripción |
+|-----------|---------|-------------|
+| `auth.enabled` | `+` | Habilita autenticación. |
+| `auth.type` | `BASIC` | `BASIC` · `OTPMAIL` · `PROXY` (alias `AUTHELIA`) · `COGNITO` · `OIDC`/`KEYCLOAK`/`ENTRAID`. |
+| `auth.basic.user` · `auth.basic.pass` | `YWRtaW4=` | Credenciales Basic en Base64 (`admin`/`admin`). |
+| `auth.oidc.url` · `auth.oidc.realm` · `auth.oidc.client_id` | — | Datos del IdP OIDC. |
+| `auth.oidc.jwks_url` | — | RS256 vía JWKS (Keycloak/Entra ID). |
+| `auth.jwt.secret` | — | HS256 con secreto compartido (OnMind-UID). |
+| `auth.oidc.trust_headers` | `-` | Acepta `X-Auth-User` del proxy (solo tras proxy). |
+| `auth.otp.*` | — | SMTP (`smtp_host`/`smtp_port`/`smtp_user`/`smtp_pass`), `from`, `session_key`, `auto_register`. |
+
+### Persistencia (KVStore)
+
+| Parámetro | Default | Descripción |
+|-----------|---------|-------------|
+| `kv.store` | `mvstore` | `mvstore` · `dynamodb` · `cosmosdb` · `rocksdb` (los dos últimos, solo perfil *full*). |
+| `kv.durability` | `sync` | `sync` · `group` · `async` (ver *Política de durabilidad*). |
+| `kv.mvstore.name` | `xybox` | Nombre del map dentro del archivo MVStore. |
+| `kv.dynamodb.table` | `onmind-xdb` | Tabla DynamoDB (partition key string `Key`). |
+| `kv.dynamodb.region` | `us-east-1` | Región AWS. |
+| `kv.dynamodb.autocreate` | `-` | Crea la tabla si falta. |
+| `kv.dynamodb.conditional` | `-` | Escritura optimista "newest wins" (atributo `Version`). |
+| `kv.cosmosdb.endpoint` · `key` · `database` · `container` | — | Conexión Azure Cosmos DB. |
+
+### Archivos, MCP y gRPC
+
+| Parámetro | Default | Descripción |
+|-----------|---------|-------------|
+| `file.enabled` | `-` | Activa la API `/file` y la UI de archivos. |
+| `s3.endpoint` · `s3.region` · `s3.bucket` · `s3.access_key` · `s3.secret_key` | — | Backend S3-compatible para blobs. |
+| `mcp.enabled` | `-` | Expone `/mcp` y `/mcp/chat`. |
+| `mcp.write` | `-` | Habilita las tools de escritura de esquema. |
+| `mcp.stdio` | `-` | Transporte stdio (`--mcp`). |
+| `mcp.llm` | `-` | `ollama` para el planner LLM del Dashboard. |
+| `grpc.enabled` | `-` | Expone el servicio gRPC. |
+| `grpc.port` | `9991` | Puerto gRPC dedicado (independiente del HTTP). |
+
+---
+
 ## Perfiles de Build (full / lite)
 
 OnMind-XDB se compila en dos perfiles controlados por la propiedad `buildProfile` de Gradle. La diferencia es qué dependencias opcionales se incluyen en el artefacto.
@@ -1412,8 +1459,8 @@ OnMind-XDB se compila en dos perfiles controlados por la propiedad `buildProfile
 | **full** (default) | `./gradlew shadowJar` | H2, MVStore, RocksDB, DynamoDB, CosmosDB, gRPC/Netty |
 | **lite** | `./gradlew shadowJar -PbuildProfile=lite` | H2, MVStore solamente |
 
-- **full**: perfil por defecto; incluye todos los backends de persistencia cloud y transporte gRPC.
-- **lite**: pensado para GraalVM native image y despliegues ligeros; excluye gRPC/Netty, DynamoDB, Azure Cosmos y RocksDB (JAR fat ~84 MB frente a los ~201 MB del perfil **full**).
+- **full**: perfil por defecto, incluye todos los backends de persistencia cloud y transporte gRPC.
+- **lite**: pensado para GraalVM native image y despliegues ligeros, excluye gRPC/Netty, DynamoDB, Azure Cosmos y RocksDB (JAR fat ~84 MB frente a los ~201 MB del perfil **full**).
 
 ### Código exclusivo de full (`src/full/kotlin`)
 
@@ -1512,26 +1559,13 @@ Stdio (`--mcp`): transporte recomendado para Claude Desktop, Cursor, etc.
 
 ### Arquitectura MCP en XDB
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  Dashboard Chat (UI)                                        │
-│    ├─ modo "rules"  → regex → AbcMcpTools → ABC /abc        │
-│    └─ modo "llm"    → AbcMcpLlm (Ollama) → AbcMcpTools      │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│  MCP Server (/mcp) — JSON-RPC 2.0                           │
-│    tools/list  →  [abc_status, abc_list, abc_find, ...]     │
-│    tools/call  →  ejecuta AbcMcpTools → AbcAPI              │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-                    ┌─────────────────┐
-                    │  Agentes MCP    │  ← Traen su propio LLM
-                    │ (Claude, Cursor,│
-                    │  Grok, etc.)    │
-                    └─────────────────┘
+```mermaid
+flowchart TB
+    Chat["Dashboard Chat (UI)<br/>modo rules — regex<br/>modo llm — AbcMcpLlm (Ollama)"] --> Tools["AbcMcpTools"]
+    Tools --> ABC["ABC / AbcAPI"]
+
+    Agents["Agentes MCP<br/>Claude · Cursor · Grok<br/>traen su propio LLM"] --> MCP["MCP Server /mcp<br/>JSON-RPC 2.0<br/>tools/list · tools/call"]
+    MCP --> Tools
 ```
 
 **Puntos clave:**
@@ -1541,23 +1575,6 @@ Stdio (`--mcp`): transporte recomendado para Claude Desktop, Cursor, etc.
   1. **Rules planner** (regex, sin LLM) — fallback, comandos básicos
   2. **LLM planner** (Ollama: OmniCoder, etc.) — lenguaje natural completo
 
-<!--
-### Planner "rules" — Tabla de patrones (fallback sin LLM)
-
-El *rules planner* cubre comandos básicos mediante regex. Orden = prioridad (primera coincidencia gana).
-
-| Intención | Patrones (regex resumido) | Tool invocada | Argumentos |
-|-----------|---------------------------|---------------|------------|
-| **status** | `^(status\|estado\|version\|ping\|que tal\|como estas\|hello\|hola)\b` | `abc_status` | `{}` |
-| **list sheets** | `^(list\|listar\|sheets\|hojas\|collections\|dame\|muestra\|muestrame\|puedes)\b.*(list\|sheet\|hoj\|collection\|tabla\|coleccion)` | `abc_list` | `{scheme?}` |
-| **list (palabra sola)** | `^(list\|sheets\|hojas\|collections\|listar)\b` | `abc_list` | `{}` |
-| **describe X** | `^(describe\|describir\|desc\|que es\|que hay\|informacion de\|que contiene)\s+(\w+)` | `abc_describe` | `{some: X}` |
-| **find X [where F] [size N]** | `^(find\|buscar\|query\|consultar\|buscar en\|dame los\|muestra los\|muestrame los)\s+(\w+)(?:\s+(where\|con\|with\|donde\|filtro)\s+(.+?))?(?:\s+size\s+(\d+))?` | `abc_find` | `{some: X, with?: F, size?: N}` |
-| **create sheet X [title "T"]** | `^(create\|crear\|crea\|nueva?)\s+(sheet\|hoja\|tabla\|coleccion)?\s*(\w+)(?:\s+title\s+"(.+?)")?` | `abc_create` | `{some: X, title?: T}` |
-| **define X spec S** | `^(define\|definir)\s+(\w+)\s+(?:spec\s+)?(.+)` | `abc_define` | `{some: X, spec: S}` |
-| **schema X [title "T"] [spec S]** | `^(schema\|esquema)\s+(\w+)(?:\s+title\s+"(.+?)")?(?:\s+spec\s+(.+))?` | `abc_schema` | `{some: X, title?: T, spec?: S}` |
-| **explain ACTION ...** | `^(explain\|explicar\|como\|how\s+to\|show\s+(?:query\|body))\s+(find\|list\|describe\|create\|define\|schema)\b(.*)$` | `abc_explain` | `{action, some?, with?, size?, title?, spec?, with?}` |
--->
 > **Nota:** El comando `/tool abc_* {...}` salta el planner y llama a la tool directamente (uso power-user / agentes).
 
 ### LLM Planner (opcional)
@@ -1635,15 +1652,15 @@ java -jar onmind-xdb-1.0.0-full.jar --grpc
 | `Execute(AbcRequest) → AbcResponse` | `POST /abc` | Todas las operaciones CRUD/esquema/auth (`find`, `insert`, `update`, `delete`, `create`, `drop`, `define`, `list`, `signin`, `whoami`…) |
 | `Status(StatusRequest) → StatusResponse` | `GET /abc` | Estado del servicio (versión, driver, puerto gRPC, embedded) |
 
-`AbcRequest` es el espejo campo-a-campo de `AbcBody`; `AbcResponse` es el espejo de `AbcBack` y lleva las filas en `data_json` (JSON string) porque las columnas de XDB son dinámicas.
+`AbcRequest` es el espejo campo-a-campo de `AbcBody`, `AbcResponse` es el espejo de `AbcBack` y lleva las filas en `data_json` (JSON string) porque las columnas de XDB son dinámicas.
 
 ### Decisión de implementación
 
 - **Netty**: el servidor gRPC usa el transport Netty (`grpc-netty-shaded`), para no interferir con Jetty del HTTP.
 - **Distinto puerto**: `grpc.port` (por defecto 9991), ajeno al Jetty 9990.
-- **Opcional**: deshabilitado por defecto (`grpc.enabled = -`); activarlo se loguea en consola.
+- **Opcional**: deshabilitado por defecto (`grpc.enabled = -`), activarlo se loguea en consola.
 - **Core reutilizado**: `AbcAPI` expone ahora `dispatch(AbcBody, authUser)`, el despachador compartido que usan `/abc`, MCP y gRPC.
-- **Native image**: gRPC (Netty) añade dependencias pesadas con config de reflection; el build GraalVM debería deshabilitar el flag. El camino recomendado es JVM/fat JAR.
+- **Native image**: gRPC (Netty) añade dependencias pesadas con config de reflection, el build GraalVM debería deshabilitar el flag. El camino recomendado es JVM/fat JAR.
 
 ### Ejemplo de cliente (grpcurl)
 
@@ -1656,7 +1673,7 @@ grpcurl -plaintext -d '{"what":"list","with":"SHEET","user":"admin"}' \
   localhost:9991 onmind.xdb.abc.AbcService/Execute
 ```
 
-El `.proto` fuente vive en `src/main/proto/abc.proto`; los artefactos generados se compilan con el plugin `com.google.protobuf` + `protoc-gen-grpc-java` y quedan incluidos en el shadow JAR.
+El `.proto` fuente vive en `src/main/proto/abc.proto`, los artefactos generados se compilan con el plugin `com.google.protobuf` + `protoc-gen-grpc-java` y quedan incluidos en el shadow JAR.
 
 ---
 

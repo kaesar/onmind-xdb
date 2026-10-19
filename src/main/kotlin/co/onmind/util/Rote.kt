@@ -12,6 +12,14 @@ import java.time.Duration
 import java.util.*
 import onmindxdb
 
+/**
+ * Write-durability policy for the KV backend, selected with `kv.durability`:
+ * - [SYNC]  – ack after a per-write commit (default; eXpress behaviour).
+ * - [GROUP] – coalesce concurrent writes into a single commit; still durable.
+ * - [ASYNC] – ack before the commit (write-behind; RPO > 0).
+ */
+enum class Durability { SYNC, GROUP, ASYNC }
+
 object Rote {
     val os: String = System.getProperty("os.name")
     var home: String = System.getProperty("user.home")
@@ -65,6 +73,22 @@ object Rote {
         return when (raw) {
             "+", "true", "yes", "on", "1" -> true
             "-", "false", "no", "off", "0" -> false
+            else -> default
+        }
+    }
+
+    /**
+     * Reads the `kv.durability` write policy: `sync` (default), `group` or `async`.
+     * Tolerates case, spaces and a trailing inline `# comment`, plus a few
+     * spellings; a missing or unknown value falls back to [default] (SYNC), so the
+     * behaviour never changes by accident.
+     */
+    fun durabilityProp(config: Properties, key: String, default: Durability = Durability.SYNC): Durability {
+        val raw = config.getProperty(key)?.substringBefore('#')?.trim()?.lowercase() ?: return default
+        return when (raw) {
+            "sync", "sincrono" -> Durability.SYNC
+            "group", "grupo", "group-commit", "group_commit" -> Durability.GROUP
+            "async", "asincrono" -> Durability.ASYNC
             else -> default
         }
     }
@@ -219,6 +243,10 @@ object Rote {
 
                             # Persistence parameters
                             kv.store = mvstore
+                            # kv.durability: sync (default) | group | async
+                            #   group = agrupa commits concurrentes (durable, menos I/O)
+                            #   async = responde antes del commit (write-behind, RPO > 0)
+                            kv.durability = sync
                             kv.mvstore.name = xybox
                             kv.dynamodb.table = onmind-xdb
                             kv.dynamodb.region = us-east-1

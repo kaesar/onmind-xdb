@@ -6,6 +6,9 @@ import org.h2.mvstore.MVStore
 
 class MVStorePlug: KVStore {
 
+    /** MVMap buffers in memory; `commit()` flushes the file, so it can be amortized. */
+    override val supportsGroupCommit: Boolean = true
+
     private var mvStore: MVStore? = null
     private var mvMap: MVMap<String, String>? = null
 

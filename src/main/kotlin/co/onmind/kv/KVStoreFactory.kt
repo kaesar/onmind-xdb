@@ -2,12 +2,33 @@ package co.onmind.kv
 
 import co.onmind.trait.KVStore
 import co.onmind.kv.MVStorePlug
+import co.onmind.util.Durability
 import co.onmind.util.Rote
 import java.util.*
 
 object KVStoreFactory {
 
     fun createStore(config: Properties): KVStore {
+        val store = createBackend(config)
+        return applyDurability(store, config)
+    }
+
+    /**
+     * Applies `kv.durability` (`sync` shape by default). `group`/`async` are only
+     * honoured for backends that advertise [KVStore.supportsGroupCommit]; anything
+     * else keeps the `sync` path, so the default behaviour is never altered.
+     */
+    private fun applyDurability(store: KVStore, config: Properties): KVStore {
+        val mode = Rote.durabilityProp(config, "kv.durability")
+        if (mode == Durability.SYNC) return store
+        if (!store.supportsGroupCommit) {
+            println("[WARN] kv.durability=$mode ignored: ${store.javaClass.simpleName} does not support group-commit (using sync)")
+            return store
+        }
+        return GroupCommitStore(store, mode)
+    }
+
+    private fun createBackend(config: Properties): KVStore {
         val storeType = config.getProperty("kv.store", "mvstore").lowercase()
 
         return when (storeType) {
@@ -71,3 +92,4 @@ object KVStoreFactory {
         }
     }
 }
+
